@@ -140,7 +140,7 @@ Every design decision, with its reason and what was rejected, is in
 - It is not for one answer. A board for one paragraph is costume.
 - It is tested in Chromium, Firefox and WebKit on a desktop. Safari itself
   and a phone in a hand are not verified yet.
-- It runs no service. A published board is a static page; a reader copies
+- It has no hosted service. A published board is a static page; a reader copies
   the reply and sends it to you.
 
 The full list is [`docs/STATUS.md`](docs/STATUS.md). What comes next is a

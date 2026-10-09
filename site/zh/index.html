@@ -7,10 +7,10 @@
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="{{BG}}">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="{{BG_NIGHT}}">
 <title>{{NAME}} · Agent 用卡片回答，你逐张判断</title>
-<meta name="description" content="给 Claude Code 这类编程 Agent 用的技能。Agent 把回答摆成看板，一张卡片只说一个结论，最多提一个问题。你逐张判断，一次回复。">
+<meta name="description" content="给 Claude Code 这类编程 Agent 用的技能。Agent 把回答摆成看板，一张卡片只说一个结论，最多带一个提问。你逐张判断，一次回复。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="{{NAME}} · Agent 用卡片回答，你逐张判断">
-<meta property="og:description" content="一张卡片只说一个结论，最多提一个问题。你逐张判断，一次回复。写的是 Org mode 纯文本，出来的是一个 HTML 文件。">
+<meta property="og:description" content="一张卡片只说一个结论，最多带一个提问。你逐张判断，一次回复。写的是 Org mode 纯文本，出来的是一个 HTML 文件。">
 <meta property="og:url" content="{{URL}}zh/">
 <meta property="og:image" content="{{URL}}shots/og.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -59,21 +59,21 @@ is the product running; pool 7, roll 503b4783.
   <main class="first" id="live">
     <div class="head">
       <h1><span>Agent 用卡片回答，</span><span>你逐张判断。</span></h1>
-      <p class="sub">给 Claude Code 这类编程 Agent 用的技能。Agent 把回答摆成一个看板，<b>一张卡片只说一个结论，最多提一个问题</b>。你的回复按卡片逐行传回去。</p>
+      <p class="sub">给 Claude Code 这类编程 Agent 用的技能。Agent 把回答摆成一个看板，<b>一张卡片只说一个结论，最多带一个提问</b>。回复是结构化数据，一张卡片一行，传回给 Agent。</p>
       <div class="act">
         <a class="btn primary" href="#install">安装</a>
         <a class="btn" href="https://github.com/{{REPO}}">源码</a>
       </div>
     </div>
     <div class="frame">
-      <span class="cap">这是能用的示例。随便答，不会发出，也不会保存。</span>
+      <span class="cap">这个示例可以直接操作。随便答，不会发出，也不会保存。</span>
       <iframe id="sample" title="示例看板：给接入服务选一个消息队列" data-src="../demo-zh/index.html?embed&amp;fresh"></iframe>
       <noscript><a href="../demo-zh/index.html">打开示例看板</a></noscript>
     </div>
     <ol class="steps-try">
-      <li><b>点开提问，标签是“6 选择”。</b>Agent 的建议标着“建议”，你选了才算数。</li>
+      <li><b>点橙色标签“6 选择”，打开提问。</b>Agent 建议的选项标着“建议”，你选了才算数。</li>
       <li><b>选 Kafka，不选建议的那个。</b>卡片 7 是按 NATS 写的，所以会暂缓。</li>
-      <li><b>点“发送”。</b>弹出的文字就是完整的回复，Agent 读到的就是它。</li>
+      <li><b>点“发送”。</b>弹出的就是 Agent 会读到的完整回复。</li>
     </ol>
   </main>
 </div>
@@ -106,17 +106,17 @@ NATS 两条需求都满足。
       </article>
       <article class="card">
         <span class="n">2</span>
-        <h3>你在一个页面里判断</h3>
-        <p>页面第一行写着轮到谁。等你处理的卡片上立着橙色标签。每张卡片都能标保留、舍弃、细说，也能写回复。</p>
+        <h3>你在一个页面上逐张判断</h3>
+        <p>页面第一行写着轮到谁。等你处理的卡片带橙色标签。每张卡片都能标保留、舍弃、细说，也能写回复。</p>
 <pre><code><span class="sig"> 选择 </span>  选一项
-<span class="sig"> 批准 </span>  可以做，还是不行
+<span class="sig"> 批准 </span>  行，还是不行
 <span class="sig"> 回答 </span>  用你自己的话
 <span class="sig"> 去办 </span>  只有你能办的事</code></pre>
       </article>
       <article class="card">
         <span class="n">3</span>
         <h3>Agent 读你的回复</h3>
-        <p>一次发一批，一张卡片一行。你没碰的提问会写明没有回答，不会被当成同意。这段文字给 Agent 读，固定用英文。</p>
+        <p>一次发一批，一张卡片一行。你没碰的提问会如实写成未处理，不算同意。回复给 Agent 读，固定用英文。</p>
 <pre><code>{{REPLY}}</code></pre>
       </article>
     </div>
@@ -128,15 +128,15 @@ NATS 两条需求都满足。
       <div class="say">
         <h3>卡片改了会标出来，旧的说法也留着</h3>
         <p>Agent 改的是卡片，不是把回答重写一遍。卡片编号不变，版本加一，之前的版本划掉留在下面。你对旧版本的回答会被标出来，不会直接沿用。</p>
-        <p class="where">这个项目设计评审看板的卡片 25，已经是第 3 版。看板是英文的。</p>
+        <p class="where">本项目设计评审看板里的卡片 25，已经改到 v3。看板是英文的。</p>
       </div>
       <figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/changed-dark.png"><img src="../shots/changed-light.png" width="1320" height="900" alt="一张标着 v3 的卡片，下面是两个划掉的旧版本" loading="lazy"></picture></figure>
     </div>
     <div class="shown flip">
       <div class="say">
-        <h3>卡片能把它说的东西画出来</h3>
-        <p>Agent 只写谁通向谁，方框和箭头由页面来画。截图和一段代码也这样放进卡片，都在同一个 HTML 文件里。</p>
-        <p class="where">同一个看板的卡片 11：回复回到 Agent 的两条路。</p>
+        <h3>卡片能把说的事画成图</h3>
+        <p>Agent 只写谁指向谁，方框和箭头由页面来画。截图和文件里的二十行也这样放进卡片，全在同一个 HTML 文件里。</p>
+        <p class="where">同一个看板的卡片 11：回复传回 Agent 的两条路。</p>
       </div>
       <figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/figure-dark.png"><img src="../shots/figure-light.png" width="1320" height="900" alt="一张带流程图的卡片：发送之后走服务器或者走文件，两条路都通到 Agent" loading="lazy"></picture></figure>
     </div>
@@ -144,12 +144,12 @@ NATS 两条需求都满足。
 
   <section class="shelf far" id="showcase">
     <div class="shelf-head"><h2>可以打开的看板</h2><span class="count">4</span></div>
-    <p class="shelf-note">两个是这个项目自己在用的看板，两个是示例，中英文各一个。在哪一个上面点“发送”，都只显示回复，不会发出去。</p>
+    <p class="shelf-note">两个是示例，中英文各一个；两个是这个项目自己在用的看板。在哪个看板上点“发送”，都只显示回复，不会发出去。</p>
     <div class="tiles">
       <a class="tile" href="../demo-zh/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-zh-dark.png"><img src="../shots/demo-zh-light.png" width="1520" height="950" alt="三个选项并排，各项数据逐行对齐" loading="lazy"></picture><figcaption><b>一个决定，选项并排着比</b><span>示例的阅读视图：三个队列，各项数据逐行对齐。页面自带中文字体。</span><span class="meta">{{CARDS}} 张卡片 · 2 个提问 · 示例，数字是编的</span></figcaption></figure></a>
       <a class="tile" href="../demo/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-dark.png"><img src="../shots/demo-light.png" width="1520" height="950" alt="同一个示例的英文版" loading="lazy"></picture><figcaption><b>同一个示例，英文版</b><span>按钮跟着看板的语言走，两个页面互相链接。</span><span class="meta">{{CARDS}} 张卡片 · 2 个提问 · 示例</span></figcaption></figure></a>
       <a class="tile" href="../design-review/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/design-review-dark.png"><img src="../shots/design-review-light.png" width="1520" height="950" alt="卡片按列摆在桌面上，有依赖关系的卡片之间连着线" loading="lazy"></picture><figcaption><b>这个项目是怎么设计出来的</b><span>三轮评审，一张卡片一张卡片地过。</span><span class="meta">27 张卡片 · 12 次修订 · 真实看板，英文</span></figcaption></figure></a>
-      <a class="tile" href="../roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/roadmap-dark.png"><img src="../shots/roadmap-light.png" width="1520" height="950" alt="一张卡片展示 Org 源码：一个结论，连同能证明它的命令" loading="lazy"></picture><figcaption><b>接下来做什么</b><span>11 个方向，每一个都是 Org mode 已经有语法的功能。</span><span class="meta">16 张卡片 · 1 个提问待答 · 真实看板，英文</span></figcaption></figure></a>
+      <a class="tile" href="../roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/roadmap-dark.png"><img src="../shots/roadmap-light.png" width="1520" height="950" alt="一张显示 Org 源码的卡片：一个结论，带着验证它的命令" loading="lazy"></picture><figcaption><b>接下来做什么</b><span>11 个方向，每一个 Org mode 都已有现成的语法。</span><span class="meta">16 张卡片 · 1 个提问待处理 · 真实看板，英文</span></figcaption></figure></a>
     </div>
   </section>
 
@@ -167,10 +167,10 @@ node skill/bin/cards.mjs render design-review
 node skill/bin/cards.mjs serve</code></pre>
       </div>
       <div>
-        <p><b>然后让它做一件要你拿主意的事。</b></p>
+        <p><b>然后让 Agent 做一件要你拿主意的事。</b></p>
         <blockquote>比较三个消息队列，给接入服务用，让我来选。用卡片回答。</blockquote>
         <p>技能里写了什么时候值得用看板，什么时候直接说更好。多数回答还是该用文字。</p>
-        <p>需要 Node 18 或更新的版本，没有其他依赖。复制的那一份不会自己更新，拉取新版本后再复制一次。<code>cards --version</code> 能看到当前版本。</p>
+        <p>需要 Node 18 及以上，没有其他依赖。复制的那一份不会自己更新，拉取新版本后再复制一次。<code>cards --version</code> 能看到当前版本。</p>
       </div>
     </div>
   </section>
@@ -178,9 +178,9 @@ node skill/bin/cards.mjs serve</code></pre>
   <section class="shelf" id="limits">
     <div class="shelf-head"><h2>它不做的事</h2></div>
     <ul class="limits">
-      <li><b>不适合只有一个答案的问题。</b>一段话能说清的事，用看板是小题大做。要判断好几件事，要你拿主意，或者要跨好几轮的工作，才用它。</li>
-      <li><b>没有在真手机上验证过。</b>测试在桌面的 Chromium、Firefox 和 WebKit 里跑。没验证的都列在 <a href="https://github.com/{{REPO}}/blob/main/docs/STATUS.md">STATUS.md</a>。</li>
-      <li><b>不运行任何服务。</b>看板就是你磁盘上的一个文件。发布出去的看板是静态页面，读的人把回复复制下来发给你。</li>
+      <li><b>一个回答就够的事，用不上它。</b>一段话能说清的事，用看板是小题大做。有好几件事要判断，有只能你来拿的主意，或者工作要跨好几轮，才用它。</li>
+      <li><b>没在手机真机上测过。</b>测试只在电脑上的 Chromium、Firefox 和 WebKit 里跑。没验证的都列在 <a href="https://github.com/{{REPO}}/blob/main/docs/STATUS.md">STATUS.md</a>。</li>
+      <li><b>没有云端服务。</b>看板就是你磁盘上的一个文件。发布出去的看板是静态页面，读的人把回复复制下来发给你。</li>
     </ul>
   </section>
 
@@ -190,11 +190,11 @@ node skill/bin/cards.mjs serve</code></pre>
       <a href="https://github.com/{{REPO}}">GitHub</a>
       <a href="https://github.com/{{REPO}}/blob/main/skill/SKILL.md">SKILL.md</a>
       <a href="https://github.com/{{REPO}}/blob/main/skill/reference/format.md">格式说明</a>
-      <a href="https://github.com/{{REPO}}/blob/main/docs/DECISIONS.md">设计决定</a>
+      <a href="https://github.com/{{REPO}}/blob/main/docs/DECISIONS.md">设计决策</a>
       <a href="../roadmap/index.html">路线图</a>
       <span>{{LICENSE}}</span>
     </div>
-    <p>有两个想法来自别人：Andrej Karpathy 关于让模型输出更容易判断的几条笔记，以及 <a href="https://github.com/QingYunA/answer-me-with-html">answer-me-with-html</a>，它让我们看到技能可以换掉回答的载体。</p>
+    <p>有两个想法是借来的：Andrej Karpathy 的几条笔记，讲怎么让模型输出更容易判断；还有 <a href="https://github.com/QingYunA/answer-me-with-html">answer-me-with-html</a>，它证明技能可以换掉回答的载体。</p>
   </footer>
 </div>
 </body>
