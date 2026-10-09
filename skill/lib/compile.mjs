@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { parseBoard, anatomy } from './board.mjs';
 import { lint } from './lint.mjs';
 import { esc, inline, plain, parseBlocks, renderBlocks, parseFacts } from './md.mjs';
+import { FIGURE_LANGS, renderFigure, WIDE } from './figure.mjs';
 import { sync, fold, readLog } from './store.mjs';
 import '../runtime/digest.js';
 
@@ -22,13 +23,24 @@ function refCtx(byId, nOf) {
   };
 }
 
-function cardView(card, ctx) {
+// Figures are numbered per card, in source order: Fig. 12.1 is the first
+// figure on card 12, so a human can point at it in words.
+function cardView(card, ctx, n = '?') {
   const a = card.anatomy || anatomy(card);
+  let k = 0;
+  const fctx = {
+    ...ctx,
+    figure: (b) => (b.type === 'code' && FIGURE_LANGS.includes(b.lang) ? renderFigure(b, `${n}.${++k}`, ctx).html : null),
+  };
+  const fig = a.figure ? renderFigure(a.figure, `${n}.${++k}`, ctx) : null;
   return {
     title_html: inline(card.title, ctx),
     gist_html: a.gist ? `<p>${inline(a.gist.text, ctx)}</p>` : '',
-    facts: a.facts ? parseFacts(a.facts.text).map(([k, v]) => [k, inline(v, ctx)]) : [],
-    depth_html: renderBlocks(a.depth, ctx),
+    figure_html: fig ? fig.html : '',
+    fig_w: fig ? fig.width : 0,
+    wide: !!fig && fig.width > WIDE,
+    facts: a.facts ? parseFacts(a.facts.text).map(([k2, v]) => [k2, inline(v, ctx)]) : [],
+    depth_html: renderBlocks(a.depth, fctx),
     options: a.options,
   };
 }
@@ -48,7 +60,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
   const ctx = refCtx(byId, nOf);
   const cards = {};
   for (const c of board.cards) {
-    const v = cardView(c, ctx);
+    const v = cardView(c, ctx, nOf(c.id));
     const rec = st.cards.get(c.id);
     const past = rec ? rec.history.slice(0, -1).slice(-HISTORY_KEEP).reverse() : [];
     cards[c.id] = {
@@ -61,6 +73,9 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       title_text: plain(c.title),
       text: plain(`${c.title} ${c.body}`).slice(0, 2000),
       gist_html: v.gist_html,
+      figure_html: v.figure_html,
+      wide: v.wide,
+      fig_w: v.fig_w,
       facts: v.facts,
       depth_html: v.depth_html,
       options: v.options.map((o) => ({

@@ -18,16 +18,21 @@ headings is a scan of the conclusions.
   Approve?, or Answer. The agent's recommendation shows as "Suggested". It
   does not count until you pick it.
 - Every card takes Keep, Drop, More, and a reply. More means "go deeper".
+- A card about a shape shows it: a sketch or a box-and-arrow figure under
+  the gist, numbered like the card ("Fig. 12.1").
 - Click a card to open it. Related cards stay lit and say how they relate
-  ("Source", "Option", "Waits on this"); the rest dims. Nothing is drawn.
+  ("Source of 8", "Option of 17", "Needs 4"); the rest dims.
+- Press `D` for the desk: each section becomes a column, and lines join
+  linked cards. Focus turns a card's lines blue. Nobody places a card; a rule
+  makes the layout. The rack (the default view) is for reading and answering.
 - The toolbar: All / Yours / Changed, then Claim / Gist / Full (how much of
-  each card shows), order, find, and Send.
+  each card shows), Desk, order, find, and Send.
 - Drag a card by its grip to reorder it. The order goes back as your priority.
 - Send. With `cards serve`, the reply is written to disk for the agent. With
   a plain file, Send copies the reply for you to paste.
 
 Keys: `j`/`k` move, `Enter` opens, `n` jumps to the next ask, `1 2 3` set the
-detail, `= - m` mark Keep / Drop / More, `r` replies, `/` finds,
+detail, `d` toggles the desk, `= - m` mark Keep / Drop / More, `r` replies, `/` finds,
 `Ctrl+Enter` sends, `?` lists all.
 
 ## Try it
@@ -75,12 +80,13 @@ agent reads <---- cards wait / cards inbox
 ```
 skill/                the installable skill
   SKILL.md            the policy: when, how, the loop
-  reference/format.md the board.md spec
+  reference/format.md the board.md spec, figures included
+  reference/writing.md the writing profile, near ASD-STE100
   bin/cards.mjs       CLI: new check render show ls serve wait inbox
-  lib/                parser, lint, markdown subset, log, compiler, server
+  lib/                parser, lint, markdown subset, figures, log, compiler, server
   runtime/            the page: board.html, board.css, board.js, digest.js
   templates/          five working boards: decide review plan brief status
-test/                 node --test: kernel + browser end-to-end
+test/                 node --test: kernel, figures, browser end-to-end
 .cards/design-review/ the design proposal, as a board
 docs/STATUS.md        where the work is and what is next
 docs/DECISIONS.md     every design decision, with its reason and alternatives

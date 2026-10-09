@@ -2,7 +2,8 @@
 //
 // Raw HTML never passes through: every character of agent-written text is
 // escaped, and only the constructs below produce markup. Fenced blocks with
-// a known info string become widgets (facts, tradeoffs, diff).
+// a known info string become widgets (facts, tradeoffs, diff). Figures
+// (sketch, flow) are rendered by the caller through ctx.figure; see figure.mjs.
 
 const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 export const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC[c]);
@@ -19,7 +20,9 @@ const TABLE_SEP_RE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 export function fenceOpen(line) {
   const m = String(line).match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
   if (!m || (m[1][0] === '`' && m[2].includes('`'))) return null;
-  return { marker: m[1], lang: (m[2].trim().split(/\s+/)[0] || '').toLowerCase() };
+  const info = m[2].trim();
+  const sp = info.search(/\s/);
+  return { marker: m[1], lang: (sp < 0 ? info : info.slice(0, sp)).toLowerCase(), info: sp < 0 ? '' : info.slice(sp + 1).trim() };
 }
 export function fenceCloses(line, open) {
   const m = String(line).match(/^ {0,3}(`{3,}|~{3,})\s*$/);
@@ -51,7 +54,7 @@ export function parseBlocks(src) {
       i++;
       while (i < lines.length && !fenceCloses(lines[i], fence)) body.push(lines[i++]);
       i++;
-      blocks.push({ type: 'code', lang: fence.lang, text: body.join('\n'), line: start });
+      blocks.push({ type: 'code', lang: fence.lang, info: fence.info, text: body.join('\n'), line: start });
       continue;
     }
     let m = line.match(HEADING_RE);
@@ -249,6 +252,8 @@ function renderBlock(b, ctx) {
     case 'hr': return '<hr>';
     case 'quote': return `<blockquote>${renderBlocks(b.blocks, ctx)}</blockquote>`;
     case 'code': {
+      const fig = ctx.figure && ctx.figure(b);
+      if (fig) return fig;
       const w = WIDGETS[b.lang];
       if (w) return w(b.text, ctx);
       const lang = b.lang ? ` data-lang="${esc(b.lang)}"` : '';

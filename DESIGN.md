@@ -19,13 +19,18 @@ cards wait on the human.
 
 Hand rejected, each kept as a raise:
 - Patent drawing sheets: competitive. Raise: reference numerals as card
-  addresses; one highlight tint for the card under discussion.
+  addresses; one highlight tint for the card under discussion. Since
+  2026-10-09 also figure numbers (Fig. 12.1) and lead lines: on the desk,
+  a line meets a card at its numeral.
 - Munich 1972 pictogram program: declined as a world. Raise: one color per
   role, nothing colored without a role.
 - Bamboo-slip scroll: declined. Raise: a superseded version is struck
   through, not deleted.
 
 The promise is the first comment in `skill/runtime/board.html`.
+
+The desk view (D) is the same cards taken off the rack and laid on a
+table: the steel world's work surface. It adds no color and no new device.
 
 Scene: a developer at a desk mid-session, a terminal on one half of the
 screen and the board on the other, in daylight or late at night.
@@ -58,6 +63,8 @@ uses tokens only.
 | Density | Gist (default): claim + gist + facts + ask. Claim: a ruled ledger, one row per card, about 25 per viewport. Full: everything | never delete information to breathe |
 | Motion | 140ms ease-out for focus and dimming; a 1.2s fade-out ring on live-changed cards; nothing else moves | reduced motion removes all of it |
 | Icons | two: grip and search, 1.5px stroke, inline SVG | text labels everywhere else |
+| Figures | a drawing panel on the card: 1px `--line` frame, `--r-in`, 12px mono; a sketch in `--fg`; flow boxes stroked `--fg-3` (bold box `--fg` 2px), arrows `--fg-3`, labels `--fg-2` with a card-stock halo; caption "Fig. n.k" in 12px | the card's one ink; no color in a figure, so the role colors keep their meaning |
+| Desk | `--desk-col` 288px columns (wider to fit a figure, up to 560px), `--desk-gutter` 96px; a 24px dot grid in `--line-strong`; lines 1.25px `--fg-3`, 1.75px `--fg` under the pointer, 2px `--accent` in focus; mentions dotted | one column per section; lines run under the cards and cross a column only in a gap |
 | zh mode | `lang:` in frontmatter sets `<html lang>`; leading rises; no embedded CJK face yet | see WARN below |
 
 ## Signature moves and device ration
@@ -67,7 +74,9 @@ you and repeated as the andon rail under the title, one jump per open ask;
 an answered tab turns to a blue outline in the past tense (Chosen, Approved);
 2. the andon line, which states whose turn it is; 3. focus light, which
 names each relation on the related card with the focused card's numeral
-("Source of 8") and dims the rest. These and no others.
+("Source of 8") and dims the rest; on the desk it also turns that card's
+lines blue. These and no others. Figures and the desk are material, not
+signatures: they use the card's ink and the existing focus grammar.
 
 Marks (Keep, Drop, More, Reply, and the drag grip) sit in an overlay on the
 card's address line and appear with the card under the pointer or focus; on
@@ -88,10 +97,10 @@ on a compiled `board.html`: the compiled file inlines the token file, so every
 token reads as a raw color there.
 
 `kit/render-check.mjs` on a rendered board: 0 FAIL. WARNs, with reasons:
-- `target` at 390px: segment buttons (30px) and the keys button (34px).
-  `@media (pointer: coarse)` raises every target to 44px; render-check
-  emulates a narrow viewport, not a touch pointer. Captures with touch
-  emulated (`scripts/shoot.mjs --touch`) show the 44px targets.
+- `target` at 390px: the "All" filter button (40x30). render-check emulates
+  a narrow viewport, not a touch pointer. Under `@media (pointer: coarse)`
+  every target is at least 44x44 (segment buttons get `min-width: 44px`).
+  Captures with touch emulated (`scripts/shoot.mjs --touch`) show it.
 - `ration`: three radii (6, 4, 3). The 4px radius is the concentric inner
   corner of a 6px control with 2px padding; 3px is for marks smaller than
   text. One language, derived.

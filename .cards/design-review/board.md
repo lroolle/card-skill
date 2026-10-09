@@ -1,136 +1,372 @@
 ---
-title: card-skill, the design, for your decision
+title: card-skill design, five decisions for you
 ---
 
-This board is the card-skill proposal, rendered by card-skill. Read the claims. Open a card for the reasons. Answer the flagged asks, then send. Sources are in `docs/research/` and `vault/`.
+This board shows the card-skill design. Each part ends with a decision for you. Select **Desk** in the toolbar, or press **D**, to see the cards laid out with lines between them. Sources are in `docs/research/` and `vault/`.
 
-# The idea
+# Links: what the old proposal missed
 
-## A card is the smallest unit you can judge and point at {#unit-of-judgment basis=inference}
-Agents now produce more than people can read. The human job is to judge the output. You can only judge a wall of prose as a whole. You can keep, drop, answer or question a card on its own.
+## The old proposal hid every line, so you could not see the structure {#rethink-lines basis=inference}
+We rejected a canvas for one reason: a person remembers a layout only when they place the cards. Here the agent places the cards. That reason is about memory, not about structure. With no lines, you see the links of one card at a time.
 
-Karpathy names the job: "a lot more of our work will rise up the abstractions into oversight and understanding" (`vault/sources/x/karpathy-2026-10-02-understand-outputs.md`). In 2025 he said that generation got cheap and discrimination did not (`karpathy-2025-06-04-verification-gap.md`). In May 2026 he asked to "point and gesture at the screen" (`karpathy-2026-05-11-html-mind-meld.md`). A card is the unit you point at. Its numeral lets you point in words too: "card 12 is wrong".
-
-## Each card asks for at most one thing, and the board shows whose turn it is {#one-ask basis=inference from=unit-of-judgment}
-A card is either something to read or one of three asks: choose, approve, answer. The top line counts what waits on you, so you never search for the questions.
-
-The turn line has five states: your turn, ready to send, the agent's turn, agent working, nothing waiting. This removes the human as the wait state: the agent batches its questions, and you answer them in one pass.
-
-## Cards are earned; most agent replies stay prose {#cards-earned basis=inference}
-Use a board for several separate judgments, for a decision only the human can make, or for work that spans turns. One explanation is a paragraph or a page, not a board.
-
-The skill states the trigger as a rule and a counter-rule. answer-me-with-html says "use it proactively and liberally"; we do not (`docs/research/answer-me-with-html.md`). The lint warns at more than five open asks: decide more yourself, and ask only what only the human knows.
-
-# Primitives
-
-## Five primitives carry the whole system {#five-primitives basis=fact}
-Board, section, card, link, response. A revision is not a primitive: the compiler derives revisions on every render.
-
-```facts
-board: one board.md, one log, one page
-section: an ordered group: grid, compare or list
-card: claim, gist, depth; at most one ask
-link: `from=`, `needs=`, `[[id]]` in the text
-response: keep, drop, more, choose, approve, answer, reply, order, note
+```sketch Rack, card 6 in focus: you see the links of card 6 only
+┌─ 5 ────────────┐  ┌─ 6 ────────────┐  ┌─ 7 ────────────┐
+│ (dimmed)       │  │ IN FOCUS       │  │ Source of 6    │
+│                │  │ Sources: 7     │  │                │
+└────────────────┘  └────────────────┘  └────────────────┘
+┌─ 8 ────────────┐  ┌─ 9 ────────────┐  ┌─ 10 ───────────┐
+│ (dimmed)       │  │ Decides 6      │  │ (dimmed)       │
+│ links to 5 and │  │                │  │ needs 8        │
+│ 10: not shown  │  │                │  │ not shown      │
+└────────────────┘  └────────────────┘  └────────────────┘
 ```
 
-The format is in `skill/reference/format.md`. For comparison, Adaptive Cards has 21 element types and A2UI's basic catalog has 18 components (`docs/research/agent-ui-protocols.md`).
+| The reason we gave | What it missed |
+|---|---|
+| A canvas helps only when the human places the cards. | A canvas also shows the structure. A layout by rule gives that, and nobody places a card. |
+| Lines tangle past about 30 cards. | A board has 30 cards at most, and `cards check` warns past that. Only three link types draw lines. |
+| Builders of canvases report "paper cuts" and mess. | Those canvases had free placement. A layout by rule has no placement to keep tidy. |
+| An AI re-layout breaks your memory of the layout. | A layout by rule changes only when the board changes. Changed cards show "Changed". |
+| Focus light still works at 200 cards. | Focus shows one card at a time. Our research named that cost: "there is no overview" (model C in `docs/research/connected-cards-prior-art.md`). |
 
-## The heading is the claim, the first paragraph is the gist, the rest is depth {#altitude basis=inference}
-Zoom changes altitude, not pixels: Claim, Gist, Full. The writing convention alone gives three levels, with no extra fields. More is the direct control for an answer at the wrong altitude.
+## Luhmann never moved a card: he took cards out to use them and put each one back {#luhmann basis=fact}
+Each card had a fixed address, because finding a card depended on it. A card in the wrong place got a link, not a new place. He took a card out to use it and put it back in the same place. We found no source that he spread cards on a desk to write.
 
-The wrong-altitude failure is the sharpest complaint in the vault: an interactive page can still "explain at the wrong level of abstraction" (@eliebakouch, in `karpathy-2026-10-02-understand-outputs.md`). At Claim altitude a board reads as a list of conclusions. That is the scan.
-
-## Meaning decides looks; the agent has no style controls {#no-knobs basis=inference}
-The agent says what a card is: its ask, status and basis. The renderer decides how it looks. Every board looks like every other board, so people learn it once.
-
-A2UI removed `theme` from its protocol "to separate layout from branding". An HN practitioner: "Generative UI is incompatible with learning" (`docs/research/agent-ui-protocols.md`). open-design says it plainly: "agent/plugin output is data; OD owns the renderer" (`docs/research/open-design.md`).
-
-# Connected cards
-
-## No canvas and no drawn edges: position, address and light {#no-canvas basis=inference}
-Sections give reading order. Numerals give addresses. Focus lights the related cards, names each relation, and dims the rest. Nothing is drawn, so nothing tangles at 30 or 200 cards.
-
-The prior-art study found that a canvas helps when the human places the cards, because the placing is what people remember. Here the agent places them, so a canvas would bring the cost without the benefit. Builders' verdicts include "bleeds to death from a whole bunch of paper cuts" and "descended into messy chaos no matter what you did" (`docs/research/connected-cards-prior-art.md`). Luhmann's Zettelkasten linked its cards by address and placement, not by lines.
-
-## Two links carry lineage and dependency; mentions carry the rest {#links basis=inference from=no-canvas}
-`from=` says this card exists because of that one. `needs=` says this card waits on that one. `[[id]]` mentions anything. Focus names each link on the related card, with the focused card's numeral: "Source of 8", "Blocks 8", "Mentions 8".
-
-One vocabulary serves both views: the label on a lit card and the list on the focused card. When two cards connect in more than one way, the most specific name wins: a decision card that lists an option says "Decides 3", not "Follow-up of 3".
-
-## Same question, revise the card; new question, new card {#revise-or-new basis=inference}
-This rule tells the agent when to update and when to add. A revision keeps the numeral and puts the old version behind it. A new card links back with `from=`.
-
-Slack Block Kit has the same rule: the same `block_id` keeps the user's input, and a new id resets it (`docs/research/agent-ui-protocols.md`). The compiler records versions itself, so the agent cannot forget history.
-
-# The loop
-
-## The agent writes board.md; the compiler owns the rest {#files-over-app basis=fact}
-The source, the memory and the view are separate files. History survives because the compiler diffs board.md against the log on every render.
-
-```facts
-board.md: the agent's intent, readable in any editor
-log.jsonl: append-only: card versions, sends, reads
-board.html: compiled, self-contained, discardable
+```sketch The box keeps each card at its address; work uses a few cards
+ THE BOX: one fixed address for each card
+ ┌───────┬────────┬─────────┬───────┐
+ │ 57/12 │ 57/12a │ 57/12a1 │ 57/13 │  ...  21/3d
+ └───────┴─┬────▲─┴─────────┴───────┘
+           │    │
+  take out │    │ put back, same place
+           ▼    │
+ THE WORK: a few cards at a time
+ ┌────────┐  ┌───────┐
+ │ 57/12a │  │ 21/3d │   far link on 57/12a: "21/3d"
+ └────────┘  └───────┘
 ```
 
-This follows Karpathy's file-over-app rule: memory that is "explicit, local, files" (`vault/sources/x/karpathy-2026-04-04-file-over-app.md`).
+```facts
+cards: about 90,000, in two collections
+address: fixed; 57/12 goes on as 57/13 or branches as 57/12a
+wrong place: fixed by a link, never by a move
+far links: about 50,000, written by hand on the cards
+way in: a short index, 1 to 4 cards for each keyword
+```
 
-## Replies reach the agent as files, not as copy-paste {#return-channel basis=fact}
-With `cards serve`, Send writes a round to `log.jsonl`, and `cards wait` wakes the agent. Without a server, Send copies the same text for you to paste. An untouched ask is reported as untouched, never as consent.
+What this means for the board:
 
-The end-to-end test runs this loop in a real browser: choose, mark, reply, send, undo, send, read, revise, live update (`test/e2e.test.mjs`). The server binds to loopback only, requires a per-run token and this server's Origin on every write, allows only its own Host names, takes board ids as slugs and never as paths, and checks every reply item by kind. A code review found three holes in the first version; each one now has a regression test (`test/review.test.mjs`).
+- The rack is the box. Each card keeps one numeral and one place in board.md.
+- The desk is the work. It shows the same cards and moves none of them in board.md.
+- His far links are our `from=`, `needs=` and `[[id]]`. He walked them by hand. The desk draws them.
+- His editors drew an arc diagram of the links in one drawer to see where links are dense. The arcs in a desk column are the same kind of drawing.
 
-## Every render also prints a text outline to the terminal {#outline-fallback basis=fact}
-The terminal gets the board as text, so a turn is useful even if nobody opens the page.
+The picture of Luhmann with cards spread across a desk is not in the sources we read. The closest source is his 1968 rule: "take it out when you use it, and put it back in exactly the same place". A 1987 interview, through Johannes Schmidt, calls his writing for one talk "a kind of collaging technique". So the desk is our design, not his method. The 1987 interview itself is unread. Sources and quotes are in `docs/research/luhmann-zettelkasten.md`.
 
-# Design language
+# Links: three ways to show them {compare #link-options}
 
-## Kanban signal cards on a steel rack {#signal-cards basis=inference}
-Card stock on cool steel, in one ink. A yellow-red tab stands up only where the agent waits on you; the same tabs line up under the title as the andon rail. Blue marks only your own acts and focus. Two colors, one meaning each.
+## Rack only: focus names the links, and no lines show {#opt-rack}
+This is the old proposal. Sections give the order and numerals give addresses. Focus lights the related cards and names each link.
 
-An answered tab turns to a blue outline that says what you did: Chosen, Approved, Answered.
+```sketch Rack only, card 7 in focus: 4 and 5 name their link, 1 and 2 do not
+┌───────────┐ ┌───────────┐ ┌───────────┐
+│ 1         │ │ 2         │ │ 4         │
+│ (dimmed)  │ │ (dimmed)  │ │ Option    │
+│           │ │           │ │ of 7      │
+└───────────┘ └───────────┘ └───────────┘
+┌───────────┐ ┌───────────┐
+│ 5         │ │ 7  FOCUS  │
+│ Option    │ │ Options:  │
+│ of 7      │ │ 4, 5      │
+└───────────┘ └───────────┘
+```
 
-The design roll (`f3a39d30`, pool of 7) assigned the Toyota kanban world. Three challengers each added one rule: reference numerals and a single highlight tint from patent drawings; one color per role from the Munich 1972 pictogram program; a struck line for a superseded version from bamboo-slip manuscripts. The colors come from the JIS Z 9103 safety colors used on factory floors. The full record is in `DESIGN.md`.
+```facts
+lines: none
+layout: sections, in board order
+you see links: one card at a time
+your cost: focus each card
+agent cost: none
+built: yes
+```
 
-# What the research changed
+## Rack to read, desk to see the links {#opt-desk from=luhmann}
+Two views of one board. You read and answer on the rack. The desk puts each section in a column and draws lines between linked cards. A rule makes the layout, so nobody places a card.
 
-## From answer-me-with-html: draft plus renderer, and errors that show the fix {#from-amwh basis=fact}
-We took the split between a short markdown draft and a renderer, and errors that include a corrected example. We also took "no answer is not agreement". We fixed its weak point, the copy-paste return path, with stable ids, revisions, and files.
+```sketch Desk: the same five cards, a column per section
+ A           B           C
+┌───────┐   ┌───────┐
+│ 1     ├──►│ 4     ├─┐
+└───────┘   └───────┘ │  ┌───────┐
+                      ├─►│ 7   ? │
+┌───────┐   ┌───────┐ │  └───────┘
+│ 2     ├──►│ 5     ├─┘
+└───────┘   └───────┘
+```
 
-## From open-design: a fixed runtime and stable ids; we did not take the weight {#from-od basis=fact}
-We took the ideas: the agent never writes the runtime, every element you can point at has a stable id, and answers are stored state. We left the 800k lines, the SQLite store, and the checks that are never called.
+```facts
+lines: on the desk, for from=, needs= and options
+layout: by rule, a column per section
+you see links: many at once; scroll sideways for more
+your cost: one key (D)
+agent cost: none
+built: yes, press D
+```
 
-## From Flowith and the canvases: branching is a way out, not a view {#from-canvas basis=inference}
-People want to branch to escape a messy thread, not to look at a tree. `from=` gives a branch a home without drawing one.
+## Desk with free placement: you move the cards {#opt-free from=opt-desk}
+The desk from the second option, and you can also drag a card to any place. Your layout stays until you reset it. People remember a layout that they make. The cost is the time to arrange it.
 
-# Your decisions
+```sketch Free desk: the same five cards, where you put them
+        ┌───────┐
+        │ 2     ├──┐
+        └───────┘  │
+┌───────┐       ┌──▼────┐
+│ 7   ? │◄──────┤ 5     │
+└───▲───┘       └───────┘
+    │   ┌───────┐   ┌───────┐
+    └───┤ 4     │◄──┤ 1     │
+        └───────┘   └───────┘
+```
 
-## Keep the connection model: sections, numerals and focus light, with no edges? {#ask-connection ask=choose from=no-canvas,links}
-This is the biggest bet. A spatial canvas is the main alternative. The research says a canvas costs arranging time and tangles past 30 cards.
+```facts
+lines: as the second option
+layout: you place cards; new cards go to an empty place
+you see links: many at once, in your own layout
+your cost: time to arrange; you keep it tidy
+agent cost: none
+built: no
+```
 
-- [x] Yes: no canvas and no edges
-- [ ] Add a lineage view: one card's from= chain as a thread
-- [ ] Add an optional spatial canvas view
+In one study, the users of a canvas code editor spent over 8 minutes more to open and arrange code. The source is Patchworks, CHI 2014, in `docs/research/connected-cards-prior-art.md`. A builder of a canvas product said it "descended into messy chaos no matter what you did". Luhmann did not do this either: he never moved a card, and he fixed a wrong place with a link.
+
+# Links: the decision
+
+## On the desk, a line means "feeds into", and the far card names the link {#desk-rules basis=fact from=opt-desk}
+Three links draw lines: `from=`, `needs=`, and the options of a decision. A mention draws a dotted line only for the card in focus. Focus turns the lines of that card blue. Each card at the far end names its link, for example "Source of 8".
+
+```flow What draws a line on the desk
+direction: right
+source card -> card: from=
+needed card -> card: needs=
+option -> decision: listed as an option
+mentioned card --> card: [[id]], focus only
+```
+
+- One column for each section, in board order. Cards keep board order in the column.
+- A line starts and ends at the address line, where the numeral is.
+- Lines run under the cards. A line between far columns shows in the gutters.
+- Two links between the same two cards draw one line. The more specific link wins.
+- The layout changes only when the board changes.
+- The desk opens at the Claim level, as small tiles. Click a tile to open it in place. Gist and Full work too.
+- Drag the empty desk to move it.
+- On a phone, the desk shows one column at a time and snaps to the next.
+
+## Which view do we keep for links? {#ask-connection ask=choose from=rethink-lines}
+The rack stays for reading and answering in every option. The question is how you see the links. I recommend the rack and the desk, with the board opening on the rack.
+
+- [x] [[opt-desk]] (opens on the rack)
+- [ ] Rack and desk, but the board opens on the desk
+- [ ] [[opt-rack]] (the old proposal)
+- [ ] [[opt-free]] (not built yet)
+
+# Figures: show, then tell
+
+## A card shows the shape it talks about, and the text names it {#show-first basis=fact}
+When a claim is about a layout, a flow or a structure, the card carries a figure. A decision about a view shows each option as a sketch. The first figure shows at the Gist level, under the gist.
+
+```sketch Card anatomy: what shows at each level
+  ┌ Choose ┐                        ◄ tab: an ask waits on you
+ ┌┴────────┴────────────────────┐
+ │ 12  Inference  v2            │  ◄ numeral and basis
+ │ The claim, in one sentence   │  ◄ Claim level
+ │ The gist, in one paragraph   │  ◄ Gist level
+ │ ┌──────────────────────────┐ │
+ │ │ figure                   │ │  ◄ Gist level, Fig. 12.1
+ │ └──────────────────────────┘ │
+ │ facts and options            │  ◄ Gist level
+ │ depth: reasons, sources      │  ◄ Full level
+ └──────────────────────────────┘
+```
+
+Figures have numbers, like card numerals: Fig. 12.1 is the first figure on card 12. You can point at a figure in words.
+
+## A sketch block draws a layout in text characters {#fig-sketch basis=fact from=show-first}
+Write a sketch with box characters, as in a terminal. The page shows it as written, in one ink, with a numbered caption. An agent writes it at low cost, and it reads the same in board.md, in a diff and in the terminal.
+
+```sketch A wide figure makes its card two columns wide on the rack
+┌─────────────────────────┐ ┌───────────┐
+│ card with a wide figure │ │ card      │
+│ ┌─────────────────────┐ │ │           │
+│ │ figure, 50 columns  │ │ │           │
+│ └─────────────────────┘ │ │           │
+└─────────────────────────┘ └───────────┘
+┌───────────┐ ┌───────────┐ ┌───────────┐
+│ card      │ │ card      │ │ card      │
+└───────────┘ └───────────┘ └───────────┘
+```
+
+The source of a sketch:
+
+~~~~
+```sketch What the figure shows, in a few words
+┌────┐   ┌────┐
+│ A  ├──►│ B  │
+└────┘   └────┘
+```
+~~~~
+
+- A sketch is 72 columns wide at most. A wide sketch makes its card two columns wide on the rack.
+- Chinese and Japanese characters do not keep the columns. Use Latin labels in a sketch.
+- A sketch has no colors and no markup. It shows in the ink of the card.
+
+## A flow block draws boxes and arrows, and the compiler places them {#fig-flow basis=fact from=show-first}
+Write one arrow on each line, such as `a -> b: label`. The compiler puts the boxes in ranks, orders them to cut crossings, and draws the arrows. The agent never places a box, so the same text always gives the same picture.
+
+```flow The card-skill loop
+**board.md** -> cards render: agent writes
+cards render -> board.html
+board.html -> you: open
+you -> log.jsonl: Send
+log.jsonl -> agent: cards wait
+agent -> **board.md**: revise
+```
+
+- `a -> b` is an arrow. `a --> b` is a dashed arrow, for a later or optional step.
+- `a -> b: label` puts a label on the arrow. `a -> b -> c` is a chain.
+- `**a**` makes a bold box, for the part under discussion.
+- `direction: right` draws left to right. The default is down.
+- A flow has 12 boxes at most. Point at a box to darken its arrows.
+
+# Writing: near ASD-STE100
+
+## Cards follow ASD-STE100, about 80% of the way {#ste80 basis=fact}
+Karpathy suggests ASD-STE100 to make model output easier to read. We take the rules that a checker can test, and the writer keeps the rest. Write one fact in each sentence. Use active verbs in the present tense. Use the same word for the same thing.
+
+```facts
+before: The server binds to loopback only, requires a per-run token and this server's Origin on every write, allows only its own Host names, takes board ids as slugs and never as paths, and checks every reply item by kind. (39 words)
+after: The server listens on this machine only.
+Every write needs the page token and this Origin.
+The server accepts only its own Host names.
+A board id is a short name, never a path.
+The server checks each reply item by its kind.
+sentence: 25 words at most; 20 for an instruction
+paragraph: 6 sentences at most, one topic
+words: the STE sheet list, and words that agents overuse
+checked by: cards check, as warnings
+```
+
+The rules come from the ASD-STE100 sheet on Karpathy's post (`vault/assets/x/2105819303471976479-ste100-sheet.png`). The full profile is in `skill/reference/writing.md`.
+
+## The checker warns on long sentences and on listed words {#ste-lint basis=fact from=ste80}
+`cards check` and `cards render` count the words in each sentence and the sentences in each paragraph. They flag words such as "utilize" and "leverage", and they give the plain word. Quotes and code do not count. A board in another language skips these checks.
+
+What the agent sees after `cards render`:
+
+```text
+board.md:56  warn: sentence has 28 words; split it (<= 25)
+board.md:61  warn: "utilize": write use (writing.md word list)
+ok: 24 cards, 9 sections, 2 warnings
+```
+
+Some rules need a person, not a checker: active voice, short noun groups, and one meaning for each word. They are in the profile as rules for the writer.
+
+# Replies: the return path
+
+## Your replies reach the agent as files, or by copy and paste {#return-channel basis=fact}
+With `cards serve`, Send writes your reply to `log.jsonl`, and the agent reads it with `cards wait`. Without a server, Send copies the same text, and you paste it into the chat. An ask that you do not touch is reported as untouched. It is never consent.
+
+```flow Two paths back to the agent
+Send -> cards serve: served page
+cards serve -> log.jsonl
+log.jsonl -> agent: cards wait
+Send -> clipboard: file page
+clipboard -> chat: you paste
+chat -> agent
+```
+
+- The server listens on this machine only.
+- Every write needs the page token and the Origin of this server.
+- The server accepts only its own Host names.
+- A board id is a short name, never a path.
+- The server checks each reply item by its kind.
+
+A code review found three holes in the first version. Each fix has a test in `test/review.test.mjs`. In this container, your browser cannot reach the server. Use the file page and Copy.
 
 ## Make the local server the default return path? {#ask-server ask=choose from=return-channel}
-The server closes the loop without copy-paste. It is one more process. It binds to loopback only, so a browser outside this container cannot reach it yet; that needs a capability URL (D12).
+The server removes copy and paste. It is one more process to keep running. It listens on this machine only, so a browser outside this container cannot reach it yet. That needs a capability URL (D12).
 
-- [x] Server when reachable, copy as the fallback
-- [ ] Copy-paste only, no server
-- [ ] Both, plus a Claude Code hook that injects unread replies
+- [x] Server when it is reachable, copy as the fallback
+- [ ] Copy and paste only, no server
+- [ ] Both, and a Claude Code hook that gives the agent unread replies
+
+# Look: the visual direction
+
+## Cards look like kanban signal cards on a steel rack {#signal-cards basis=inference}
+Cards are card stock on cool grey steel, in one ink. A yellow-red tab stands up only where the agent waits on you. Blue marks only your own acts and your focus. There are two colors, and each has one meaning.
+
+The design roll (`f3a39d30`, a pool of 7) chose the Toyota kanban world. Three other worlds each gave one rule. Patent drawings gave reference numerals and figure numbers. The Munich 1972 pictograms gave one color for each role. Bamboo-slip books gave a struck line for an old version.
+
+The colors are the JIS Z 9103 safety colors from factory floors. The desk adds a dot grid and lines in the same ink. A line turns blue only when you focus a card. The full record is in `DESIGN.md`.
 
 ## Approve the visual direction: kanban signal cards on a steel rack? {#ask-visual ask=approve from=signal-cards}
-If you reject it, I roll the direction again and take your reason as the brief.
+The board that you read now is the sample, in both views. If you reject it, I roll a new direction and use your reason as the brief.
+
+# Foundation: decided rules
+
+These rules are decided (D1 to D4, D6, D7, D9 and D10 in `docs/DECISIONS.md`). They give context for the decisions above. Mark Drop or reply to open one again.
+
+## A card is the smallest unit you can judge and point at {#unit-of-judgment basis=inference}
+Agents now write more than people can read. You can judge a wall of prose only as a whole. You can keep, drop, answer or question one card. Its numeral lets you point in words: "card 12 is wrong".
+
+Karpathy names the job: "a lot more of our work will rise up the abstractions into oversight and understanding" (`vault/sources/x/karpathy-2026-10-02-understand-outputs.md`). In May 2026 he asked to "point and gesture at the screen" (`karpathy-2026-05-11-html-mind-meld.md`).
+
+## Each card asks for one thing at most, and the top line says whose turn it is {#one-ask basis=inference from=unit-of-judgment}
+A card is something to read or one of three asks: choose, approve or answer. The top line counts what waits on you. The agent puts its questions in one batch, and you answer them in one pass.
+
+## Use a board only when cards earn it; most replies stay prose {#cards-earned basis=inference}
+Use a board for three or more separate judgments, for a decision that only you can make, or for work across turns. One explanation is a paragraph, not a board. The checker warns at more than five open asks.
+
+## Five primitives carry the whole system {#five-primitives basis=fact}
+The five primitives are board, section, card, link and response. A revision is not a primitive. The compiler finds revisions on every render.
+
+```flow How the five primitives fit
+board -> section: holds, in order
+section -> card: holds, in order
+card -> other card: link
+card -> response: your mark or answer
+```
+
+## Zoom changes the level of detail, not the size of the text {#altitude basis=inference}
+The heading is the claim. The first paragraph is the gist. The rest is depth. Claim, Gist and Full in the toolbar show one, two or three levels.
+
+```sketch One card at three levels
+  Claim          Gist           Full
+ ┌─────────┐   ┌─────────┐   ┌─────────┐
+ │ claim   │   │ claim   │   │ claim   │
+ └─────────┘   │ gist    │   │ gist    │
+               │ figure  │   │ figure  │
+               │ facts   │   │ facts   │
+               │ ask     │   │ ask     │
+               └─────────┘   │ depth   │
+                             │ history │
+                             └─────────┘
+```
+
+More on a card asks the agent to go deeper on that card. The interactive page can still "explain at the wrong level of abstraction" (@eliebakouch, in `karpathy-2026-10-02-understand-outputs.md`).
+
+## Same question, edit the card; new question, new card {#revise-or-new basis=inference}
+An edit keeps the numeral, and the old version stays under the card. A new card links back with `from=`. The compiler records each version, so the agent cannot lose history.
+
+# Next: what to build
 
 ## What should the agent build next? {#ask-next ask=choose multi}
-Pick any. The order on this card is my recommendation.
+Select any. The order here is my recommendation.
 
-- [x] An install step and a Claude Code hook for unread replies
-- [ ] A diagram card (sanitized SVG) for when the structure is the claim
-- [ ] A lineage view for long from= chains
+- [x] An install step, and a Claude Code hook that gives the agent unread replies
+- [ ] Free placement on the desk, if you did not choose it above
 - [ ] An embedded CJK font subset for Chinese boards
 - [ ] A project index that links boards to each other
+- [ ] An explainer video for one board (a later phase)
 
 ## Name one real task from your week for the first real board {#ask-dogfood ask=answer}
-Example content does not test anything. A real task tests the trigger rule, the patterns and the loop against reality.
+Example content tests nothing. A real task tests the trigger rule, the patterns and the loop.

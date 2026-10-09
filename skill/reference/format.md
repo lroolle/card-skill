@@ -62,6 +62,7 @@ three altitudes.
 |---|---|---|
 | claim | the heading text | Claim, Gist, Full |
 | gist | the first paragraph | Gist, Full |
+| figure | the first ```` ```sketch ```` or ```` ```flow ```` block | Gist, Full |
 | facts | the first ```` ```facts ```` block | Gist, Full |
 | options | the first task list, on `ask=choose` | Gist, Full |
 | depth | every other block | Full, or when the card is opened |
@@ -97,9 +98,15 @@ Every card, ask or not, also takes Keep, Drop, More and a free reply.
 
 When two cards link in more than one way, the most specific name wins.
 
+On the desk view, `from=`, `needs=` and option refs draw a line between the
+two cards. A line means "feeds into" and points from the source, the needed
+card, or the option toward the card that uses it. A mention draws a dotted
+line only while one of its two cards is in focus. The layout is a rule: one
+column for each section, in board order. You do not place cards.
+
 ## Widgets
 
-Fenced blocks with these info strings render as widgets. Any other fence is code.
+Fenced blocks with these info strings render as widgets. `sketch` and `flow` are figures (next section). Any other fence is code.
 
 ````
 ```facts
@@ -118,6 +125,46 @@ cost: about $40 a month
 ```
 ````
 
+## Figures
+
+A card shows the shape it talks about. When a claim is about a layout, a
+view, a flow or a structure, draw it. The text after the fence name is the
+caption.
+
+````
+```sketch Rack view: card 6 in focus
+┌─ 6 ──────────┐  ┌─ 7 ──────────┐
+│ in focus     │  │ Source of 6  │
+└──────────────┘  └──────────────┘
+```
+
+```flow The loop
+**board.md** -> cards render: agent writes
+cards render -> board.html
+board.html -> you --> agent
+```
+````
+
+- `sketch`: a drawing in text characters, shown exactly as written in a
+  monospace face. Use box characters (`┌─┐│└┘├┤┬┴►`). 72 columns at most.
+  CJK characters do not keep the columns; use Latin labels in a sketch.
+- `flow`: one arrow per line. `a -> b` is an arrow, `a --> b` is dashed (a
+  later, optional or weak step), `a -> b: label` labels the arrow, `a -> b
+  -> c` is a chain (a label goes on the last hop), `**a**` is a bold box for
+  the part under discussion, a line with one name adds a box, and
+  `direction: right` lays it out left to right (the default is down). The
+  compiler places every box. 12 boxes at most.
+- Figures are numbered per card in source order: Fig. 12.1 is the first
+  figure on card 12.
+- The first figure shows under the gist. Later figures are depth.
+- A figure wider than about 330px makes its card two columns wide on the
+  rack, and widens its column on the desk.
+- In a `{compare}` section, draw every option or none.
+- Figures belong in cards, not in the lede or a section note.
+
+Neither block can carry colors, styles or markup. A sketch is escaped text;
+a flow becomes SVG that the compiler writes.
+
 ## Markdown subset
 
 Paragraphs, `###` subheadings inside a card, lists (nested by indent), task
@@ -133,6 +180,11 @@ A warning does not stop a render. Each one is a writing rule:
 - A claim over 110 characters, or under 3 words on a card with no ask.
 - A body that does not start with a one-paragraph gist; a gist over 60 words.
 - A choose card with no `[x]` recommendation.
+- A figure with no caption; a sketch over 72 columns; a flow over 12 boxes;
+  a flow line that points a box at itself; a figure in the lede or a note;
+  a `{compare}` section where only some options have a figure.
+- English boards only (see `writing.md`): a sentence over 25 words, a
+  paragraph over 6 sentences, a word from the word list.
 - An ask on a `done` card.
 - More than 7 cards in a section, more than 30 on a board, more than 5 open asks.
 

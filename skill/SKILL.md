@@ -82,19 +82,28 @@ Writing rules. `cards check` enforces the mechanical ones.
 
 - The heading is the claim, not the topic. "NATS covers the peak", not "NATS".
 - The first paragraph is the gist. Everything else is depth.
-- One fact per sentence. Plain verbs. Near ASD-STE100 is the target.
+- Write near ASD-STE100 (`reference/writing.md`): one fact per sentence,
+  25 words at most, active verbs in the present tense, the same word for the
+  same thing, and plain words ("use", not "utilize" or "leverage").
+- Show, then tell. When a claim is about a shape (a layout, a view, a flow,
+  a structure, a before and after), draw it under the gist with a
+  ```` ```sketch Caption ```` (text characters) or a ```` ```flow Caption ````
+  (`a -> b: label` lines; the compiler places the boxes). A decision about a
+  view or a UI shows each option as a figure. Do not draw a single fact.
 - Mark how you know: `basis=fact` (you checked it against a source; a quote
   is a fact about what was said), `inference` (your reading), or `guess`.
   A proposal, such as an option card, takes no basis.
 - Sources go in the depth as links or file paths. There is no source field.
-- Two widgets, as fenced blocks: ```` ```facts ```` (`key: value` lines; use
-  the same keys on every card in a `{compare}` section so the rows line up)
-  and ```` ```tradeoffs ```` (`+` and `-` lines). Also ```` ```diff ````.
+- Widgets, as fenced blocks: ```` ```facts ```` (`key: value` lines; use
+  the same keys on every card in a `{compare}` section so the rows line up),
+  ```` ```tradeoffs ```` (`+` and `-` lines), ```` ```diff ````, and the two
+  figures above.
 - Recommend. Mark your pick `- [x]`. The human sees it as "Suggested";
   it counts only if they choose it.
 - Link instead of repeating: `from=` (this card exists because of those),
   `needs=` (this waits on those), `[[id]]` in text.
-- Never write layout, colors or HTML. The renderer owns the look.
+- Never write layout, colors, SVG or HTML. The renderer owns the look. A
+  figure is content: you say what connects to what; the compiler draws it.
 
 ## 3. Render and hand over
 
@@ -107,7 +116,10 @@ prints a text outline. Errors show a line number and a corrected example;
 fix them and render again.
 
 Tell the human, in two or three lines: the one-line answer if there is
-one, how many asks wait on them, and the `file://` link. Do not repeat
+one, how many asks wait on them, and the `file://` link. The board has two
+views: the rack (read and answer) and the desk (`D`: cards in columns, with
+lines for `from=`, `needs=` and options). Mention the desk when the links
+are the point. Do not repeat
 the cards in chat; the board is the answer.
 
 ## 4. Get the reply

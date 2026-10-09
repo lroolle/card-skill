@@ -15,6 +15,12 @@ Three of eight shards are copied. Each shard takes about the same time.
 ## Reads switch to Postgres behind a flag {#switch-reads needs=backfill}
 The flag flips per region, smallest region first, so a bad read path hits few users.
 
+```flow The read path during the switch
+app -> region flag
+region flag -> **Postgres**: flag on
+region flag --> Redis: flag off
+```
+
 ## Redis writes stop after one clean week {#remove-redis needs=switch-reads}
 A clean week means no flag rollback and no session-not-found spike.
 

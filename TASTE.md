@@ -42,3 +42,27 @@ Landed: `.opt.suggested` is a dashed ring, filled only when picked; the
 digest reports `untouched (suggestion kept; not consent)`.
 Reuse: the page never shows the agent's choice as the human's.
 Expires: never (behavioral).
+
+## 2026-10-09 rejected: the desk made the page wider than the phone
+
+Why: the first desk let the page scroll sideways. A mobile browser then
+widens its layout viewport to the page, and the fixed toolbar moved with it:
+Send sat at y=2446 on an 844px screen. The scar from 2026-10-08 came back
+through a new view.
+Where: desk view at 390px with touch emulated, before the fix.
+Landed: `.view-desk .shelves` scrolls sideways inside itself; the page never
+gets wider than the window (board.css). The test "desk on a phone" in
+`test/e2e.test.mjs` pins it.
+Reuse: a wide surface scrolls inside its own container, never the page.
+Expires: never (behavioral).
+
+## 2026-10-09 rejected: a line that passes behind a card
+
+Why: a line from column 1 to column 3 ran behind a card in column 2, and it
+looked like it ended on that card. A line that implies a link that does not
+exist is a false statement.
+Where: the first desk build, design-review board, card 22 to card 17.
+Landed: lines cross a column only in a gap between cards (`crossing()` in
+board.js); `test/e2e.test.mjs` samples the path and fails if it enters a card.
+Reuse: a drawn relation must not touch anything it does not relate.
+Expires: never (perceptual).

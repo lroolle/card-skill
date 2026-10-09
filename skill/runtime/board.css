@@ -25,7 +25,7 @@
   --shadow:      oklch(0.235 0.014 260 / 0.16);
 
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace;
   --t-xs: 12px;  --t-s: 13px;  --t-m: 15px;  --t-l: 17px;  --t-xl: 20px;  --t-xxl: 28px;
   --w-regular: 400;  --w-strong: 600;
 
@@ -35,6 +35,8 @@
   --s1: 4px;  --s2: 8px;  --s3: 12px;  --s4: 16px;  --s5: 24px;  --s6: 32px;  --s7: 48px;
   --card-min: 300px;
   --tab-h: 20px;
+  --desk-col: 288px;       /* one section, one column on the desk; wider when a figure needs it */
+  --desk-gutter: 96px;     /* room for the lines between columns */
   --ease: cubic-bezier(.2, .7, .2, 1);
   --fast: 140ms;
 }
@@ -274,6 +276,46 @@ ul.tradeoffs .sign { flex: none; width: 1em; font-weight: var(--w-strong); color
 ul.tradeoffs .pro .sign { color: var(--ok); }
 ul.tradeoffs .con .sign { color: var(--danger); }
 
+/* ---------- figures: a card shows the shape it talks about ---------- */
+
+/* A figure is a drawing on the card, in the card's one ink. Patent-sheet
+   lettering: "Fig. 12.1" is an address, like a card numeral. */
+.fig { display: flex; flex-direction: column; margin: var(--s1) 0 0; min-width: 0; }
+.depth .fig { margin: 0 0 var(--s3); }
+.fig-body {
+  flex: 1; overflow-x: auto; padding: var(--s3);
+  border: 1px solid var(--line); border-radius: var(--r-in);
+  /* A drawing wider than its frame shows a shade at the edge that has more; the shade goes when you reach it. */
+  background:
+    linear-gradient(to right, var(--surface) 40%, transparent) left / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 40%, transparent) right / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--shadow), transparent) left / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--shadow), transparent) right / 10px 100% no-repeat scroll,
+    var(--surface);
+}
+.fig figcaption { margin-top: var(--s1); font-size: var(--t-xs); color: var(--fg-2); }
+.fig figcaption b { margin-right: var(--s1); color: var(--fg); font-weight: var(--w-strong); }
+pre.sketch {
+  margin: 0; padding: 0; overflow: visible; background: none; border: 0; border-radius: 0;
+  font: var(--w-regular) var(--t-xs)/normal var(--mono); color: var(--fg); width: max-content;
+}
+svg.flow { display: block; overflow: visible; }
+.flow text { font-family: var(--mono); font-size: var(--t-xs); fill: var(--fg); }
+.flow .fn rect { fill: var(--surface); stroke: var(--fg-3); stroke-width: 1; }
+.flow .fn:hover rect { stroke: var(--fg); }
+.flow .fn.strong rect { stroke: var(--fg); stroke-width: 2; }
+.flow .fn.strong text { font-weight: var(--w-strong); }
+.flow .fe path { fill: none; stroke: var(--fg-3); stroke-width: 1.25; stroke-linejoin: round; stroke-linecap: round; }
+.flow .fe.dash path { stroke-dasharray: 4 3; }
+.flow .fe text { fill: var(--fg-2); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.flow .fe.hot path { stroke: var(--fg); stroke-width: 1.75; }
+.flow .fe.hot text { fill: var(--fg); }
+
+/* A card whose first figure is wide takes two columns on the rack, when two fit. */
+@media (min-width: 721px) {
+  .view-rack .slots[data-layout="grid"] > .card.wide { grid-column: span 2; }
+}
+
 /* references: a numeral is an address you can follow */
 a.ref {
   display: inline-flex; align-items: baseline; gap: var(--s1); max-width: 100%;
@@ -325,32 +367,66 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 
 /* ---------- altitude: semantic zoom ---------- */
 
-.alt-claim .card:not(.open) :is(.gist, .facts, .ask, .depth, .thread, .history, .meter) { display: none; }
+.alt-claim .card:not(.open) :is(.gist, .fig, .facts, .ask, .depth, .thread, .history, .meter) { display: none; }
 .alt-gist .card:not(.open) :is(.depth, .history) { display: none; }
 .card:not(.focused) .context { display: none; }
 
-/* Claim altitude is the rack index: one ruled row per card, so density really changes. */
-.alt-claim .slots, .alt-claim .slots[data-layout] {
+/* Claim altitude on the rack is an index: one ruled row per card, so density really changes.
+   On the desk, the same altitude makes small tiles. */
+.view-rack.alt-claim .slots, .view-rack.alt-claim .slots[data-layout] {
   grid-template-columns: minmax(0, 1fr); gap: 0; max-width: none; margin-top: var(--s3);
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
 }
-.alt-claim .card:not(.open) {
+.view-rack.alt-claim .card:not(.open) {
   flex-direction: row; align-items: baseline; gap: var(--s3); padding: 7px var(--s3);
   background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
 }
-.alt-claim .card:not(.open):last-child { border-bottom: 0; }
-.alt-claim .card:not(.open) .addr { display: contents; }
-.alt-claim .card:not(.open) .claim { order: 1; flex: 1; min-width: 0; font-size: var(--t-m); }
-.alt-claim .card:not(.open) .addr > :not(.n) { order: 2; font-size: var(--t-xs); }
-.alt-claim .card:not(.open) .tab { position: static; order: 3; margin: 0; height: 20px; border-bottom: 1px solid; border-radius: var(--r-s); }
-.alt-claim .card:not(.open) .acts { top: 3px; }
-.alt-claim .card.open { margin: calc(var(--tab-h) + var(--s3)) var(--s3) var(--s3); }
-.alt-claim .card.focused:not(.open) { box-shadow: inset 0 0 0 2px var(--accent); }
+.view-rack.alt-claim .card:not(.open):last-child { border-bottom: 0; }
+.view-rack.alt-claim .card:not(.open) .addr { display: contents; }
+.view-rack.alt-claim .card:not(.open) .claim { order: 1; flex: 1; min-width: 0; font-size: var(--t-m); }
+.view-rack.alt-claim .card:not(.open) .addr > :not(.n) { order: 2; font-size: var(--t-xs); }
+.view-rack.alt-claim .card:not(.open) .tab { position: static; order: 3; margin: 0; height: 20px; border-bottom: 1px solid; border-radius: var(--r-s); }
+.view-rack.alt-claim .card:not(.open) .acts { top: 3px; }
+.view-rack.alt-claim .card.open { margin: calc(var(--tab-h) + var(--s3)) var(--s3) var(--s3); }
+.view-rack.alt-claim .card.focused:not(.open) { box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* settled work recedes */
 .card[data-status="done"] { background: var(--surface-2); border-style: dashed; }
-.card[data-status="done"]:not(.open) :is(.gist, .facts, .ask, .depth, .history, .meter) { display: none; }
+.card[data-status="done"]:not(.open) :is(.gist, .fig, .facts, .ask, .depth, .history, .meter) { display: none; }
 .card[data-status="done"] .claim { color: var(--fg-2); font-weight: var(--w-regular); }
+
+/* ---------- the desk ---------- */
+
+/* The cards taken off the rack and laid out on a table: one column per
+   section, in board order. A faint dot grid says the surface pans. Lines run
+   under the cards, and cross a column only in a gap between cards.
+   The desk scrolls sideways inside itself: the page never gets wider than
+   the window, so the fixed toolbar stays on screen on a phone. */
+.board.view-desk { max-width: none; }
+.view-desk .shelves {
+  position: relative; display: flex; align-items: flex-start; gap: 0 var(--desk-gutter);
+  overflow-x: auto; overscroll-behavior-x: contain;
+  margin-top: var(--s5); padding: var(--s2) var(--desk-gutter) var(--s6) var(--s4);
+  background-image: radial-gradient(var(--line-strong) 0.9px, transparent 1.1px);
+  background-size: var(--s5) var(--s5); background-position: 0 0;
+  cursor: grab;
+}
+.panning, .panning * { cursor: grabbing !important; user-select: none; }
+.view-desk .shelf { position: relative; z-index: 1; flex: none; width: max(var(--desk-col), var(--col-w, 0px)); margin-top: var(--s5); }
+.view-desk.alt-claim .shelf { width: var(--desk-col); }
+.view-desk .shelf-head h2 { white-space: normal; }
+.view-desk .slots, .view-desk .slots[data-layout] { grid-template-columns: minmax(0, 1fr); max-width: none; }
+.view-desk .card { cursor: default; }
+.view-desk .card.wide { grid-column: auto; }
+
+.wires { position: absolute; left: 0; top: 0; z-index: 0; overflow: visible; pointer-events: none; }
+.view-rack .wires { display: none; }
+.wire { fill: none; stroke: var(--fg-3); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; transition: stroke var(--fast) var(--ease); }
+.wire.w-mentions { stroke-dasharray: 2 4; }
+.wire .pass { stroke-dasharray: 6 3; stroke-linecap: butt; } /* broken solid: passes by; dots mean a mention */
+.board.focusing .wire { stroke: var(--line-strong); }
+.wire.hot { stroke: var(--fg); stroke-width: 1.75; }
+.wire.on, .board.focusing .wire.on { stroke: var(--accent); stroke-width: 2; }
 
 /* ---------- board-level reply ---------- */
 
@@ -420,33 +496,45 @@ dialog .row { display: flex; justify-content: flex-end; gap: var(--s2); margin-t
 
 /* ---------- small screens ---------- */
 
-/* Narrow: the bar becomes two rows and hides nothing. Filters, keys and
-   Send on the first row, so Send is always in reach. */
+/* Narrow: the bar becomes two rows and hides nothing. Filters, the desk
+   switch and Send on the first row, so Send is always in reach. Each row lays
+   out on its own (flex with a forced break), so a wide control in one row
+   cannot push Send off the screen; at worst Send wraps, still visible. */
 @media (max-width: 900px) {
   html { scroll-padding-bottom: 150px; }
   .page { padding-bottom: 190px; }
   .bar {
     left: var(--s2); right: var(--s2); bottom: var(--s2); transform: none; max-width: 760px; margin: 0 auto;
-    display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto;
-    grid-template-areas: "filter filter help send" "alt sort find find"; gap: var(--s2);
+    flex-wrap: wrap; gap: var(--s1) var(--s2);
   }
+  .bar::before { content: ""; order: 4; flex-basis: 100%; height: 0; }
   .bar .tools { display: contents; }
   .bar .sep { display: none; }
-  .bar .seg-filter { grid-area: filter; justify-self: start; }
-  .bar [data-act="help"] { grid-area: help; justify-self: end; }
-  .bar .send { grid-area: send; }
-  .bar .seg-alt { grid-area: alt; }
-  .bar select { grid-area: sort; max-width: 8.5rem; }
-  .bar .search { grid-area: find; min-width: 0; }
+  .bar .seg-filter { order: 1; }
+  .bar .seg-view { order: 2; }
+  .bar [data-act="help"] { order: 3; margin-left: auto; }
+  .bar .send { order: 3; }
+  .bar .seg-alt { order: 5; }
+  .bar select { order: 6; max-width: 8.5rem; }
+  .bar .search { order: 7; flex: 1 1 6rem; min-width: 0; }
   .bar .search input { width: 100%; min-width: 0; }
   .toast { bottom: 140px; }
 }
 
 @media (max-width: 720px) {
-  .page { padding: var(--s5) var(--s4) 190px; }
+  /* The bar can take three rows here (Find wraps); keep content and toasts clear of it. */
+  html { scroll-padding-bottom: 190px; }
+  .page { padding: var(--s5) var(--s4) 230px; }
+  .toast { bottom: 184px; }
   h1.title { font-size: var(--t-xl); }
   .slots, .slots[data-layout="compare"] { grid-template-columns: minmax(0, 1fr); }
   .bar .search .icon-btn { display: none; }
+  /* The desk on a phone: one column at a time, snapped; the gutters keep the lines visible. */
+  .view-desk .shelves { --desk-gutter: 56px; scroll-snap-type: x mandatory; scroll-padding-left: var(--s4); padding-right: var(--s4); }
+  .view-desk .shelf, .view-desk.alt-claim .shelf { width: min(max(var(--desk-col), var(--col-w, 0px)), calc(100vw - 2 * var(--s4) - 2 * var(--s4))); scroll-snap-align: start; }
+  /* Keys need a keyboard; on a phone the slot goes to the desk switch. */
+  .bar [data-act="help"] { display: none; }
+  .bar .send { margin-left: auto; }
 }
 
 /* Touch: every target reaches 44px. The bar and the card footer grow; the card body does not. */
@@ -454,6 +542,7 @@ dialog .row { display: flex; justify-content: flex-end; gap: var(--s2); margin-t
   .acts { position: static; display: flex; padding: 0; margin: 0 calc(var(--s2) * -1); border: 0; background: none; }
   .act.reply-btn { margin-left: auto; }
   .act, .seg button, .send, .icon-btn, .bar select, .search input, .btn, .rail-tab, .history summary { min-height: 44px; }
+  .seg button { min-width: 44px; }
   .icon-btn, .grip { width: 44px; height: 44px; }
   .context button { min-width: 44px; min-height: 44px; }
   .history summary { display: flex; align-items: center; }

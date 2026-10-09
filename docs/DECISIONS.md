@@ -7,7 +7,8 @@ New decisions go at the bottom. Do not rewrite an old entry; supersede it.
 
 Evidence keys: `amwh` = `docs/research/answer-me-with-html.md`,
 `od` = `docs/research/open-design.md`, `canvas` =
-`docs/research/connected-cards-prior-art.md`, `proto` =
+`docs/research/connected-cards-prior-art.md`, `luhmann` =
+`docs/research/luhmann-zettelkasten.md`, `proto` =
 `docs/research/agent-ui-protocols.md`, `vault` = `vault/`.
 
 ## D1. A card is the unit of judgment, and cards are earned
@@ -52,7 +53,7 @@ altitude (@eliebakouch). Pixel zoom is a canvas habit and does not help reading.
 
 ## D5. Connected cards: sections, numerals and focus light; no canvas, no edges
 
-2026-10-08. Proposed (ask card `ask-connection`).
+2026-10-08. Proposed (ask card `ask-connection`). Superseded by D15 on 2026-10-09.
 Sections give reading order. Each card has a stable numeral. Focus lights
 related cards, names the relation on each one, and dims the rest.
 Why: a canvas helps when the human places cards, because placing is what
@@ -134,3 +135,65 @@ Cost: the host browser cannot reach a server inside a container through a
 published port, because that needs a non-loopback bind. The way out, if
 needed: a capability URL that carries the token on every request, as
 Jupyter does.
+
+## D13. Figures are content: sketch and flow
+
+2026-10-09. Accepted (the human asked for visual explanation as a first rule).
+A card that talks about a shape shows it. Two fenced blocks do this:
+`sketch` (text characters, shown as written) and `flow` (arrows written as
+text; the compiler places the boxes with a small layered layout). The first
+figure shows at the Gist level. Figures are numbered per card: Fig. 12.1.
+Why: Karpathy's list puts a diagram above prose (vault 2026-10-02). Nobody can
+judge a decision about a view from a paragraph. A sketch costs an agent little,
+and it reads the same in a terminal, a diff and the page. A flow keeps the
+agent out of placement, as the board does.
+Rejected: SVG written by the agent (a sanitizer is a large attack surface, and
+free colors break the role colors); Mermaid (a dependency and a large grammar);
+image files (not readable in a diff).
+Cost: our own layout code, `skill/lib/figure.mjs`, with tests in
+`test/figure.test.mjs`. CJK text in a sketch loses its columns.
+
+## D14. Cards are written near ASD-STE100, and the checker tests what it can
+
+2026-10-09. Accepted (the human asked for it).
+The profile is `skill/reference/writing.md`. The checker warns on a sentence
+over 25 words, a paragraph over 6 sentences, and words from a list: the
+examples on the STE sheet and words that agents overuse. Active voice, simple
+tenses, short noun groups and one meaning for each word stay rules for the
+writer.
+Why: Karpathy suggests STE for model output, "80% of the way" (vault
+2026-10-02). A rule with no check drifts. The old board was near STE in
+sentence length, but not in its other rules.
+Rejected for now: a new writing standard for agents (later, if STE-80 falls
+short on real boards); the full STE dictionary of about 900 words (too strict
+for cards, and not in our sources).
+Only English boards are checked.
+
+## D15. Connected cards: the rack to read, the desk to see the links
+
+2026-10-09. Proposed (ask card `ask-connection`). Supersedes D5.
+One board has two views. The rack is D5: sections, numerals and focus light.
+The desk puts each section in a column, in board order, and draws a line for
+each `from=`, `needs=` and option link. A mention draws a dotted line only
+for the card in focus. A rule makes the layout, so no agent and no human
+places a card. Press `D` to switch.
+Why D5 was wrong: it rejected a canvas because people remember what they
+place, and here the agent places the cards. That reason is about memory. It
+missed the other benefit of a canvas: you see the structure at once. A layout
+by rule gives that benefit with no placement. Our research named the cost of
+focus-only links ("there is no overview", model C in canvas), and D5 accepted
+that cost without a test. The human rejected it on the first review.
+Luhmann (luhmann): each card had a fixed address and never moved. He took a
+card out to use it and put it back in the same place. We found no source
+that he spread cards out to write. So the rack is his box, and the desk is a
+temporary view that moves nothing in board.md. A persistent free layout
+would be our choice, not his method.
+What stays from D5: lines tangle in a free graph, so only three link types
+draw lines, on boards of 30 cards or fewer. A line that skips a column
+crosses it in a gap between cards, never behind a card (`test/e2e.test.mjs`).
+The rack stays the place to read and answer.
+Rejected for now: free placement by the human (an option on the board; it
+costs time to arrange, Patchworks in canvas); a force layout (it moves on
+every change, the "rug-pull" in canvas); one layered graph of all cards (it
+loses the sections that the agent wrote).
+Open: which view opens first; free placement.

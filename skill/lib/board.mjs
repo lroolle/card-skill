@@ -10,6 +10,7 @@
 // reader of an error is usually an agent that will retry once.
 
 import { parseBlocks, plain, fenceOpen, fenceCloses } from './md.mjs';
+import { FIGURE_LANGS } from './figure.mjs';
 
 export const ASKS = ['choose', 'approve', 'answer'];
 export const STATUSES = ['open', 'doing', 'done', 'blocked'];
@@ -213,17 +214,19 @@ export function parseBoard(src, { id = 'board' } = {}) {
   return board;
 }
 
-// anatomy(card) -> { gist, facts, options, depth, refs }
+// anatomy(card) -> { gist, figure, facts, options, depth, refs }
 //   gist     first block, when it is a paragraph
+//   figure   the first ```sketch or ```flow block (shown with the gist)
 //   facts    the first ```facts block (shown with the gist; aligned in compare rows)
 //   options  task-list items of a choose card
 //   depth    every other block, in order
 export function anatomy(card) {
   const blocks = parseBlocks(card.body);
-  const out = { gist: null, facts: null, options: [], depth: [], refs: [] };
+  const out = { gist: null, figure: null, facts: null, options: [], depth: [], refs: [] };
   let rest = blocks;
   if (rest[0]?.type === 'paragraph') { out.gist = rest[0]; rest = rest.slice(1); }
   for (const b of rest) {
+    if (!out.figure && b.type === 'code' && FIGURE_LANGS.includes(b.lang)) { out.figure = b; continue; }
     if (!out.facts && b.type === 'code' && b.lang === 'facts') { out.facts = b; continue; }
     if (card.ask === 'choose' && !out.options.length && b.type === 'list' && b.items.length && b.items.every((it) => it.task !== null)) {
       out.options = b.items.map((it) => {
