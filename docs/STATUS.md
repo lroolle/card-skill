@@ -6,7 +6,10 @@ comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
-`npm test`: 97 tests, 17 of them drive a real browser (Chromium).
+`npm test`: 97 tests, 17 of them drive a real browser (Chromium). The same
+suite runs on GitHub on each push, with the browser required; the site at
+https://lroolle.github.io/card-skill/ is built there from `site/` and the
+boards under `.cards/`.
 
 - The format: sections, cards, the drawer, TODO states, cookies, tags,
   facts, options with keys, four kinds of ask, links, figures (sketch and
