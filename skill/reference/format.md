@@ -368,6 +368,7 @@ Log events:
 {"t":"read","round":2,"at":"..."}
 {"t":"say","at":"...","text":"Got it."}          the agent's chat message (cards say)
 {"t":"build","v":"0.1.0","at":"..."}             the build that rendered the board last
+{"t":"font","v":"embedded","at":"..."}           the page carries its CJK font, or "system"
 ```
 
 Send items: `mark` (keep, drop, more), `choose` (value, default, state:
@@ -409,6 +410,44 @@ no past versions of cards, no path on your disk. A file shown as a chip is
 copied to `<dir>/files/`. Boards that translate each other link as
 `../<board>/index.html`: export each one into a folder with its own name,
 side by side. The export records nothing in `log.jsonl`.
+
+## A font in the page
+
+A board whose `#+language:` is Chinese, Japanese or Korean carries its own
+font: a subset of an open font with only the characters the board uses, in
+two weights, inside `board.html`. The page then looks the same on every
+machine, and a machine with no CJK font shows no boxes. A Chinese sample
+of 7 cards adds about 165 KB.
+
+`cards render` does this when the machine has both of these, and says once
+which way it went:
+
+- an open CJK font: Noto Sans CJK or Source Han Sans (Debian and Ubuntu:
+  `apt install fonts-noto-cjk`; macOS: put `NotoSansSC-Regular.otf` and
+  `NotoSansSC-Bold.otf` into `~/Library/Fonts`). `CARDS_CJK_FONT` and
+  `CARDS_CJK_FONT_BOLD` name the files directly.
+- fonttools: `pyftsubset` on the PATH (`pipx install "fonttools[woff]"`), or
+  `uv`, which runs it without an install.
+
+Without them the page uses the reader's system font. A system font such as
+PingFang or Microsoft YaHei is never put into a page: its license does not
+allow it. `CARDS_CJK_FONT=none` turns the font off.
+
+Characters the human types later (a reply in Chinese) that are not in the
+subset show in the system font.
+
+## Options in the address
+
+A board page reads four options from its own address. None of them is saved.
+
+| Option | Effect |
+|---|---|
+| `?view=desk` or `?view=rack` | open on that view |
+| `?level=claim`, `gist` or `full` | open at that level |
+| `?embed` | for a frame on another page: one row of tools (level, view, Send), no chat box, and the wheel goes on to the page around the board at the board's edge |
+| `?fresh` | for a sample anyone may answer: nothing is read from or kept in the browser, so each visit starts with the board as you wrote it |
+
+`#c-<id>` at the end opens the page on that card.
 
 ## The older markdown dialect
 

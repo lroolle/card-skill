@@ -16,9 +16,12 @@ import { buildBoard } from '../skill/lib/compile.mjs';
 import { png } from './png.mjs';
 
 const require = createRequire(import.meta.url);
+// The engine under test: chromium (the default), firefox or webkit (CARDS_BROWSER).
+// The name `chromium` below is whichever engine was asked for.
+const ENGINE = process.env.CARDS_BROWSER || 'chromium';
 let chromium = null;
 for (const p of ['playwright', path.join(os.homedir(), '.npm-global/lib/node_modules/playwright')]) {
-  try { ({ chromium } = require(p)); break; } catch { /* try next */ }
+  try { chromium = require(p)[ENGINE] || null; break; } catch { /* try next */ }
 }
 // CI sets CARDS_E2E=required: there, a missing browser fails the run instead of passing it quietly.
 if (!chromium && process.env.CARDS_E2E === 'required') throw new Error('CARDS_E2E=required, but Playwright did not load');
@@ -57,7 +60,7 @@ test('live loop: choose, mark, reply, send, then the agent revises', { skip: !ch
     // Focus lights up relations: NATS is an option of the decision card.
     await page.click('#c-nats .claim');
     assert.equal(await page.getAttribute('#c-nats', 'class').then((c) => c.includes('focused')), true);
-    assert.equal(await page.textContent('#c-pick-queue .rel'), 'Decides 3');
+    assert.equal(await page.textContent('#c-pick-queue .rel'), 'Decides #3');
     assert.equal(await page.textContent('#c-nats .context'), 'Decided in 6');
     assert.ok((await page.getAttribute('#c-need-peak', 'class')).includes('lit') === false);
 
@@ -212,7 +215,7 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     await page.click('#c-a .claim');
     await page.waitForFunction(() => document.querySelectorAll('.wires .wire').length === 6);
     assert.equal(await page.locator('.wires .wire.on').count(), 3, 'a: option of g, source of c, mentioned by e');
-    assert.equal(await page.textContent('#c-g .rel'), 'Decides 1');
+    assert.equal(await page.textContent('#c-g .rel'), 'Decides #1');
     // On the desk no marks bar floats over a card: the lit card under the pointer keeps its link label.
     await page.hover('#c-g .claim');
     assert.equal(await page.isVisible('#c-g .acts'), false);
@@ -671,7 +674,7 @@ test('asks that depend on asks: one waits, is held when the first answer changes
     await page.click('#c-pick-band .opt:has(input[value="link"])');
     assert.equal(await tab('pick-size'), 'On hold');
     assert.ok(await off('pick-size'));
-    assert.match(await page.textContent('#c-pick-size .gate-note'), /written for the suggestion in 1, and you changed 1\. The agent will ask this again\./);
+    assert.match(await page.textContent('#c-pick-size .gate-note'), /written for the suggestion in 1, and you answered 1 another way\. The agent will ask this again\./);
     assert.equal(await tab('bag'), 'Waits for #2');
     text = await reply();
     assert.match(text, /#1 pick-band\s+choose\s+changed: link {2}\(you suggested sport\)/);
@@ -825,7 +828,7 @@ test('translations and published copies: a language link in the same tab; a copy
     assert.match(await page.getAttribute('.langs a', 'href'), /^\.\.\/watch-zh\/index\.html$/);
     await page.click('#c-verify [data-done="done"]');
     await page.keyboard.press('Control+Enter');
-    assert.match(await page.textContent('dialog p'), /published copy of the board\. Copy your reply and send it to the person who shared it\./);
+    assert.match(await page.textContent('dialog p'), /published copy of the board; nothing is sent from this page\. Copy your reply and send it to the board’s author\./);
     assert.doesNotMatch(await page.inputValue('dialog textarea'), /cards ingest/);
   } finally {
     await browser.close();
@@ -927,6 +930,53 @@ test('review fixes: a text answer opens what waits for it; an answer held in a l
     cli(['render', 'rounds', '--quiet']);
     assert.match(cli(['show', 'rounds']), /2 waiting on you/, 'the size and the approval still wait');
     assert.match(cli(['settle', 'rounds']), /DONE: budget, band\./, 'settle closes what stands, and not the held size');
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a sample in a frame: one row of tools, no chat box, nothing kept between visits; the keyboard stays on the control you used', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = watch();
+  buildBoard(ref, { cwd });
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 900, height: 700 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url + '?embed&fresh&view=rack');
+    await page.waitForSelector('.card');
+    assert.equal(await page.$('.chat'), null, 'no chat box in a frame');
+    const shown = await page.$$eval('.bar :is(.seg-filter, [data-sort], .search, [data-act="help"], .seg-alt, [data-act="send"])', (els) => els.map((e) => [e.className || e.dataset.act || 'sort', getComputedStyle(e).display !== 'none']));
+    assert.deepEqual(shown.filter((x) => x[1]).map((x) => x[0]).sort(), ['seg seg-alt', 'send']);
+    assert.ok((await page.locator('.bar').boundingBox()).height < 60, 'the tools are one row');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY), 'auto', 'the wheel goes on to the page around the board');
+
+    // Choosing with the keyboard: the card is drawn again, and the focus is on the same option.
+    await page.focus('#c-pick-band input[value="link"]');
+    await page.keyboard.press('Space');
+    assert.equal(await page.evaluate(() => document.activeElement.value), 'link');
+    assert.equal(await page.evaluate(() => document.activeElement.closest('.card').id), 'c-pick-band');
+    await page.focus('#c-verify [data-done="done"]');
+    await page.keyboard.press('Enter');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.done), 'done');
+    assert.equal(await page.getAttribute('#c-verify [data-done="done"]', 'aria-pressed'), 'true');
+    assert.match(await page.textContent('.lamp'), /Ready to send/);
+
+    // ?fresh: a reload starts with the board as the agent wrote it.
+    await page.reload();
+    await page.waitForSelector('.card');
+    assert.match(await page.textContent('.lamp'), /2 waiting on you/);
+    assert.equal(await page.evaluate(() => Object.keys(localStorage).length), 0, 'nothing is kept in this browser');
+    // Without it, the same answers would still be there.
+    await page.goto(url + '?view=rack');
+    await page.click('#c-pick-band .opt:has(input[value="link"])');
+    await page.waitForFunction(() => document.querySelector('#c-pick-band .tab').textContent === 'Chosen');
+    await page.reload();
+    await page.waitForSelector('.card');
+    assert.equal(await page.textContent('#c-pick-band .tab'), 'Chosen');
+    assert.ok(await page.$('.chat'), 'and the chat box is back');
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

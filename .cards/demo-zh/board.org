@@ -2,8 +2,8 @@
 #+todo: TODO DOING BLOCKED | DONE
 #+language: zh-Hans
 #+translation_of: demo
-#+author: 一个 Agent（示例）
-#+description: 一个示例看板：两条需求，三个选项，一个决定。作答后点“发送”，看 Agent 读到什么。
+#+author: 示例 Agent
+#+description: 示例看板：两条需求，三个选项，一个决定。答完点“发送”，看 Agent 读到什么。
 
 这是 Agent 给出的一份示例回答，数字是编的。
 
@@ -39,12 +39,12 @@
 - 费用 :: 每月约 40 美元
 
 #+begin_src tradeoffs
-  + 三者之中运维面最小
+  + 三个选项里要运维的东西最少
   + 团队 2025 年在通知服务上用过
   - 回放窗口比 Kafka 短
 #+end_src
 
-** 只有需要按月回放时，Kafka 才划算
+** 要回放几个月的消息，Kafka 才划算
 :PROPERTIES:
 :CUSTOM_ID: kafka
 :BASIS: inference
@@ -53,7 +53,7 @@
 
 - 峰值 :: 3 个 Broker，每秒 100 万条
 - 回放 :: 磁盘够用就一直保留
-- 运维 :: Broker 加控制器仲裁
+- 运维 :: Broker 加一组控制器节点
 - 费用 :: 每月约 400 美元
 
 ** SQS 运维最省，但这个峰值下必须分片
@@ -66,7 +66,7 @@
 - 峰值 :: 需要拆成多个队列
 - 回放 :: 删除后无法回放
 - 运维 :: 无
-- 费用 :: 按请求计费，这里每月约 90 美元
+- 费用 :: 按请求计费，按这个流量每月约 90 美元
 
 * 决定
 
@@ -75,7 +75,7 @@
 :CUSTOM_ID: pick-queue
 :ASK: choose
 :END:
-NATS 以最低的运维成本满足两条需求。只有长时间回放是硬性要求时，Kafka 才胜出。
+NATS 两条需求都满足，运维成本最低。只有必须长期回放时才该选 Kafka。
 
 - [X] [[#nats]]
 - [ ] [[#kafka]]
@@ -87,7 +87,7 @@ NATS 以最低的运维成本满足两条需求。只有长时间回放是硬性
 :ASK: approve
 :NEEDS: pick-queue
 :END:
-这个方案是按 NATS 写的。如果你在上面选了别的队列，看板会把这一项留住，由 Agent 重新写方案。
+这个方案是按 NATS 写的。如果你在上面选了别的队列，看板会暂缓这一项，等 Agent 重写方案。
 
 #+caption: 切换过程：两个队列同时接收全部消息，持续一周
 #+begin_src flow

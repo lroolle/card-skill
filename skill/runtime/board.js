@@ -60,15 +60,22 @@
   var ASKED = (function () {
     var q = {};
     try { new URLSearchParams(location.search).forEach(function (v, k) { q[k] = v; }); } catch (e) { /* an old browser: no options */ }
-    return { view: /^(desk|rack)$/.test(q.view) ? q.view : null, alt: /^(claim|gist|full)$/.test(q.level) ? q.level : null };
+    return { view: /^(desk|rack)$/.test(q.view) ? q.view : null, alt: /^(claim|gist|full)$/.test(q.level) ? q.level : null,
+      // ?embed: the board sits in a frame on another page. It keeps one row of tools and no chat box,
+      // and lets the wheel go on to the page around it. ?fresh: a sample that anyone may answer;
+      // nothing is kept in this browser, so each visit starts with the board as the agent wrote it.
+      embed: 'embed' in q, fresh: 'fresh' in q };
   })();
+  if (ASKED.embed) document.documentElement.classList.add('embed');
 
   // ---------- persistence ----------
 
   function load(k, d) {
+    if (ASKED.fresh) return d;
     try { var v = localStorage.getItem(NS + k); return v ? JSON.parse(v) : d; } catch (e) { return d; }
   }
   function save(k, v) {
+    if (ASKED.fresh) return;
     try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) { /* private mode: drafts live for this tab */ }
   }
   function emptyDrafts() { return { cards: {}, order: {}, note: '', sentRev: 0 }; }
@@ -468,8 +475,8 @@
       return '<p class="gate-note">' + say('gate_skip').replace(/\{value\}/g, esc(word)) + '</p>';
     }
     return overridden(c)
-      ? '<p class="gate-note">' + say('gate_after') + ' <button class="link" data-act="hold">' + esc(t('gate_hold')) + '</button></p>'
-      : '<p class="gate-note">' + say('gate_changed') + ' <button class="link" data-act="anyway">' + esc(t('gate_anyway')) + '</button></p>';
+      ? '<p class="gate-note">' + say('gate_after') + '<button class="link" data-act="hold">' + esc(t('gate_hold')) + '</button></p>'
+      : '<p class="gate-note">' + say('gate_changed') + '<button class="link" data-act="anyway">' + esc(t('gate_anyway')) + '</button></p>';
   }
 
   function askHtml(c, d) {
@@ -626,7 +633,7 @@
     $('[data-count="changed"]').textContent = changed.size ? String(changed.size) : '';
 
     var q = S.q.trim().toLowerCase();
-    var fn = S.focus ? B.cards[S.focus].n : '';
+    var fn = S.focus ? '#' + B.cards[S.focus].n : '';
     var shown = 0;
     $$('.card').forEach(function (el) {
       var c = B.cards[el.dataset.id];
@@ -1292,6 +1299,7 @@
     return items.join('');
   }
   function chatHtml() {
+    if (ASKED.embed) return '';
     if (!S.chatOpen) {
       var n = agentUnread();
       return '<aside class="chat" aria-label="' + esc(t('chat_label')) + '"><button class="chat-pill" data-act="chat" aria-expanded="false" title="' + esc(t('chat_message_title')) + '">' +
@@ -1387,11 +1395,22 @@
     var s = B.sections.filter(function (x) { return x.id === B.cards[id].section; })[0];
     var keys = s && s.layout === 'compare' ? factKeys(s.cards) : null;
     var wasFocus = document.activeElement === el;
+    // The control you just used is drawn again with the card: find it again, so
+    // the keyboard stays where it was and Tab goes on from there.
+    var act = el.contains(document.activeElement) ? document.activeElement : null;
+    var again = !act || act === el ? null
+      : act.matches('[data-opt]') ? 'input[data-opt][value="' + String(act.value).replace(/["\\]/g, '\\$&') + '"]'
+      : act.dataset.approve ? '[data-approve="' + act.dataset.approve + '"]'
+      : act.dataset.done ? '[data-done="' + act.dataset.done + '"]'
+      : act.dataset.mark ? '[data-mark="' + act.dataset.mark + '"]'
+      : act.dataset.act ? '[data-act="' + act.dataset.act + '"]' : null;
     el.outerHTML = cardHtml(B.cards[id], keys);
     if (B.cards[id].ask) refreshGated(id);
     applyView();
     watchSizes();
-    if (wasFocus) cardEl(id).focus({ preventScroll: true });
+    var back = again && cardEl(id).querySelector(again);
+    if (back && !back.disabled) back.focus({ preventScroll: true });
+    else if (wasFocus || act) cardEl(id).focus({ preventScroll: true });
   }
   // An answer on one ask opens, locks or holds the asks that need it: draw
   // those again. A card you are typing in is left alone.
@@ -2023,7 +2042,7 @@
       case 'n': nextWaiting(); break;
       case 'd': toggleDesk(); break;
       case 'z': if (deskOn()) cycleZoom(); break;
-      case 'c': e.preventDefault(); toggleChat(true); break;
+      case 'c': if (!ASKED.embed) { e.preventDefault(); toggleChat(true); } break;
       case 'f': S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); break;
       case 's': S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast(t('sort_toast', { order: $('[data-sort] option[value="' + S.sort + '"]').textContent })); break;
       case '/': e.preventDefault(); $('[data-search]').focus(); break;

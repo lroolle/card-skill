@@ -27,8 +27,11 @@
   --mask-faint:  oklch(0.42 0 0);
   --shadow:      oklch(0.235 0.014 260 / 0.16);
 
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", monospace;
+  /* "Cards CJK" is the subset of an open font that a Chinese, Japanese or Korean board
+     carries (lib/font.mjs); it covers CJK characters only, and where the page has none
+     the name matches no font and the stack goes on. */
+  --font: "Cards CJK", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Cards CJK", monospace;
   --t-xs: 12px;  --t-s: 13px;  --t-m: 15px;  --t-l: 17px;  --t-xl: 20px;  --t-xxl: 28px;
   --w-regular: 400;  --w-strong: 600;
 
@@ -254,6 +257,8 @@ dl.facts .blank { color: var(--fg-3); }
 /* An ask that waits for another ask: the reason in words, the controls shown and off. */
 .gate-note, .ask-note { flex: 1 0 100%; margin: 0 0 var(--s1); font-size: var(--t-s); color: var(--fg-2); }
 .gate-note .ref-n { vertical-align: baseline; }
+/* The way out stands after the sentence with a gap of its own: a typed space would be wrong after a Chinese full stop. */
+.gate-note button[data-act] { margin-left: var(--s2); }
 /* The card numeral in the note is a button: it gets a target of 24px. */
 .gate-note button[data-goto] { display: inline-grid; place-items: center; min-width: 24px; min-height: 24px; vertical-align: middle; text-decoration: none; }
 /* Under a finger both small controls get 44px to hit, without a larger look: the padding is taken back by the margin. */
@@ -773,3 +778,11 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
   .bar, .acts, .reply, .grip, .chat, .desk-bar { display: none !important; }
   .card { break-inside: avoid; }
 }
+
+/* ---------- in a frame on another page (?embed) ---------- */
+/* One row of tools: how much shows, which view, and Send. The page around the
+   board owns everything else, and the wheel goes on to it at the board's edge. */
+.embed .bar :is(.seg-filter, .sep, [data-sort], .search, [data-act="help"]) { display: none; }
+.embed .bar { flex-wrap: nowrap; }
+.embed .bar .tools { flex-wrap: nowrap; }
+.embed, .embed body, .embed .view-desk .shelves { overscroll-behavior: auto; }

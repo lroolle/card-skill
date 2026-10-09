@@ -195,17 +195,19 @@ property: =#+PROPERTY: BASIS_ALL fact inference guess=.
 - what is new :: the page reads the declared states and shows them
 - risk :: every new state needs a look on the page
 
-** Emacs is a second client, and org-lint proves the file is valid
+** Emacs is a second client: answer an ask without leaving the editor
 :PROPERTIES:
 :CUSTOM_ID: emacs
 :BASIS: guess
 :END:
 A board is an outline that Emacs already folds, searches and edits. A small
-package could answer an ask there: tick the option, add a note, send. And
-=org-lint= in CI would turn "valid Org" from a claim into a test.
+package could answer an ask there: tick the option, add a note, send.
+
+The second half is done in 0.1: the tests run =org-lint= on every board, and
+compare what Emacs reads from each card with what =cards= reads.
 
 - Org feature :: checkboxes, =C-c C-c=, =M-x org-lint=
-- what is new :: a =cards.el= of about 100 lines; one CI step
+- what is new :: a =cards.el= of about 100 lines
 - risk :: a second client to keep in step with the page
 
 ** A draft card stays in the file and off the page

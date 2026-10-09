@@ -82,7 +82,7 @@ export function append(dir, events) {
 
 // fold(events) -> the state the log describes
 export function fold(events) {
-  const st = { rev: 0, boardHash: null, cards: new Map(), gone: new Set(), nextN: 1, sends: [], read: 0, says: [], revs: [], build: null };
+  const st = { rev: 0, boardHash: null, cards: new Map(), gone: new Set(), nextN: 1, sends: [], read: 0, says: [], revs: [], build: null, font: null };
   const perRev = new Map();
   for (const e of events) {
     if (e.t === 'card') {
@@ -102,6 +102,7 @@ export function fold(events) {
     else if (e.t === 'read') st.read = Math.max(st.read, e.round);
     else if (e.t === 'say') st.says.push({ at: e.at, text: e.text });
     else if (e.t === 'build') st.build = e.v;
+    else if (e.t === 'font') st.font = e.v;
   }
   return st;
 }
@@ -181,6 +182,14 @@ export function addSay(dir, text) {
   const ev = { t: 'say', at: now(), text: String(text) };
   append(dir, ev);
   return ev;
+}
+
+// markFont(dir, state): whether the page carries its own CJK font ('embedded')
+// or leaves it to the reader's system ('system'). True when that changed.
+export function markFont(dir, state) {
+  if (fold(readLog(dir)).font === state) return false;
+  append(dir, { t: 'font', v: state, at: now() });
+  return true;
 }
 
 export function markRead(dir, round) {

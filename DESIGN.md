@@ -124,21 +124,39 @@ surface in the same world: it takes its tokens from `board.css` at build
 time and adds no color, no face and no radius.
 
 Composition: **first viewport is the product running** (dealt first of
-three at surface scope; roll key `503b4783`). The live sample board owns
-the first viewport at working size. The offer, one action (Install) and
-three steps to try stand beside it. On a phone the board comes first in its
-phone form, Install stays in the top bar, and the offer follows. Below:
-the loop, six claims, four real boards, the install lines, three limits.
-The promise is the first comment in the page's body.
+three at surface scope; roll key `503b4783`; the other two, "sponsor seats
+as a numbered plate" and "pricing as one slider", have nothing to stand on:
+no sponsors, no price). The live sample board owns the first viewport at
+working size. The offer, one action (Install) and three steps to try stand
+beside it. Where the frame is too small to lay cards out (under about 880
+by 600 px), the sample opens as a list of claims. On a phone the sentence
+comes first, then the board in its phone form, then the steps; Install
+stays in the top bar. Below: the loop, two claims shown on real cards, four
+boards, the install lines, three limits. The promise is the first comment
+in the page's body.
+
+Rules that the first review set (2026-10-09, a reviewer who did not build
+the page; disposition: rebuild the first viewport, fix the rest):
+- The signal color is on an ask and nowhere else. The page has no lamp of
+  its own and its caption on the frame is paper, not signal. The brand mark
+  is ink.
+- No dot grid on the page: on the desk it is a snap grid; here nothing snaps.
+- No grid of claims. A claim the sample cannot show is shown on a real card
+  of a real board, cropped at reading size, by day and by night.
+- What the page quotes from the product is taken from the product at build
+  time: the reply text, the colors, the count of cards.
+- Pictures are taken on a machine whose `system-ui` is a real sans face.
+  The first set was set in a monospace fallback and misrepresented the page.
+- The sample keeps nothing between visits (`?fresh`), so the page around it
+  never contradicts it.
 
 Check: `kit/check.sh --no-zh --tokens skill/runtime/board.css site` runs
 clean. `--no-zh` because the page is English; it carries one Chinese line,
-the title of the Chinese sample, in the system face. A Chinese landing page
-waits for the CJK font work that the board itself still needs.
-
-`kit/render-check.mjs` on the served page: no fail. One warning with its
+the title of the Chinese sample, in the system face.
+`kit/render-check.mjs` on the served page: no fail, one warning with its
 reason: three corner radii. They are the board's own concentric set (6 for
 cards and controls, 4 nested inside them, 3 for marks smaller than text),
-used here for the same three things.
+used here for the same three things. Type: six sizes (12, 13, 15, 17, 20,
+30).
 
-Not reviewed in a fresh context yet, and not seen on a real device.
+Not seen on a real device. A second review after the rebuild is open.

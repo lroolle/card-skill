@@ -124,6 +124,10 @@ Writing rules. `cards check` enforces the mechanical ones.
   `#+translation_of: <first board>`, the same card ids and the same option
   keys. The two pages link to each other; `cards check` on the translation
   says which cards fell behind.
+  A Chinese, Japanese or Korean board carries its own font when the machine
+  has an open CJK font and fonttools; `cards render` says once whether it
+  does, and `reference/format.md` ("A font in the page") says how to set
+  that up.
 - `#+author:` names who wrote the board (you, and for whom). `#+description:`
   is the one line a link preview shows; without it the lede is used.
 - Mark how you know: `:BASIS: fact` (you checked it against a source; a quote
@@ -280,7 +284,9 @@ node <skill>/bin/cards.mjs export <board> --out <dir>
 ```
 
 It writes `<dir>/index.html`: the board as it is now, with no replies, no
-chat, no history and no local path. A reader answers there and Send copies
+chat, no history and no local path. In a frame on another page, add
+`?embed` to the address; for a sample that anyone may answer, add `?fresh`
+(`reference/format.md`, "Options in the address"). A reader answers there and Send copies
 their reply; they send the text to the human. Read the export before it
 leaves: the cards themselves are yours to check.
 

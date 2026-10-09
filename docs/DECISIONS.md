@@ -510,3 +510,60 @@ Rejected: custom button labels on `approve` (a `do` is not a judgment of
 the agent's work, and the reply should say which it was); card ids made
 from the claim (field report 3.1: an id holds the card's history, answers
 and links, and a claim is rewritten often).
+
+## D29. A CJK board carries a subset of an open font
+
+2026-10-09. Built. The human chose this in round 1 of the design review;
+D20 left it open.
+When `#+language:` is Chinese, Japanese or Korean, `cards render` puts two
+weights of an open font into the page, cut down to the characters the board
+and its chrome use. The font covers CJK characters only (`unicode-range`);
+Latin stays with the system face. The subset keeps the font's copyright and
+license records. A Chinese sample of 7 cards grows by about 165 KB.
+The skill ships neither the font (20 MB) nor the subsetter (fonttools is
+Python). It uses what the machine has: Noto Sans CJK or Source Han Sans,
+and `pyftsubset` directly or through `uv`. Without them the page keeps the
+system font, and render says so once, with the way to set it up.
+Why: a page with Han text is a different page on every machine, and boxes
+on a machine with no CJK font. That includes the machine an agent takes
+its own screenshots on.
+Cost: an optional outside tool at render time, as Playwright is for
+`cards shot`; a second or two on the first render of a board, then a cache.
+Rejected: shipping a font in the skill (size); embedding the system's own
+face, such as PingFang or YaHei (their licenses do not allow it); a font
+from a CDN (the page must work with no network); the full font (megabytes
+for each board); writing a subsetter in Node (CFF outlines are a project
+of their own).
+Open: characters the human types into a reply are not in the subset; they
+show in the system font.
+Tests: `test/font.test.mjs`.
+
+## D30. A board in a frame, and a sample anyone may answer
+
+2026-10-09. Built, from the fresh review of the landing page.
+`?embed` in a board's address: one row of tools, no chat box, and the wheel
+goes on to the page around the board. `?fresh`: the page reads and keeps
+nothing in the browser. `?view=` and `?level=` pick the first view once.
+After an answer, the keyboard focus stays on the control that was used.
+Why: the landing page shows a live board in a frame. There the full
+toolbar took a third of the frame on a phone, the board swallowed every
+wheel turn, and a second visit showed the first visit's answers under a
+page that still said "1 ask waits on you". A keyboard user lost the focus
+on every answer, on every board.
+Rejected: a separate "demo build" of the page (a sample must be the real
+page); a reset button on the landing page (state that should not exist is
+better not kept).
+Tests: `test/e2e.test.mjs` "a sample in a frame".
+
+## D31. Org itself is in the test loop
+
+2026-10-09. Built. Closes the open point of D27.
+`test/emacs.test.mjs` runs `org-lint` in a real Emacs on every template and
+on the boards the project shows, and compares what Emacs reads from each
+card (state, id, ask, needs, tags, claim) with what our parser reads. It
+skips without Emacs; CI installs Emacs and requires it.
+Why: "a board is plain Org" was a claim with no test. Now a change to the
+format that Org reads differently fails the build.
+Found by it: nothing, after D27. `org-lint` does flag the two faults our
+own check warns about (a blank line before a drawer, a link to a card that
+does not exist).

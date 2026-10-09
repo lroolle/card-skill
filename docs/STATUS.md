@@ -6,21 +6,25 @@ comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
-`npm test`: 97 tests, 17 of them drive a real browser (Chromium). The same
-suite runs on GitHub on each push, with the browser required; the site at
-https://lroolle.github.io/card-skill/ is built there from `site/` and the
-boards under `.cards/`.
+`npm test`: 105 tests. 18 of them drive a real browser; on GitHub they run
+in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
+The site at https://lroolle.github.io/card-skill/ is built on each push
+from `site/` and the boards under `.cards/`.
 
 - The format: sections, cards, the drawer, TODO states, cookies, tags,
   facts, options with keys, four kinds of ask, links, figures (sketch and
   flow), files (pictures, excerpts, chips), what Emacs writes into a card.
+- Org itself: every template and shown board passes `org-lint`, and Emacs
+  reads the same cards from them as our parser.
 - Errors with a line and a corrected example; lint for the writing rules
   and for syntax that does nothing.
 - Versions that follow meaning: a re-wrapped paragraph is not a revision; a
   changed picture is.
 - The page: the rack and the desk, the three levels, the first-view and Fit
   rules, lines by link type, your own layout, the image viewer, the chat,
-  keys, English and Simplified Chinese chrome, a phone-width layout.
+  keys, a phone-width layout, a board in a frame (`?embed`, `?fresh`).
+- Two languages of chrome, English and Simplified Chinese; a Chinese,
+  Japanese or Korean board carries a subset of an open font.
 - Asks that wait for asks, in the three `:NEEDS:` forms.
 - The loop: served (Send posts to a loopback server), file (Send copies the
   reply; `cards ingest` records it), `inbox`, `wait`, `say`, `settle`.
@@ -32,25 +36,30 @@ boards under `.cards/`.
 
 ## Not checked
 
-- Safari and Firefox. Every browser test runs in Chromium.
-- A phone in a hand. The phone layout is tested at 390 px in Chromium.
+- Safari itself, and a phone in a hand. WebKit and Firefox run the browser
+  tests on Linux; the phone layout is tested at 390 px.
 - Touch in the image viewer; pinch zoom on the desk.
-- A board opened in Emacs. The format follows the Org manual; no test runs
-  Emacs or `org-lint`.
-- The Chinese chrome, read by a native speaker on a real device.
+- The Chinese chrome on a real device, by a human native reader. A second
+  reader with a native register guide went through all 223 strings and the
+  sample board; its 49 corrections are in.
 - GitHub's rendering of `board.org` beyond the heading keywords.
+- The landing page after its rebuild, by a reviewer who did not build it.
 
 ## Known limits
 
 - A compare section is one column on the desk; its options line up only on
   the rack.
-- Chinese text uses the system font; the page carries no CJK font.
+- The CJK font needs an open font and fonttools on the machine that
+  renders; without them the page falls back to the system font and says so.
+  Characters typed into a reply are not in the subset.
+- No Chinese landing page.
 - A picture inside a list gets no caption warning and no figure number.
 - The size of an AVIF or SVG picture is read approximately.
 - A published page has no way to send a reply except copy and paste.
 - A translation is written by hand, card by card; the tool only reports
   what fell behind.
-- `cards shot` needs Playwright, which the skill does not install.
+- `cards shot` needs Playwright, which the skill does not install. Its
+  pictures are only as true as the fonts of the machine that takes them.
 
 ## How to work on it
 

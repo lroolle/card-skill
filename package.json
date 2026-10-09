@@ -7,7 +7,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test test/*.test.mjs",
+    "test": "CARDS_CJK_FONT=none node --test test/*.test.mjs",
     "board": "node skill/bin/cards.mjs",
     "site": "node scripts/site.mjs"
   },

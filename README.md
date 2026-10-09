@@ -8,7 +8,7 @@ lays it out as a board: **one claim per card, at most one ask**. You mark,
 choose and approve on one page. Your reply goes back as data, one line per
 card.
 
-[![A board of 27 cards on the desk, joined by lines](site/shots/design-review.png)](https://lroolle.github.io/card-skill/)
+<a href="https://lroolle.github.io/card-skill/"><picture><source media="(prefers-color-scheme: dark)" srcset="site/shots/design-review-dark.png"><img src="site/shots/design-review-light.png" width="760" alt="Cards on a desk in columns, each with one claim, joined by lines where one depends on another"></picture></a>
 
 **Try it in the browser: https://lroolle.github.io/card-skill/** A live
 board waits there; answer it and press Send to see what the agent reads.
@@ -86,7 +86,9 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
 - **Two views.** The desk lays every card on a table and draws the links
   between them. The rack is a column for reading.
 - **Plain Org underneath.** `board.org` is an outline that Emacs folds and
-  GitHub renders.
+  GitHub renders. The tests run `org-lint` on every board.
+- **Your language.** The buttons follow the board's language (English and
+  Simplified Chinese ship), and a Chinese board carries its own font.
 
 ## Commands
 
@@ -135,8 +137,8 @@ Every design decision, with its reason and what was rejected, is in
 ## Limits
 
 - It is not for one answer. A board for one paragraph is costume.
-- It is tested in Chromium. Safari, Firefox and a phone in a hand are not
-  verified yet.
+- It is tested in Chromium, Firefox and WebKit on a desktop. Safari itself
+  and a phone in a hand are not verified yet.
 - It runs no service. A published board is a static page; a reader copies
   the reply and sends it to you.
 
@@ -167,9 +169,10 @@ DESIGN.md, TASTE.md   the visual material and its rulings
 npm test
 ```
 
-97 tests. The browser tests need Playwright with Chromium and skip without
-it; `CARDS_E2E=required npm test` makes a missing browser a failure, as CI
-does.
+105 tests. The browser tests need Playwright and skip without it; three
+tests need Emacs (they run `org-lint` on the boards) and skip without it.
+On GitHub nothing skips: the suite runs in Chromium, Firefox and WebKit
+(`CARDS_BROWSER`), with Emacs and with the font tools.
 
 ## License
 

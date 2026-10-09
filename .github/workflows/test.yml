@@ -8,14 +8,24 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     env:
-      # The browser tests skip when Playwright is missing; here a skip is a failure.
+      # Each of these makes a missing tool a failure here, where locally the test would skip.
       CARDS_E2E: required
+      CARDS_BROWSER: ${{ matrix.browser }}
+      CARDS_EMACS: required
+      CARDS_FONT: required
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # Emacs for org-lint; an open CJK font and fonttools for the font a Chinese board carries.
+      - run: sudo apt-get update && sudo apt-get install -y emacs-nox fonts-noto-cjk
+      - run: pipx install "fonttools[woff]"
       - run: npm install --no-save playwright@1.62.1
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
       - run: npm test

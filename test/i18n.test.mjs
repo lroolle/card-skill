@@ -74,5 +74,5 @@ test('i18n: a zh-Hans board carries the Chinese table, and figures are numbered 
   assert.equal(r.data.strings.fig, '图');
   assert.match(r.data.cards.nats.figure_html, /<b>图 1\.1<\/b> 数据流/);
   assert.match(r.html, /<html lang="zh-Hans">/);
-  assert.match(r.html, /<noscript><p class="noscript">这个看板需要 JavaScript/);
+  assert.match(r.html, /<noscript><p class="noscript">这个看板需要开启 JavaScript/);
 });

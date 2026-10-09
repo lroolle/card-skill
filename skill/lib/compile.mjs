@@ -8,10 +8,11 @@ import { lint } from './lint.mjs';
 import { esc, renderBlocks, parseFacts } from './md.mjs';
 import { renderFigure, isFigure, WIDE } from './figure.mjs';
 import { resolveAssets, assetHtml, assetKey, imageFigure } from './assets.mjs';
-import { sync, fold, readLog, markBuild } from './store.mjs';
+import { sync, fold, readLog, markBuild, markFont } from './store.mjs';
 import { strings as uiStrings, t } from './i18n.mjs';
 import { family, translationChecks } from './siblings.mjs';
 import { VERSION, HOME } from './version.mjs';
+import { boardFont } from './font.mjs';
 import '../runtime/digest.js';
 
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
@@ -209,11 +210,15 @@ function readRuntime(name) {
 // tab of the mark lights while an ask waits (runtime/board.js swaps it). The
 // icon is its own small document, so the two inks are read from the tokens of
 // board.css, for day and for night, and written into it.
-export function MARK(lit = false) {
+// A token of board.css, by day or by night: for the few places outside the
+// page's own CSS that need its colors (the icon, the browser's own chrome).
+export function tokenOf(name, night = false) {
   const css = readRuntime('board.css');
-  const night = css.indexOf('prefers-color-scheme: dark');
-  const tok = (name, from) => css.slice(from).match(new RegExp(`${name}:\\s*([^;]+);`))[1].trim();
-  const [ink, sig, inkN, sigN] = [tok('--fg', 0), tok('--signal', 0), tok('--fg', night), tok('--signal', night)];
+  const from = night ? css.indexOf('prefers-color-scheme: dark') : 0;
+  return css.slice(from).match(new RegExp(`${name}:\\s*([^;]+);`))[1].trim();
+}
+export function MARK(lit = false) {
+  const [ink, sig, inkN, sigN] = [tokenOf('--fg'), tokenOf('--signal'), tokenOf('--fg', true), tokenOf('--signal', true)];
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><style>.i{fill:${ink}}.t{fill:${lit ? sig : ink}}@media(prefers-color-scheme:dark){.i{fill:${inkN}}.t{fill:${lit ? sigN : inkN}}}</style>` +
     '<path class="t" d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.5A1.5 1.5 0 0 1 8 3v2.5H1.5z"/><path class="i" d="M1.5 5h11.5A1.5 1.5 0 0 1 14.5 6.5v6.5a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z"/></svg>';
 }
@@ -232,15 +237,19 @@ function headTags(data) {
     `<meta property="og:title" content="${esc(b.title)}">`,
     desc && `<meta property="og:description" content="${esc(desc)}">`,
     `<meta name="twitter:card" content="summary">`,
+    // The browser's own surfaces (the bar on a phone, the overscroll) take the rack's color.
+    `<meta name="theme-color" media="(prefers-color-scheme: light)" content="${tokenOf('--bg')}">`,
+    `<meta name="theme-color" media="(prefers-color-scheme: dark)" content="${tokenOf('--bg', true)}">`,
     `<link rel="icon" type="image/svg+xml" href="${dataUri(MARK(false))}">`,
   ];
   return tags.filter(Boolean).join('\n');
 }
 
-export function pageHtml(data) {
+// fontCss: the @font-face rules of a board that carries its own CJK font (lib/font.mjs).
+export function pageHtml(data, { fontCss = '' } = {}) {
   const json = JSON.stringify(data).replace(/</g, '\\u003c')
     .split(String.fromCharCode(0x2028)).join('\\u2028').split(String.fromCharCode(0x2029)).join('\\u2029');
-  const fill = { lang: esc(data.board.lang), title: esc(data.board.title), css: readRuntime('board.css'), head: headTags(data),
+  const fill = { lang: esc(data.board.lang), title: esc(data.board.title), css: readRuntime('board.css') + (fontCss ? `\n${fontCss}\n` : ''), head: headTags(data),
     noscript: esc(t(data.strings, 'noscript')),
     digest: readRuntime('digest.js'), js: readRuntime('board.js'), data: json };
   // Replace with a function: the payloads contain `$` sequences that must stay literal.
@@ -273,9 +282,15 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
   const built = marked && before.rev > 0 ? { from: before.build } : null;
   const st = fold(publish ? [...readLog(ref.dir), ...syncRes.events] : readLog(ref.dir));
   const data = pageData(board, st, ref, { live, token, cwd, publish, chipHref });
-  const html = pageHtml(data);
-  if (write && !publish) fs.writeFileSync(path.join(ref.dir, 'board.html'), html);
-  return { board, errors: [], warnings, data, html, sync: syncRes, st, built };
+  // A Chinese, Japanese or Korean board carries a subset of an open font, when this machine can make one.
+  const font = boardFont(board.lang, JSON.stringify([data.board, data.sections, data.cards, data.strings]));
+  const html = pageHtml(data, { fontCss: font.css });
+  if (write && !publish) {
+    fs.writeFileSync(path.join(ref.dir, 'board.html'), html);
+    // Said by the caller once, when it changes: the font is in the page, or it is not and why.
+    if (font.state !== 'none' && markFont(ref.dir, font.state)) font.changed = true;
+  }
+  return { board, errors: [], warnings, data, html, sync: syncRes, st, built, font };
 }
 
 // outline(data) -> the board as terminal text. Useful when nobody opens the page.

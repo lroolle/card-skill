@@ -458,7 +458,7 @@ export function flow(text, caption, label, ctx = {}) {
   const said = g.edges.map(edge).join(T('fig_list_sep'));
   const cap = caption && (ctx.plain ? ctx.plain(caption) : caption);
   const head = cap ? T('fig_flow_named', { caption: cap }) : T('fig_flow');
-  const aria = esc(`${head}. ${said || g.nodes.map((nd) => nd.label).join(', ')}`);
+  const aria = esc(T('fig_said', { head, parts: said || g.nodes.map((nd) => nd.label).join(T('fig_node_sep')) }));
   const parts = [];
   for (const e of L.edges) {
     parts.push(`<g class="fe${e.dashed ? ' dash' : ''}${e.back ? ' back' : ''}" data-a="${e.a}" data-b="${e.b}"><path d="${e.d}"/>` +

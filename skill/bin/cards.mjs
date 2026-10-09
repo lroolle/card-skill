@@ -88,7 +88,13 @@ function buildNote(ref) {
   return !st.rev || st.build === VERSION ? '' : noteText(ref.id, st.build);
 }
 // For every command that writes the page: the render records the build, so this is said once.
-const saidOnce = (ref, r) => { if (r.built) console.log(noteText(ref.id, r.built.from) + '\n'); };
+const fontText = (f) => (f.state === 'embedded'
+  ? `font: the page carries its own font for this language (${f.why}).`
+  : `font: the page uses the reader's system font for this language: ${f.why}. To carry one in the page, see ${path.join(SKILL, 'reference', 'format.md')}, "A font in the page".`);
+const saidOnce = (ref, r) => {
+  if (r.built) console.log(noteText(ref.id, r.built.from) + '\n');
+  if (r.font && r.font.changed) console.log(fontText(r.font) + '\n');
+};
 
 async function stdin() {
   if (process.stdin.isTTY) return '';
@@ -319,6 +325,7 @@ const commands = {
     const langs = r.data.board.langs.filter((m) => !m.self);
     console.log(`wrote ${rel(path.join(out, 'index.html'))}${copies.size ? ` and ${copies.size} linked file${copies.size > 1 ? 's' : ''} in files/` : ''}: rev ${r.data.board.rev}, ${Object.keys(r.data.cards).length} cards.`);
     console.log('It holds the board as it is now: no replies, no chat, no past versions, no local path. Read it once before you share it; the text of the cards is yours to check.');
+    if (r.font && r.font.state !== 'none') console.log(fontText(r.font));
     if (langs.length) console.log(`It links to ${langs.map((m) => `${m.href} (${m.lang})`).join(', ')}: export each of those boards into a folder with its own name, next to this one.`);
   },
 

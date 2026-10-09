@@ -48,6 +48,15 @@ New
   `#+include: "f" src js :lines "10-40"` for an excerpt.
 - `cards check` warns about a `#+keyword:` or a block type this build does
   nothing with.
+- A Chinese, Japanese or Korean board carries a subset of an open font in
+  the page, when the machine has one and has fonttools. `cards render`
+  says once whether it does.
+- A page takes `?view=`, `?level=`, `?embed` (in a frame) and `?fresh` (a
+  sample; nothing is kept) in its address.
+
+Checked against Org itself
+- Every template passes `org-lint` in Emacs, and Emacs reads the same
+  cards from a board as `cards` does. The tests run both.
 
 The page
 - The desk opens at the most detail that fits the window at a readable size,
