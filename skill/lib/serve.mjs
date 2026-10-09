@@ -2,8 +2,8 @@
 //
 //   GET  /                   boards under .cards/
 //   GET  /b/<id>             the board page, live
-//   GET  /api/<id>/data      page data (409 + errors while board.md is broken)
-//   GET  /api/<id>/events    server-sent "change" whenever board.md or the log moves
+//   GET  /api/<id>/data      page data (409 + errors while the board source is broken)
+//   GET  /api/<id>/events    server-sent "change" whenever the board source or the log moves
 //   POST /api/<id>/send      { token, rev, items } -> log.jsonl
 //
 // Threat model: another web page open in the same browser, and anything that
@@ -167,7 +167,7 @@ export function serve({ cwd = process.cwd(), port = 4747, host = '127.0.0.1', lo
 function indexPage(cwd) {
   const rows = listBoards(cwd).filter((ref) => ID_RE.test(ref.id)).map((ref) => {
     const st = fold(readLog(ref.dir));
-    const title = boardTitle(fs.readFileSync(ref.file, 'utf8')) || ref.id;
+    const title = boardTitle(fs.readFileSync(ref.file, 'utf8'), ref.file) || ref.id;
     const n = unread(st).length;
     return `<li><a href="/b/${ref.id}">${esc(title)}</a><span>${esc(ref.id)} · rev ${st.rev}${n ? ` · ${n} unread` : ''}</span></li>`;
   });
@@ -179,11 +179,11 @@ a{color:inherit;font-weight:600}span{color:#5d6470;font-size:.875rem}</style>
 }
 
 function errorPage(id, errors) {
-  const list = errors.map((e) => `<li><b>board.md:${e.line}</b> ${esc(e.msg)}<pre>${esc(e.fix)}</pre></li>`).join('');
+  const list = errors.map((e) => `<li><b>line ${e.line}</b> ${esc(e.msg)}<pre>${esc(e.fix)}</pre></li>`).join('');
   // id is a slug here; it still goes in as JSON with < escaped, never spliced into a JS string.
   const url = JSON.stringify(`/api/${id}/events`).replace(/</g, '\\u003c');
   return `<!doctype html><meta charset="utf-8"><title>${esc(id)}: errors</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;max-width:44rem;margin:4rem auto;padding:0 1.5rem}pre{background:#f3f4f6;padding:.5rem}</style>
-<h1>${esc(id)} has errors</h1><p>The agent is mid-edit, or board.md needs a fix. This page reloads when it changes.</p><ul>${list}</ul>
+<h1>${esc(id)} has errors</h1><p>The agent is mid-edit, or the board source needs a fix. This page reloads when it changes.</p><ul>${list}</ul>
 <script>new EventSource(${url}).addEventListener('change',()=>location.reload())</script>`;
 }

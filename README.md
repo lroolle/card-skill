@@ -11,7 +11,8 @@ judgments, a decision only you can make, or work that spans turns.
 ## What you see
 
 Open a board. The top line says whose turn it is: "Your turn, 3 waiting on
-you". Below it, sections of cards. Each heading is a claim, so a scan of the
+you". Below it, the desk: one column per section, lines between linked cards,
+zoomed to fit the whole board. Each heading is a claim, so a scan of the
 headings is a scan of the conclusions.
 
 - A yellow-red tab stands up on each card that waits on you: Choose,
@@ -22,17 +23,20 @@ headings is a scan of the conclusions.
   the gist, numbered like the card ("Fig. 12.1").
 - Click a card to open it. Related cards stay lit and say how they relate
   ("Source of 8", "Option of 17", "Needs 4"); the rest dims.
-- Press `D` for the desk: each section becomes a column, and lines join
-  linked cards. Focus turns a card's lines blue. Nobody places a card; a rule
-  makes the layout. The rack (the default view) is for reading and answering.
+- The desk: grey lines are sources, red lines are needs, violet lines with a
+  diamond are the options of a decision; the key at the top names them.
+  Fit, 50% and 100% zoom (`z`); click a card to zoom to it, Esc to go back.
+  Drag a card by its top strip to place it yourself; Arrange puts every card
+  back in its section. `D` switches to the rack, a reading view.
 - The toolbar: All / Yours / Changed, then Claim / Gist / Full (how much of
-  each card shows), Desk, order, find, and Send.
+  each card shows), Desk, order, find, and Send. A note about the whole board
+  is the dock in the bottom-left corner (`c`).
 - Drag a card by its grip to reorder it. The order goes back as your priority.
 - Send. With `cards serve`, the reply is written to disk for the agent. With
   a plain file, Send copies the reply for you to paste.
 
 Keys: `j`/`k` move, `Enter` opens, `n` jumps to the next ask, `1 2 3` set the
-detail, `d` toggles the desk, `= - m` mark Keep / Drop / More, `r` replies, `/` finds,
+detail, `d` toggles desk and rack, `z` zooms, `c` opens the note, `= - m` mark Keep / Drop / More, `r` replies, `/` finds,
 `Ctrl+Enter` sends, `?` lists all.
 
 ## Try it
@@ -62,15 +66,15 @@ the loop. Node 18 or later. No dependencies.
 
 ```
 agent writes            cards render                 you open
-.cards/<b>/board.md --> parse, check, diff --> .cards/<b>/board.html
+.cards/<b>/board.org -> parse, check, diff --> .cards/<b>/board.html
                               |                        |
                         .cards/<b>/log.jsonl <---- Send (served) or Copy (file)
                               |
 agent reads <---- cards wait / cards inbox
 ```
 
-- `board.md` is the source of truth: markdown, one H2 per card. Spec:
-  `skill/reference/format.md`.
+- `board.org` is the source of truth: plain Org mode, one `**` heading per
+  card. Spec: `skill/reference/format.md`. An older `board.md` still renders.
 - `log.jsonl` is append-only memory: card versions, your sends, the agent's
   reads. Revisions are derived, so the agent cannot forget history.
 - `board.html` is one self-contained file. Delete it any time.
@@ -80,12 +84,12 @@ agent reads <---- cards wait / cards inbox
 ```
 skill/                the installable skill
   SKILL.md            the policy: when, how, the loop
-  reference/format.md the board.md spec, figures included
+  reference/format.md the board.org spec, figures included
   reference/writing.md the writing profile, near ASD-STE100
   bin/cards.mjs       CLI: new check render show ls serve wait inbox
-  lib/                parser, lint, markdown subset, figures, log, compiler, server
+  lib/                parsers (Org, markdown), lint, figures, log, compiler, server
   runtime/            the page: board.html, board.css, board.js, digest.js
-  templates/          five working boards: decide review plan brief status
+  templates/          five working Org boards: decide review plan brief status
 test/                 node --test: kernel, figures, browser end-to-end
 .cards/design-review/ the design proposal, as a board
 docs/STATUS.md        where the work is and what is next

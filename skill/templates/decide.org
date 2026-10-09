@@ -1,0 +1,76 @@
+#+title: Pick a queue for the ingest service
+
+Example board from the decide pattern; the numbers are illustrative. Replace every card. Needs first, then options side by side, then one decision.
+
+* What the queue must do
+
+** Peak load is 80k messages a second; steady load is 5k
+:PROPERTIES:
+:CUSTOM_ID: need-peak
+:BASIS: fact
+:END:
+Measured from the October replay of production traffic.
+
+** A broker restart must not lose messages
+:PROPERTIES:
+:CUSTOM_ID: need-durable
+:BASIS: fact
+:END:
+A lost batch means re-billing customers by hand.
+
+* Options  :compare:
+
+** NATS JetStream covers the peak with one binary
+:PROPERTIES:
+:CUSTOM_ID: nats
+:BASIS: inference
+:END:
+It meets both needs on a three-node cluster and adds the least operating work.
+
+- peak :: 120k msg/s on 3 nodes
+- replay :: 7 days
+- operations :: one binary
+- cost :: about $40 a month
+
+#+begin_src tradeoffs
+  + Smallest operating surface of the three
+  + The team ran it in 2025 for the notifier
+  - Replay window is shorter than Kafka's
+#+end_src
+
+** Kafka pays off only if we need months of replay
+:PROPERTIES:
+:CUSTOM_ID: kafka
+:BASIS: inference
+:END:
+It has the most headroom and the longest replay, at the cost of a cluster to run.
+
+- peak :: 1M msg/s on 3 brokers
+- replay :: as long as disk allows
+- operations :: brokers plus a controller quorum
+- cost :: about $400 a month
+
+** SQS is cheapest to run but needs sharding at this peak
+:PROPERTIES:
+:CUSTOM_ID: sqs
+:BASIS: guess
+:END:
+No servers to run, but one queue does not take 80k a second without batching and many queues.
+
+- peak :: needs sharding across queues
+- replay :: none after delete
+- operations :: none
+- cost :: per request; about $90 a month here
+
+* Decision
+
+** Pick NATS JetStream unless replay beyond 7 days matters
+:PROPERTIES:
+:CUSTOM_ID: pick-queue
+:ASK: choose
+:END:
+NATS meets both needs at the lowest operating cost. Kafka only wins if long replay is a requirement.
+
+- [X] [[#nats]]
+- [ ] [[#kafka]]
+- [ ] [[#sqs]]

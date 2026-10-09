@@ -4,17 +4,19 @@ Last update: 2026-10-09. Read this first when you resume.
 
 ## Where we are
 
-v0 works end to end. On 2026-10-09 the human asked for three changes before
-they review: figures in cards, a canvas view with visible links, and writing
-near ASD-STE100. All three are built (D13, D14, D15). The design proposal is
-a board, `.cards/design-review/board.md` (rev 6, 24 cards), with 5 asks
-waiting on the human. Three decisions stay Proposed until those asks come
-back: D15 connection model (supersedes D5), D8 return path, D11 visual
-direction.
+Round 1 of the design review is answered (pasted digest, 2026-10-09): D8,
+D11 and D15 are accepted, with the board opening on the desk. The human then
+asked for Org in place of markdown (D16) and a desk canvas (D17): zoom with
+Fit, 50% and 100%, focus that zooms to a card, cards you can drag, Arrange,
+typed lines, and the board note as a dock. All of it is built and tested.
+
+The board `.cards/design-review/board.org` is rev 9 (27 cards). Two asks
+wait: `ask-canvas` (approve four choices the agent made inside D17) and
+`ask-dogfood` (a real task; the round-1 answer was a test).
 
 ## What works, verified
 
-Each line names its check. `npm test` runs 53 tests.
+Each line names its check. `npm test` runs 60 tests.
 
 - Figures: `sketch` and `flow` parse, lay out the same way every time, escape
   all agent text, number per card (Fig. 12.1), and widen a card when wide:
@@ -27,6 +29,18 @@ Each line names its check. `npm test` runs 53 tests.
   desk keeps its own level (Claim), the line layer shrinks back, and on a phone
   the page stays 390px wide with Send on screen: `test/e2e.test.mjs`.
 - Selecting text in a card does not open or close it: `test/e2e.test.mjs`.
+- Org boards: the reader, the board parser, errors with Org fixes, the five
+  templates (Org only), and the SKILL.md example: `test/kernel.test.mjs`,
+  `test/figure.test.mjs`. The full browser loop runs on an Org board,
+  including the agent's revision of `board.org`: `test/e2e.test.mjs`.
+- Meaning, not syntax, makes a version: the markdown and Org templates have
+  equal `canonical()` forms card by card (checked by hand while converting),
+  and the design-review conversion kept the versions of 10 unchanged cards
+  (rev 7 in `log.jsonl`).
+- The desk canvas: Fit by default, `z` presets, zoom to a card at 50% and
+  back with Esc, Ctrl + wheel zoom, typed line classes and the key, drag to
+  place with grid snap that survives a reload, Arrange and Undo, the note
+  dock (`c`, Esc, draft dot): `test/e2e.test.mjs` "desk canvas".
 
 - Parser, lint, markdown subset, log, compiler, digest: `test/kernel.test.mjs`.
 - Every finding from the code review has a regression test: id-only routing,
@@ -44,6 +58,11 @@ Each line names its check. `npm test` runs 53 tests.
   warnings: `test/kernel.test.mjs`.
 - A cold-start agent given only SKILL.md produced a valid 14-card board with
   no errors on the first try. Its notes on unclear text are fixed in SKILL.md.
+- Again in Org (2026-10-09): given only SKILL.md and format.md, a fresh agent
+  wrote a 9-card Org board with a sketch, a flow, a compare section and two
+  asks; no errors and no warnings on the first try. Its nine notes on unclear
+  text are fixed in SKILL.md, format.md and writing.md. Lint warnings now
+  point at the line with the problem: `test/org.test.mjs`.
 - Design checks: `kit/check.sh` 0 fail 0 warn; `kit/render-check.mjs` 0 fail,
   2 warns with reasons in `DESIGN.md`. Contrast passes in both themes.
 
@@ -77,14 +96,25 @@ the marks bar covering a link label on the desk. Report and 28 captures:
 when one value wraps; Esc on the desk keeps the card's focus ring; the rail
 rule runs only under the last row of tabs at 390px.
 
+Mac check 2 (rev 7, ego lite, the canvas): no P0; 6 P1s fixed in rev 9: the
+desk header is compact (smaller title, one-line lede) so the table gets the
+height; lines keep their screen width and their end shapes their size at any
+zoom; on your own layout lines lie above cards, faint where they cross one;
+Ctrl + wheel keeps the point under the pointer when the desk can scroll (it
+cannot when the whole board fits); the open note clears the toolbar; a phone
+opens on the rack. Also fixed: the stacking order of moved cards survives a
+reload; the wheel stops at 15%; Arrange's Undo lasts 8 s. Open P2s: lines hug
+card edges on the section layout; the Fit button keeps a focus ring after a
+click; Esc keeps a card's focus ring. Report: `.claude/review/ego-review-2.md`.
+
 Open P2s: no skip link to the toolbar; the Yours filter keeps answered-but-
 unsent asks while its badge counts only unanswered ones (on purpose; see the
 comment in `board.js`).
 
 ## Not verified
 
-- A real Mac and a real phone. Captures came from headless Chromium in the
-  container, with Inter standing in for SF Pro.
+- A real phone. A real Mac was checked once, in ego lite (Chromium 152), for
+  rev 6; the canvas was checked in ego lite for rev 7 (`.claude/review/ego-review-2.md`).
 - Safari and Firefox. WebKit for Playwright downloads into
   `~/.cache/ms-playwright`, but it needs GTK4 and GStreamer system libraries
   (`playwright install-deps webkit`, an apt install) that are not in this
@@ -104,20 +134,24 @@ comment in `board.js`).
 - A sketch with CJK characters loses its columns (fonts differ in width).
 - On the desk, a long line may share a gap with other lines; with many long
   lines a gap gets crowded. Boards past 30 cards are not tested on the desk.
-- The desk opens on the rack until the human rules on `ask-connection`.
+- On your own layout (after a drag), lines run straight between cards and
+  may pass behind a card; only the section layout routes them through gaps.
+- A pinch on a touch screen zooms the whole page, not the desk; use the zoom
+  buttons on a phone.
+- In a flow figure, the labels of return loops are not checked against other
+  lines.
+- Your desk layout is per browser, like drafts.
 
 ## Next, in order
 
-1. Read the human's replies to `.cards/design-review` (`cards inbox`, or the
-   pasted text), record rulings in `docs/DECISIONS.md` (D15, D8, D11), revise
-   the board. If they pick the desk as the first view or free placement,
-   that is the next build.
-2. Build the first real board on the task the human names (`ask-dogfood`).
-3. Install step: copy `skill/` to `~/.claude/skills/card-skill`; optional
-   `UserPromptSubmit` hook running `cards inbox --quiet`.
-4. A capability URL for `cards serve`, if the human wants the served loop
+1. Read the reply to rev 7 (`ask-canvas`, `ask-dogfood`). If the human names a
+   real task, build the first real board on it.
+2. Install step: copy `skill/` to `~/.claude/skills/card-skill`; a
+   `UserPromptSubmit` hook running `cards inbox --quiet` (round 1 pick).
+3. An embedded CJK font subset for Chinese boards (round 1 pick).
+4. A project index that links boards to each other (round 1 pick).
+5. A capability URL for `cards serve`, if the human wants the served loop
    from inside a container.
-5. The next build item the human picks on `ask-next`.
 
 ## How to resume
 

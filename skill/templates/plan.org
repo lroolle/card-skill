@@ -1,0 +1,48 @@
+#+title: Move session storage from Redis to Postgres
+
+Example board from the plan pattern. Replace every card. Steps run top to bottom; each step names what it needs.
+
+* Steps  :list:
+
+** DONE Sessions are written to both Redis and Postgres
+:PROPERTIES:
+:CUSTOM_ID: dual-write
+:END:
+Dual-write has run since 2026-09-30 with no write errors.
+
+** DOING Backfill copies sessions older than the dual-write start [3/8]
+:PROPERTIES:
+:CUSTOM_ID: backfill
+:NEEDS: dual-write
+:END:
+Three of eight shards are copied. Each shard takes about the same time.
+
+** Reads switch to Postgres behind a flag
+:PROPERTIES:
+:CUSTOM_ID: switch-reads
+:NEEDS: backfill
+:END:
+The flag flips per region, smallest region first, so a bad read path hits few users.
+
+#+caption: The read path during the switch
+#+begin_src flow
+  app -> region flag
+  region flag -> *Postgres*: flag on
+  region flag --> Redis: flag off
+#+end_src
+
+** Redis writes stop after one clean week
+:PROPERTIES:
+:CUSTOM_ID: remove-redis
+:NEEDS: switch-reads
+:END:
+A clean week means no flag rollback and no session-not-found spike.
+
+* Open question
+
+** Which sessions can we drop instead of copying?
+:PROPERTIES:
+:CUSTOM_ID: drop-policy
+:ASK: answer
+:END:
+Sessions idle for 30 days or more are most of the rows. Dropping them shortens the backfill. Only you know whether a customer depends on them.

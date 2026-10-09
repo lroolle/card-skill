@@ -3,9 +3,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseBoard, anatomy } from './board.mjs';
+import { parseBoard, anatomy, syntaxOf, parseCard } from './board.mjs';
 import { lint } from './lint.mjs';
-import { esc, inline, plain, parseBlocks, renderBlocks, parseFacts } from './md.mjs';
+import { esc, renderBlocks, parseFacts } from './md.mjs';
 import { FIGURE_LANGS, renderFigure, WIDE } from './figure.mjs';
 import { sync, fold, readLog } from './store.mjs';
 import '../runtime/digest.js';
@@ -13,20 +13,26 @@ import '../runtime/digest.js';
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
 const HISTORY_KEEP = 4;
 
-function refCtx(byId, nOf) {
-  return {
-    ref(id) {
+// The render context of one board: its format's inline renderer, and card
+// references drawn as numeral + claim (or the link text the author gave).
+function refCtx(byId, nOf, sx) {
+  const ctx = {
+    inline: sx.inline,
+    ref(id, label) {
       const c = byId.get(id);
-      if (!c) return `<span class="ref missing">${esc(id)}</span>`;
-      return `<a class="ref" href="#c-${esc(id)}" data-ref="${esc(id)}"><span class="ref-n">${nOf(id)}</span><span class="ref-t">${inline(c.title)}</span></a>`;
+      if (!c) return `<span class="ref missing">${label || esc(id)}</span>`;
+      const text = label || syntaxOf(c.fmt).inline(c.title, ctx);
+      return `<a class="ref" href="#c-${esc(id)}" data-ref="${esc(id)}"><span class="ref-n">${nOf(id)}</span><span class="ref-t">${text}</span></a>`;
     },
   };
+  return ctx;
 }
 
 // Figures are numbered per card, in source order: Fig. 12.1 is the first
 // figure on card 12, so a human can point at it in words.
 function cardView(card, ctx, n = '?') {
   const a = card.anatomy || anatomy(card);
+  const inline = ctx.inline;
   let k = 0;
   const fctx = {
     ...ctx,
@@ -45,19 +51,19 @@ function cardView(card, ctx, n = '?') {
   };
 }
 
-// A past version is stored as raw card markdown; parse it on its own.
-function pastView(src, ctx) {
-  const b = parseBoard(`---\ntitle: past\n---\n${src}\n`);
-  const c = b.cards[0];
+// A past version is stored as its raw source, in the format it was written in.
+function pastView(src, fmt, ctx) {
+  const c = parseCard(src, fmt);
   if (!c) return { title_html: esc(src.split('\n')[0]), gist_html: '' };
-  const v = cardView(c, ctx);
+  const v = cardView(c, { ...ctx, inline: syntaxOf(fmt).inline });
   return { title_html: v.title_html, gist_html: v.gist_html };
 }
 
 export function pageData(board, st, ref, { live = false, token = null, cwd = process.cwd() } = {}) {
   const byId = new Map(board.cards.map((c) => [c.id, c]));
   const nOf = (id) => st.cards.get(id)?.n ?? '?';
-  const ctx = refCtx(byId, nOf);
+  const sx = syntaxOf(board.fmt);
+  const ctx = refCtx(byId, nOf, sx);
   const cards = {};
   for (const c of board.cards) {
     const v = cardView(c, ctx, nOf(c.id));
@@ -70,8 +76,8 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       rev: rec?.rev ?? st.rev,
       section: c.section,
       title_html: v.title_html,
-      title_text: plain(c.title),
-      text: plain(`${c.title} ${c.body}`).slice(0, 2000),
+      title_text: sx.plain(c.title),
+      text: sx.plain(`${c.title} ${c.body}`).slice(0, 2000),
       gist_html: v.gist_html,
       figure_html: v.figure_html,
       wide: v.wide,
@@ -83,8 +89,8 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
         ref: o.ref,
         default: !!o.default,
         label_html: o.ref
-          ? `<span class="ref-n">${nOf(o.ref)}</span>${byId.has(o.ref) ? inline(byId.get(o.ref).title, ctx) : esc(o.ref)}${o.text ? ' <span class="opt-note">' + inline(o.text, ctx) + '</span>' : ''}`
-          : inline(o.text, ctx),
+          ? `<span class="ref-n">${nOf(o.ref)}</span>${byId.has(o.ref) ? sx.inline(byId.get(o.ref).title, ctx) : esc(o.ref)}${o.text ? ' <span class="opt-note">' + sx.inline(o.text, ctx) + '</span>' : ''}`
+          : sx.inline(o.text, ctx),
       })),
       ask: c.ask,
       status: c.status,
@@ -95,7 +101,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       tags: c.tags,
       multi: c.multi,
       progress: c.progress,
-      history: past.map((h) => ({ v: h.v, rev: h.rev, at: h.at, ...pastView(h.src, ctx) })),
+      history: past.map((h) => ({ v: h.v, rev: h.rev, at: h.at, ...pastView(h.src, h.fmt, ctx) })),
     };
   }
   return {
@@ -104,7 +110,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       id: board.id,
       title: board.title,
       lang: board.lang,
-      lede_html: renderBlocks(parseBlocks(board.lede), ctx),
+      lede_html: renderBlocks(sx.blocks(board.lede), ctx),
       rev: st.rev,
       path: displayPath(cwd, ref.file),
       generated: new Date().toISOString(),
@@ -112,7 +118,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
     sections: board.sections.map((s) => ({
       id: s.id,
       title: s.title,
-      note_html: s.note ? renderBlocks(parseBlocks(s.note), ctx) : '',
+      note_html: s.note ? renderBlocks(sx.blocks(s.note), ctx) : '',
       layout: s.layout,
       cards: s.cards,
     })),
@@ -149,7 +155,7 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
   if (!fs.existsSync(ref.file)) {
     return { errors: [{ line: 0, msg: `no board at ${path.relative(cwd, ref.file)}`, fix: `cards new ${ref.id}` }], warnings: [] };
   }
-  const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id });
+  const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file });
   const warnings = lint(board);
   if (board.errors.length) return { board, errors: board.errors, warnings };
   const syncRes = sync(ref.dir, board);

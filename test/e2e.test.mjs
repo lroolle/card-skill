@@ -21,11 +21,17 @@ for (const p of ['playwright', path.join(os.homedir(), '.npm-global/lib/node_mod
 }
 const SKILL = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'skill');
 
+// The board opens on the desk (D15). Tests about reading and answering use the rack.
+async function toRack(page) {
+  await page.keyboard.press('d');
+  await page.waitForSelector('.board.view-rack');
+}
+
 function setup() {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
   const ref = resolveBoard('queue', cwd);
   fs.mkdirSync(ref.dir, { recursive: true });
-  fs.copyFileSync(path.join(SKILL, 'templates', 'decide.md'), ref.file);
+  fs.copyFileSync(path.join(SKILL, 'templates', 'decide.org'), ref.file);
   return { cwd, ref };
 }
 
@@ -38,6 +44,7 @@ test('live loop: choose, mark, reply, send, then the agent revises', { skip: !ch
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${url}/b/queue`);
+    await toRack(page);
 
     await assert.doesNotReject(page.waitForSelector('.lamp[data-turn="you"]'));
     assert.match(await page.textContent('.lamp'), /1 waiting on you/);
@@ -82,10 +89,10 @@ test('live loop: choose, mark, reply, send, then the agent revises', { skip: !ch
     ]);
 
     // The agent revises: the decision is settled, the SQS card changes.
-    const md = fs.readFileSync(ref.file, 'utf8')
-      .replace('{#pick-queue ask=choose from=nats,kafka,sqs}', '{#pick-queue status=done from=nats,kafka,sqs}')
-      .replace('Pick NATS JetStream unless replay beyond 7 days matters', 'Kafka, as chosen in round 1');
-    fs.writeFileSync(ref.file, md);
+    const org = fs.readFileSync(ref.file, 'utf8')
+      .replace(':ASK: choose\n', '')
+      .replace('** Pick NATS JetStream unless replay beyond 7 days matters', '** DONE Kafka, as chosen in round 1');
+    fs.writeFileSync(ref.file, org);
     await page.waitForFunction(() => document.querySelector('#c-pick-queue .claim')?.textContent.includes('Kafka, as chosen'), null, { timeout: 5000 });
     assert.equal(await page.getAttribute('#c-pick-queue', 'data-status'), 'done');
     assert.match(await page.textContent('#c-pick-queue .addr'), /v2/);
@@ -126,6 +133,7 @@ test('file mode: Send opens the copy dialog with the digest', { skip: !chromium 
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await toRack(page);
     await page.click('#c-pick-queue .opt:has(input[value="nats"])');
     assert.match(await page.textContent('#c-pick-queue .opt.on .hint'), /Suggested · chosen/);
     await page.keyboard.press('Control+Enter');
@@ -144,6 +152,7 @@ test('keyboard: j/k move focus, 1/2/3 set altitude, n finds the waiting card', {
   try {
     const page = await browser.newPage();
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await toRack(page);
     await page.keyboard.press('j');
     assert.ok((await page.getAttribute('#c-need-peak', 'class')).includes('focused'));
     await page.keyboard.press('1');
@@ -165,40 +174,20 @@ test('keyboard: j/k move focus, 1/2/3 set altitude, n finds the waiting card', {
   }
 });
 
-const DESK = `---
-title: Desk test
----
-
-# One
-
-## Card a starts the chain {#a}
-Gist a.
-
-## Card b stands alone here {#b}
-Gist b.
-
-# Two
-
-## Card c follows from a {#c from=a}
-Gist c.
-
-## Card d follows from c {#d from=c}
-Gist d.
-
-## Card e mentions another card {#e}
-Gist e, after [[a]].
-
-# Three
-
-## Card f needs c first {#f needs=c}
-Gist f.
-
-## Pick a or f {#g ask=choose}
-Why.
-
-- [x] [[a]]
-- [ ] [[f]]
-`;
+const card = (title, props, body) => `** ${title}\n:PROPERTIES:\n${Object.entries(props).map(([k, v]) => `:${k}: ${v}`).join('\n')}\n:END:\n${body}\n`;
+const DESK = [
+  '#+title: Desk test\n',
+  '* One',
+  card('Card a starts the chain', { CUSTOM_ID: 'a' }, 'Gist a.'),
+  card('Card b stands alone here', { CUSTOM_ID: 'b' }, 'Gist b.'),
+  '* Two',
+  card('Card c follows from a', { CUSTOM_ID: 'c', FROM: 'a' }, 'Gist c.'),
+  card('Card d follows from c', { CUSTOM_ID: 'd', FROM: 'c' }, 'Gist d.'),
+  card('Card e mentions another card', { CUSTOM_ID: 'e' }, 'Gist e, after [[#a]].'),
+  '* Three',
+  card('Card f needs c first', { CUSTOM_ID: 'f', NEEDS: 'c' }, 'Gist f.'),
+  card('Pick a or f', { CUSTOM_ID: 'g', ASK: 'choose' }, 'Why.\n\n- [X] [[#a]]\n- [ ] [[#f]]'),
+].join('\n');
 
 test('desk: one column per section, a line per link, focus lights its lines, no line behind a card', { skip: !chromium && 'playwright not installed' }, async () => {
   const { cwd, ref } = setup();
@@ -210,18 +199,16 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
-    assert.equal(await page.locator('.wire').count(), 0, 'the rack draws no lines');
-    await page.click('[data-act="desk"]');
-    assert.ok((await page.getAttribute('.board', 'class')).includes('view-desk'));
+    assert.ok((await page.getAttribute('.board', 'class')).includes('view-desk'), 'the board opens on the desk');
     assert.equal(await page.getAttribute('[data-act="desk"]', 'aria-pressed'), 'true');
     // option a->g, option f->g, needs c->f, from a->c, from c->d. The mention e->a draws only in focus.
-    await page.waitForFunction(() => document.querySelectorAll('.wire').length === 5);
+    await page.waitForFunction(() => document.querySelectorAll('.wires .wire').length === 5);
     const lefts = await page.$$eval('.shelf', (els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
     assert.ok(lefts[0] < lefts[1] && lefts[1] < lefts[2], 'sections are columns, left to right');
 
     await page.click('#c-a .claim');
-    await page.waitForFunction(() => document.querySelectorAll('.wire').length === 6);
-    assert.equal(await page.locator('.wire.on').count(), 3, 'a: option of g, source of c, mentioned by e');
+    await page.waitForFunction(() => document.querySelectorAll('.wires .wire').length === 6);
+    assert.equal(await page.locator('.wires .wire.on').count(), 3, 'a: option of g, source of c, mentioned by e');
     assert.equal(await page.textContent('#c-g .rel'), 'Decides 1');
     // On the desk no marks bar floats over a card: the lit card under the pointer keeps its link label.
     await page.hover('#c-g .claim');
@@ -236,17 +223,16 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
 
     // The line from a (column 1) to g (column 3) crosses column 2 in a gap, not behind c, d or e.
     const behind = await page.evaluate(() => {
-      const paths = [...document.querySelectorAll('path.wire[data-a="a"][data-b="g"]')];
-      const box = document.querySelector('.shelves').getBoundingClientRect();
+      const paths = [...document.querySelectorAll('.wires .wire[data-a="a"][data-b="g"] .ln')];
       const rects = [...document.querySelectorAll('.card')].filter((c) => !['a', 'g'].includes(c.dataset.id))
         .map((c) => ({ id: c.dataset.id, r: c.getBoundingClientRect() }));
       const hits = new Set();
       for (const path of paths) {
         const len = path.getTotalLength();
         for (let s = 0; s <= len; s += 4) {
-          const p = path.getPointAtLength(s);
-          const x = p.x + box.left;
-          const y = p.y + box.top;
+          const p = new DOMPoint(path.getPointAtLength(s).x, path.getPointAtLength(s).y).matrixTransform(path.getScreenCTM());
+          const x = p.x;
+          const y = p.y;
           for (const { id, r } of rects) if (x > r.left + 1 && x < r.right - 1 && y > r.top + 1 && y < r.bottom - 1) hits.add(id);
         }
       }
@@ -257,27 +243,28 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     // Lines follow the cards when the level of detail changes.
     // The desk keeps its own level of detail: it opened at Claim; the rack stays at Gist.
     assert.ok((await page.getAttribute('.board', 'class')).includes('alt-claim'));
-    const before = await page.getAttribute('path.wire[data-a="c"][data-b="d"]', 'd');
+    const before = await page.getAttribute('.wires .wire[data-a="c"][data-b="d"] .ln', 'd');
     await page.keyboard.press('Escape');
     await page.keyboard.press('3');
-    await page.waitForFunction((b) => document.querySelector('path.wire[data-a="c"][data-b="d"]').getAttribute('d') !== b, before);
+    await page.waitForFunction((b) => document.querySelector('.wires .wire[data-a="c"][data-b="d"] .ln').getAttribute('d') !== b, before);
 
-    // Back to Claim: the line layer shrinks with the cards; no empty table, no inner vertical scroll.
+    // Back to Claim: the line layer shrinks with the cards, and the zoom frame follows the plane.
     await page.keyboard.press('1');
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(150);
     const fit = await page.evaluate(() => {
-      const box = document.querySelector('.shelves');
-      const shelves = [...box.querySelectorAll('.shelf')];
-      const right = Math.max(...shelves.map((x) => x.getBoundingClientRect().right)) - box.getBoundingClientRect().left + box.scrollLeft;
-      return { scrollW: box.scrollWidth, need: Math.max(box.clientWidth, right + parseFloat(getComputedStyle(box).paddingRight)), scrollH: box.scrollHeight, clientH: box.clientHeight };
+      const plane = document.querySelector('.plane');
+      const svg = document.querySelector('.wires');
+      const sizer = document.querySelector('.sizer');
+      const scale = plane.getBoundingClientRect().width / plane.offsetWidth;
+      return { svgW: +svg.getAttribute('width'), planeW: plane.offsetWidth, sizerW: sizer.offsetWidth, scaledW: plane.offsetWidth * scale };
     });
-    assert.ok(fit.scrollW <= Math.ceil(fit.need) + 1, `desk ${fit.scrollW}px wide for ${fit.need}px of columns`);
-    assert.ok(fit.scrollH <= fit.clientH + 1, 'no vertical scroll inside the desk');
+    assert.ok(fit.svgW <= fit.planeW + 1, `line layer ${fit.svgW}px in a ${fit.planeW}px plane`);
+    assert.ok(Math.abs(fit.sizerW - fit.scaledW) <= 2, 'the scroll size matches the zoomed plane');
 
     await page.keyboard.press('d');
     assert.ok((await page.getAttribute('.board', 'class')).includes('view-rack'));
     assert.ok((await page.getAttribute('.board', 'class')).includes('alt-gist'), 'the rack keeps its own level');
-    assert.equal(await page.locator('.wire').count(), 0);
+    assert.equal(await page.locator('.wires .wire').count(), 0);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();
@@ -286,12 +273,13 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
 
 test('figures: a flow box darkens its own arrows under the pointer', { skip: !chromium && 'playwright not installed' }, async () => {
   const { cwd, ref } = setup();
-  fs.writeFileSync(ref.file, '---\ntitle: F\n---\n\n## A loop drawn as a flow {#a}\nGist.\n\n```flow The loop\nx -> y: go\ny -> z\n```\n');
+  fs.writeFileSync(ref.file, '#+title: F\n\n** A loop drawn as a flow\n:PROPERTIES:\n:CUSTOM_ID: a\n:END:\nGist.\n\n#+caption: The loop\n#+begin_src flow\n  x -> y: go\n  y -> z\n#+end_src\n');
   buildBoard(ref, { cwd });
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await toRack(page);
     assert.match(await page.textContent('#c-a figcaption'), /Fig\. 1\.1\s+The loop/);
     await page.hover('#c-a .fn[data-n="1"]');
     assert.equal(await page.locator('#c-a .fe.hot').count(), 2, 'y has two arrows');
@@ -302,7 +290,7 @@ test('figures: a flow box darkens its own arrows under the pointer', { skip: !ch
   }
 });
 
-test('desk on a phone: the page stays as wide as the screen, and Send stays on screen', { skip: !chromium && 'playwright not installed' }, async () => {
+test('phone: opens on the rack; the desk keeps the page as wide as the screen, and Send on screen', { skip: !chromium && 'playwright not installed' }, async () => {
   const { cwd, ref } = setup();
   fs.writeFileSync(ref.file, DESK);
   buildBoard(ref, { cwd });
@@ -310,6 +298,7 @@ test('desk on a phone: the page stays as wide as the screen, and Send stays on s
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    assert.ok((await page.getAttribute('.board', 'class')).includes('view-rack'), 'a phone opens on the rack');
     await page.tap('[data-act="desk"]');
     assert.ok((await page.getAttribute('.board', 'class')).includes('view-desk'));
     const m = await page.evaluate(() => {
@@ -330,6 +319,7 @@ test('reading: a drag that selects text does not open or close the card', { skip
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await toRack(page);
     const drag = async () => {
       const r = await page.locator('#c-nats .gist p').boundingBox();
       await page.mouse.move(r.x + 4, r.y + 6);
@@ -345,6 +335,107 @@ test('reading: a drag that selects text does not open or close the card', { skip
     assert.ok((await page.getAttribute('#c-nats', 'class')).includes('open'));
     assert.ok(await drag() > 0);
     assert.ok((await page.getAttribute('#c-nats', 'class')).includes('open'), 'an open card stays open');
+  } finally {
+    await browser.close();
+  }
+});
+
+test('desk canvas: zoom presets, zoom to a card and back, drag to place, Arrange, the note dock', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  fs.writeFileSync(ref.file, DESK);
+  buildBoard(ref, { cwd });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    const scale = () => page.evaluate(() => { const p = document.querySelector('.plane'); return Math.round(100 * p.getBoundingClientRect().width / p.offsetWidth); });
+    const pressed = () => page.$$eval('[data-zoom][aria-pressed="true"]', (b) => b.map((x) => x.dataset.zoom));
+    // Zoom animates; wait for the scale itself, not for a fixed time.
+    const settle = (v) => page.waitForFunction((want) => {
+      const p = document.querySelector('.plane');
+      // Exact, not rounded: the animation is over only when the scale is the target.
+      return Math.abs(100 * p.getBoundingClientRect().width / p.offsetWidth - want) < 0.05;
+    }, v);
+
+    // Fit is the default; z cycles Fit -> 50% -> 100% -> Fit.
+    assert.deepEqual(await pressed(), ['fit']);
+    await page.keyboard.press('z');
+    await settle(50);
+    assert.deepEqual(await pressed(), ['0.5']);
+    assert.equal(await scale(), 50);
+
+    // At 50%, focusing a card zooms to it; Esc goes back to 50%.
+    await page.click('#c-c .claim');
+    await settle(100);
+    await page.keyboard.press('Escape');
+    await settle(50);
+
+    // Ctrl + wheel zooms to a scale between the presets.
+    const box = await page.locator('.shelves').boundingBox();
+    await page.mouse.move(box.x + 200, box.y + 200);
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -120);
+    await page.keyboard.up('Control');
+    await page.waitForTimeout(150);
+    const z = await scale();
+    assert.ok(z > 50 && z < 100, `wheel zoom gave ${z}%`);
+    assert.deepEqual(await pressed(), []);
+    await page.click('[data-zoom="1"]');
+    await settle(100);
+
+    // Zooming in where the desk can scroll, the point under the pointer stays put.
+    await page.setViewportSize({ width: 900, height: 620 });
+    await page.waitForTimeout(200);
+    const card = await page.locator('#c-c').boundingBox();
+    const px = card.x + 40;
+    const py = card.y + 30;
+    await page.mouse.move(px, py);
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -120);
+    await page.keyboard.up('Control');
+    await page.waitForTimeout(150);
+    const k = (await scale()) / 100;
+    const after = await page.locator('#c-c').boundingBox();
+    assert.ok(k > 1.2, `zoomed in to ${k}`);
+    assert.ok(Math.abs((px - after.x) - 40 * k) < 3 && Math.abs((py - after.y) - 30 * k) < 3, `anchor drift: ${px - after.x - 40 * k}, ${py - after.y - 30 * k}`);
+    await page.setViewportSize({ width: 1280, height: 860 });
+    await page.click('[data-zoom="1"]');
+    await settle(100);
+
+    // Each link type has its own line class and end shape, and the key names them.
+    assert.equal(await page.locator('.wires .wire.w-option').count(), 2);
+    assert.equal(await page.locator('.wires .wire.w-needs').count(), 1);
+    assert.deepEqual(await page.$$eval('.legend .lg', (l) => l.map((x) => x.textContent)), ['Source', 'Needs', 'Option', 'Mention']);
+
+    // Drag card b by its top strip: the table becomes yours, the card snaps to the grid, and it stays after a reload.
+    assert.equal(await page.isDisabled('[data-act="arrange"]'), true);
+    const h = await page.locator('#c-b .addr').boundingBox();
+    await page.mouse.move(h.x + 60, h.y + 6);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 260, h.y + 130, { steps: 10 });
+    await page.mouse.up();
+    assert.ok((await page.getAttribute('.board', 'class')).includes('free'));
+    const at = await page.$eval('#c-b', (el) => [parseFloat(el.style.left), parseFloat(el.style.top)]);
+    assert.ok(at[0] % 24 === 0 && at[1] % 24 === 0, `snapped to the grid: ${at}`);
+    await page.reload();
+    await page.waitForSelector('.board.free');
+    assert.deepEqual(await page.$eval('#c-b', (el) => [parseFloat(el.style.left), parseFloat(el.style.top)]), at);
+
+    // Arrange puts every card back in its section; Undo brings your layout back.
+    await page.click('[data-act="arrange"]');
+    assert.ok(!(await page.getAttribute('.board', 'class')).includes('free'));
+    await page.click('.toast button');
+    assert.ok((await page.getAttribute('.board', 'class')).includes('free'));
+
+    // The note to the agent is a dock in the left corner: c opens it, Esc closes it, the draft stays.
+    await page.keyboard.press('c');
+    await page.keyboard.type('One more thing.');
+    assert.equal(await page.textContent('[data-act="send"]'), 'Send 1');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.isVisible('.note-pill .dot'), true);
+    assert.deepEqual(errors, []);
   } finally {
     await browser.close();
   }

@@ -15,6 +15,8 @@ import '../skill/runtime/digest.js';
 const SKILL = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'skill');
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'cards-'));
 const board = (body, title = 'T') => `---\ntitle: ${title}\n---\n${body}`;
+// These fixtures are the older markdown format; a board directory holds board.md for them.
+const mdRef = (id, cwd) => { const r = resolveBoard(id, cwd); return { ...r, file: path.join(r.dir, 'board.md') }; };
 
 // ---------- markdown ----------
 
@@ -105,9 +107,12 @@ test('board: headings inside code fences are not cards', () => {
   assert.equal(b.sections.length, 1);
 });
 
-test('templates: every pattern parses with no errors and no warnings', () => {
-  for (const f of fs.readdirSync(path.join(SKILL, 'templates'))) {
-    const b = parseBoard(fs.readFileSync(path.join(SKILL, 'templates', f), 'utf8'));
+test('templates: every pattern is an org board with no errors and no warnings', () => {
+  const files = fs.readdirSync(path.join(SKILL, 'templates'));
+  assert.deepEqual(files.filter((f) => !f.endsWith('.org')), []);
+  for (const f of files) {
+    const b = parseBoard(fs.readFileSync(path.join(SKILL, 'templates', f), 'utf8'), { file: f });
+    assert.equal(b.fmt, 'org', f);
     assert.deepEqual(b.errors, [], f);
     assert.deepEqual(lint(b), [], f);
   }
@@ -115,8 +120,8 @@ test('templates: every pattern parses with no errors and no warnings', () => {
 
 test('docs: the example board in SKILL.md parses cleanly', () => {
   const md = fs.readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
-  const example = md.match(/```markdown\n([\s\S]*?)\n```\n/)[1];
-  const b = parseBoard(example);
+  const example = md.match(/```org\n([\s\S]*?)\n```\n/)[1];
+  const b = parseBoard(example, { fmt: 'org' });
   assert.deepEqual(b.errors, []);
   assert.deepEqual(lint(b), []);
   assert.equal(b.cards.find((c) => c.id === 'pick').ask, 'choose');
@@ -170,7 +175,7 @@ test('store: a torn last log line is skipped', () => {
 
 test('compile: one self-contained file; data escapes </script>', () => {
   const cwd = tmp();
-  const ref = resolveBoard('demo', cwd);
+  const ref = mdRef('demo', cwd);
   fs.mkdirSync(ref.dir, { recursive: true });
   fs.writeFileSync(ref.file, board('## The tag </script><script>x()</script> is inert {#a}\nSee [[a]].\n'));
   const r = buildBoard(ref, { cwd });
@@ -186,7 +191,7 @@ test('compile: one self-contained file; data escapes </script>', () => {
 
 test('compile: past versions are carried for the history view', () => {
   const cwd = tmp();
-  const ref = resolveBoard('demo', cwd);
+  const ref = mdRef('demo', cwd);
   fs.mkdirSync(ref.dir, { recursive: true });
   fs.writeFileSync(ref.file, board('## First wording of claim {#a}\nOld gist.\n'));
   buildBoard(ref, { cwd });

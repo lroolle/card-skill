@@ -20,8 +20,11 @@
   --accent:      oklch(0.47 0.135 258);   /* JIS blue: your act, focus */
   --accent-fg:   oklch(0.99 0.003 95);
   --accent-soft: oklch(0.945 0.025 258);
-  --danger:      oklch(0.53 0.17 27);
+  --danger:      oklch(0.53 0.17 27);    /* blocked; on the desk, a "needs" line */
   --ok:          oklch(0.50 0.11 150);
+  --link-option: oklch(0.50 0.15 300);   /* violet: an option of a decision, on the desk */
+  --mask-show:   oklch(1 0 0);           /* a mask is luminance, not a theme color: these two stay put in dark mode */
+  --mask-faint:  oklch(0.42 0 0);
   --shadow:      oklch(0.235 0.014 260 / 0.16);
 
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
@@ -59,6 +62,7 @@
     --accent-soft: oklch(0.31 0.05 258);
     --danger:      oklch(0.70 0.15 27);
     --ok:          oklch(0.72 0.12 150);
+    --link-option: oklch(0.74 0.12 300);
     --shadow:      oklch(0.10 0.012 260 / 0.5);
   }
 }
@@ -397,51 +401,134 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 
 /* ---------- the desk ---------- */
 
-/* The cards taken off the rack and laid out on a table: one column per
-   section, in board order. A faint dot grid says the surface pans. Lines run
-   under the cards, and cross a column only in a gap between cards.
-   The desk scrolls sideways inside itself: the page never gets wider than
-   the window, so the fixed toolbar stays on screen on a phone. */
-.board.view-desk { max-width: none; }
+/* The cards laid out on a table. In the desk view the page is the window:
+   header, the desk bar (line key, zoom, arrange), then the table, which pans
+   and zooms inside itself. The plane carries the dot grid, so the grid zooms
+   with the cards and a moved card snaps to the dots. */
+.board.view-desk {
+  max-width: none; height: 100vh; height: 100dvh; padding-bottom: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.view-desk > header { flex: none; }
+/* On the desk the header is compact, so the table gets the height: a smaller
+   title, and the lede on one line until you click it. */
+.view-desk h1.title { margin-top: var(--s2); font-size: var(--t-xl); }
+.view-desk .lede {
+  margin-top: var(--s1); cursor: pointer;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
+}
+.view-desk .lede.full { display: block; }
+.view-desk .lede p { margin: 0; }
+.view-desk .rail { margin-top: var(--s3); }
+.desk-bar {
+  flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s4);
+  padding: var(--s2) 0; font-size: var(--t-xs); color: var(--fg-2);
+}
+.desk-bar .legend { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); }
+.desk-bar .lg { display: inline-flex; align-items: center; gap: 6px; }
+.desk-tools { display: flex; align-items: center; gap: var(--s2); }
+.desk-tools .zoom-now { min-width: 3.5em; text-align: right; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.desk-tools .btn { min-height: 30px; }
+.desk-tools .btn:disabled { color: var(--fg-3); cursor: default; }
+
 .view-desk .shelves {
-  position: relative; display: flex; align-items: flex-start; gap: 0 var(--desk-gutter);
-  overflow-x: auto; overscroll-behavior-x: contain;
-  /* A shade at an edge with more columns: overlay scrollbars hide on a Mac. */
+  position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain;
+  margin: 0 calc(var(--s6) * -1); padding: var(--s2) var(--s6) calc(var(--bar-h, 56px) + var(--s5));
+  border-top: 1px solid var(--line);
+  /* A shade at an edge with more of the table: overlay scrollbars hide on a Mac. */
   background:
     linear-gradient(to right, var(--bg) 40%, transparent) left / 32px 100% no-repeat local,
     linear-gradient(to left, var(--bg) 40%, transparent) right / 32px 100% no-repeat local,
     radial-gradient(farthest-side at 0 50%, var(--shadow), transparent) left / 14px 100% no-repeat scroll,
     radial-gradient(farthest-side at 100% 50%, var(--shadow), transparent) right / 14px 100% no-repeat scroll,
-    radial-gradient(var(--line-strong) 0.9px, transparent 1.1px) 0 0 / var(--s5) var(--s5) local;
-  margin-top: var(--s5); padding: var(--s2) var(--desk-gutter) var(--s6) var(--s4);
+    var(--bg);
   cursor: grab;
 }
 .panning, .panning * { cursor: grabbing !important; user-select: none; }
+.view-desk .sizer { position: relative; margin: 0 auto; }
+.view-desk .plane {
+  position: absolute; left: 0; top: 0; transform-origin: 0 0;
+  display: flex; align-items: flex-start; gap: 0 var(--desk-gutter); width: max-content;
+  padding: var(--s3) var(--s4) var(--s5);
+  background-image: radial-gradient(var(--line-strong) 0.9px, transparent 1.1px);
+  background-size: var(--s5) var(--s5);
+}
+.view-rack :is(.sizer, .plane) { display: contents; }
 .view-desk .shelf { position: relative; z-index: 1; flex: none; width: max(var(--desk-col), var(--col-w, 0px)); margin-top: var(--s5); }
 .view-desk.alt-claim .shelf { width: var(--desk-col); }
 .view-desk .shelf-head h2 { white-space: normal; }
 .view-desk .slots, .view-desk .slots[data-layout] { grid-template-columns: minmax(0, 1fr); max-width: none; }
 .view-desk .card { cursor: default; }
+.view-desk .card.wide { grid-column: auto; }
+/* The top strip of a card is its handle: drag it to place the card. */
+.view-desk .card .addr { cursor: grab; }
+.view-desk .card.moving { z-index: 5; box-shadow: 0 16px 32px -14px var(--shadow); }
+.view-desk .card.moving .addr { cursor: grabbing; }
 /* On the desk the marks never float over a card: a lit card's link label sits
    where the overlay would be. The focused card shows them as a footer. */
 .view-desk .card:not(.focused) .acts { display: none; }
 .view-desk .card.focused .acts { position: static; display: flex; margin: 0 calc(var(--s2) * -1); padding: 0; border: 0; background: none; }
 .view-desk .card.focused .act.reply-btn { margin-left: auto; }
-.view-desk .card.wide { grid-column: auto; }
 
+/* Your layout: every card and section label sits where you (or the frozen
+   rule) put it. Nothing reflows, so opening a card moves nothing else. */
+.view-desk.free .plane { display: block; }
+.view-desk.free :is(.shelf, .slots) { display: contents; }
+.view-desk.free :is(.card, .shelf-top) { position: absolute; z-index: 1; margin: 0; }
+.view-desk.free .shelf-top.stray { display: none; }
+.view-desk .card.focused { z-index: 4; }
+.view-desk.free .card.focused { z-index: 1000 !important; }
+.view-desk.free .card.moving { z-index: 1001 !important; }
+/* On your own layout the lines lie above the cards, faint where they cross one. */
+.view-desk.free .wires { z-index: 1002; }
+.wires mask .all { fill: var(--mask-show); }
+.wires mask .hole { fill: var(--mask-faint); }
+
+/* Lines. Each link type has its own color and end; focus thickens a card's
+   lines and fades the rest, so the type stays readable when it matters. */
 .wires { position: absolute; left: 0; top: 0; z-index: 0; overflow: visible; pointer-events: none; }
 .view-rack .wires { display: none; }
-.wire { fill: none; stroke: var(--fg-3); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; transition: stroke var(--fast) var(--ease); }
-.wire.w-mentions { stroke-dasharray: 4 3; stroke-linecap: butt; } /* the same dash as a weak arrow in a flow figure */
-.board.focusing .wire { stroke: var(--line-strong); }
-.wire.hot { stroke: var(--fg); stroke-width: 1.75; }
-.wire.on, .board.focusing .wire.on { stroke: var(--accent); stroke-width: 2; }
+.wire { --wire: var(--fg-3); transition: opacity var(--fast) var(--ease); }
+/* Line widths hold on screen at any zoom (the end shapes are resized in board.js). */
+.wire .ln { fill: none; stroke: var(--wire); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.wire .tip { fill: var(--wire); stroke: var(--wire); stroke-width: 1.25; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.wire.w-from .tip { fill: none; stroke-linecap: round; }
+.wire.w-needs { --wire: var(--danger); }
+.wire.w-needs .ln { stroke-width: 1.75; }
+.wire.w-option { --wire: var(--link-option); }
+.wire.w-option .tip { fill: var(--bg); }
+.wire.w-mentions .ln { stroke-dasharray: 4 3; stroke-linecap: butt; } /* the same dash as a weak arrow in a flow figure */
+.wire.w-mentions .tip { stroke: none; }
+.board.focusing .wires .wire:not(.on) { opacity: 0.22; }
+.wire.hot .ln { stroke-width: 2; }
+.wire.on .ln { stroke-width: 2.25; }
+.wire.on.w-needs .ln { stroke-width: 2.5; }
 
-/* ---------- board-level reply ---------- */
+/* ---------- the note to the agent: a chat dock in the left corner ---------- */
 
-.closing { max-width: 860px; margin-top: var(--s7); }
-.closing h2 { margin: 0 0 var(--s2); font-size: var(--t-m); font-weight: var(--w-strong); }
-.closing p { margin: 0 0 var(--s3); font-size: var(--t-s); color: var(--fg-2); }
+.note-dock { position: fixed; left: var(--s4); bottom: var(--s4); z-index: 9; }
+/* The open note always clears the toolbar. */
+.note-dock.open { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
+.note-pill {
+  display: inline-flex; align-items: center; gap: var(--s2); min-height: 34px; padding: 0 var(--s3);
+  border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface);
+  box-shadow: 0 10px 30px -12px var(--shadow); font-size: var(--t-s); color: var(--fg-2); cursor: pointer;
+}
+.note-pill:hover { color: var(--fg); border-color: var(--fg-3); }
+.note-pill .dot { width: 8px; height: 8px; border-radius: var(--r-s); background: var(--accent); }
+.note-panel {
+  width: min(380px, calc(100vw - 2 * var(--s4))); padding: var(--s3);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r);
+  box-shadow: 0 16px 40px -16px var(--shadow);
+}
+.note-head { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2); font-size: var(--t-s); }
+.note-head span { flex: 1; font-size: var(--t-xs); color: var(--fg-3); }
+.note-head .btn { min-height: 28px; }
+/* Where the toolbar reaches the left corner, the dock sits above it. */
+@media (max-width: 1180px) {
+  .note-dock { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
+}
+
 .empty { margin-top: var(--s6); color: var(--fg-2); }
 
 /* ---------- toolbar ---------- */
@@ -538,9 +625,10 @@ dialog .row { display: flex; justify-content: flex-end; gap: var(--s2); margin-t
   h1.title { font-size: var(--t-xl); }
   .slots, .slots[data-layout="compare"] { grid-template-columns: minmax(0, 1fr); }
   .bar .search .icon-btn { display: none; }
-  /* The desk on a phone: one column at a time, snapped; the gutters keep the lines visible. */
-  .view-desk .shelves { --desk-gutter: 56px; scroll-snap-type: x mandatory; scroll-padding-left: var(--s4); padding-right: var(--s4); }
-  .view-desk .shelf, .view-desk.alt-claim .shelf { width: min(max(var(--desk-col), var(--col-w, 0px)), calc(100vw - 2 * var(--s4) - 2 * var(--s4))); scroll-snap-align: start; }
+  .view-desk .shelves { margin: 0 calc(var(--s4) * -1); padding-left: var(--s4); padding-right: var(--s4); }
+  /* On a phone the table needs the height; the lede stays on the rack. */
+  .view-desk .lede { display: none; }
+  .desk-bar .legend { gap: var(--s1) var(--s3); }
   /* Keys need a keyboard; on a phone the slot goes to the desk switch. */
   .bar [data-act="help"] { display: none; }
   .bar .send { margin-left: auto; }
@@ -564,6 +652,6 @@ dialog .row { display: flex; justify-content: flex-end; gap: var(--s2); margin-t
 
 @media print {
   body { background: var(--surface); }
-  .bar, .acts, .reply, .grip, .closing { display: none !important; }
+  .bar, .acts, .reply, .grip, .note-dock, .desk-bar { display: none !important; }
   .card { break-inside: avoid; }
 }

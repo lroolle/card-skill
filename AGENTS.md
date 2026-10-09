@@ -30,7 +30,7 @@ Build card-skill.
 Read `docs/STATUS.md` first: what works, what is unverified, what is next.
 Then `docs/DECISIONS.md` before you change behavior; supersede an entry, do not rewrite it.
 UI work reads `DESIGN.md` and `TASTE.md`.
-The skill is `skill/`; its policy is `skill/SKILL.md`; the format is `skill/reference/format.md`.
+The skill is `skill/`; its policy is `skill/SKILL.md`; the format is `skill/reference/format.md` (boards are Org: `board.org`).
 The agent never edits `skill/runtime/` to style one board: meaning decides looks.
 Test: `npm test`. A change to the format updates `format.md`, a template, and a test together.
 

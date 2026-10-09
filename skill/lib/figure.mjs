@@ -12,7 +12,7 @@
 //   board.md -> cards render: agent writes     an edge; the label follows ": "
 //   you --> log.jsonl                          dashed: optional, later, or weak
 //   a -> b -> c                                a chain; a label goes on the last hop
-//   **cards render**                           bold: the part under discussion
+//   **cards render** (or *cards render*)       bold: the part under discussion
 //   direction: right                           left to right (default: down)
 
 import { esc, inline } from './md.mjs';
@@ -36,18 +36,21 @@ export function cols(s) {
 }
 
 function frame(kind, body, caption, label, ctx, extra = '') {
-  const cap = caption ? ' ' + inline(caption, ctx) : '';
+  const cap = caption ? ' ' + (ctx.inline || inline)(caption, ctx) : '';
   return `<figure class="fig" data-kind="${kind}"${extra}><div class="fig-body">${body}</div>` +
     `<figcaption><b>Fig. ${esc(label)}</b>${cap}</figcaption></figure>`;
 }
 
 // ---------- sketch ----------
 
+// A sketch's lines as drawn: no trailing space, no blank lines around it, and
+// no margin that every line shares (a uniform indent does not change a drawing).
 export function sketchLines(text) {
   const lines = String(text).replace(/\t/g, '    ').split('\n').map((l) => l.replace(/\s+$/, ''));
   while (lines.length && !lines[0]) lines.shift();
   while (lines.length && !lines[lines.length - 1]) lines.pop();
-  return lines;
+  const margin = Math.min(...lines.filter(Boolean).map((l) => l.match(/^ */)[0].length));
+  return Number.isFinite(margin) && margin ? lines.map((l) => l.slice(margin)) : lines;
 }
 
 export function sketch(text, caption, label, ctx = {}) {
@@ -70,7 +73,7 @@ export function parseFlow(text) {
   const box = (raw, line) => {
     let s = raw.trim();
     let strong = false;
-    const m = s.match(/^\*\*(.+)\*\*$/);
+    const m = s.match(/^\*\*(.+)\*\*$/) || s.match(/^\*([^*].*)\*$/); // **md** or *org* bold
     if (m) { s = m[1].trim(); strong = true; }
     if (!s) { problems.push({ line, msg: 'a flow line has an empty box name' }); return null; }
     let n = nodes.get(s);

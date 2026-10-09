@@ -71,7 +71,7 @@
 
     lines.push('');
     lines.push('Quoted text is the human\'s own words from the board.');
-    if (b.id) lines.push('Next: revise board.md (same question -> edit the card; new question -> new card with from=), set status=done on answered asks, then run: cards render ' + b.id);
+    if (b.id) lines.push('Next: revise ' + (b.path || 'the board source') + ' (same question -> edit the card; new question -> new card with from=), mark answered asks DONE, then run: cards render ' + b.id);
     return lines.join('\n');
   }
 

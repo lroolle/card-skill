@@ -17,7 +17,7 @@ const PATTERNS = ['decide', 'review', 'plan', 'brief', 'status'];
 const USAGE = `cards -- agent-native card boards
 
   cards new <board> [--pattern ${PATTERNS.join('|')}] [--title "..."]
-  cards check <board>              validate board.md; errors show a fix
+  cards check <board>              validate board.org; errors show a fix
   cards render <board>             check, record revisions, write board.html
   cards show <board> [id|n]        the board, or one card, as text
   cards ls                         boards under ${process.env.CARDS_ROOT || '.cards'}/
@@ -25,7 +25,8 @@ const USAGE = `cards -- agent-native card boards
   cards wait <board> [--timeout s] block until the human sends, then print it
   cards inbox [<board>] [--peek]   print unread replies and mark them read
 
-A <board> is a name under .cards/, a directory, or a board.md path.
+A <board> is a name under .cards/, a directory, or a board.org path.
+An older board.md is read as well.
 Exit codes: 0 ok, 1 board errors, 2 usage, 3 wait timed out.`;
 
 const BOOL = new Set(['peek', 'quiet', 'help']);
@@ -50,7 +51,7 @@ function cardIndex(ref) {
   const st = fold(readLog(ref.dir));
   const titles = {};
   if (fs.existsSync(ref.file)) {
-    for (const c of parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id }).cards) titles[c.id] = c.title;
+    for (const c of parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file }).cards) titles[c.id] = c.title;
   }
   const cards = {};
   for (const [id, rec] of st.cards) cards[id] = { n: rec.n, v: rec.v, title: titles[id] || id };
@@ -58,7 +59,7 @@ function cardIndex(ref) {
 }
 
 function boardTitle(ref) {
-  return (fs.existsSync(ref.file) && titleOf(fs.readFileSync(ref.file, 'utf8'))) || ref.id;
+  return (fs.existsSync(ref.file) && titleOf(fs.readFileSync(ref.file, 'utf8'), ref.file)) || ref.id;
 }
 
 function printUnread(ref, { peek = false } = {}) {
@@ -80,17 +81,17 @@ const commands = {
     if (!PATTERNS.includes(pattern)) die(`unknown pattern "${pattern}"; one of ${PATTERNS.join(', ')}`);
     const ref = resolveBoard(name);
     if (fs.existsSync(ref.file)) die(`${rel(ref.file)} exists; edit it instead`, 1);
-    const tpl = fs.readFileSync(path.join(SKILL, 'templates', `${pattern}.md`), 'utf8');
+    const tpl = fs.readFileSync(path.join(SKILL, 'templates', `${pattern}.org`), 'utf8');
     fs.mkdirSync(ref.dir, { recursive: true });
     const title = typeof a.title === 'string' ? a.title.replace(/\s+/g, ' ').trim() : null;
-    fs.writeFileSync(ref.file, title ? tpl.replace(/^title:.*$/m, () => `title: ${title}`) : tpl);
+    fs.writeFileSync(ref.file, title ? tpl.replace(/^#\+title:.*$/m, () => `#+title: ${title}`) : tpl);
     console.log(`wrote ${rel(ref.file)} from the ${pattern} pattern. Replace every card, then: cards render ${ref.id}`);
   },
 
   check(a) {
     const ref = resolveBoard(a._[0]);
     if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
-    const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id });
+    const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file });
     const ws = lint(board);
     if (board.errors.length) console.log(formatErrors(board.errors, rel(ref.file)));
     if (ws.length) console.log(formatWarnings(ws, rel(ref.file)));

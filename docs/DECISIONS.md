@@ -24,7 +24,7 @@ into a page and teaches people to ignore pages.
 
 ## D2. The board source is a markdown dialect, not JSON
 
-2026-10-08. Accepted.
+2026-10-08. Accepted. Superseded by D16 (Org) on 2026-10-09.
 `board.md`: H1 = section, H2 = card, `{...}` attributes on headings.
 Why: agents write markdown natively. A human can read and edit it in any
 editor or in a git diff. amwh reports far fewer output tokens for a markdown
@@ -85,7 +85,8 @@ same: the same block id keeps the user's input (proto).
 
 ## D8. Replies return as files; copy is the fallback
 
-2026-10-08. Proposed (ask card `ask-server`).
+2026-10-08. Proposed (ask card `ask-server`). Accepted 2026-10-09: the human
+confirmed "server when it is reachable, copy as the fallback" (round 1).
 `cards serve` writes each Send to `log.jsonl` as a round; `cards wait` blocks
 until one arrives; `cards inbox` prints unread rounds. A `file://` page copies
 the same text instead. One digest implementation serves both
@@ -115,7 +116,8 @@ publishes a new revision; the agent must apply the order in `board.md`.
 
 ## D11. Visual direction: kanban signal cards on a steel rack
 
-2026-10-08. Proposed (ask card `ask-visual`).
+2026-10-08. Proposed (ask card `ask-visual`). Accepted 2026-10-09: the human
+approved it (round 1).
 Roll `f3a39d30`, pool 7, assigned candidate #7 (Toyota kanban). Raises: patent
 drawing numerals and one highlight tint; one color per role (Munich 1972
 pictograms); a struck line for superseded versions (bamboo slips). Material
@@ -171,7 +173,9 @@ Only English boards are checked.
 
 ## D15. Connected cards: the rack to read, the desk to see the links
 
-2026-10-09. Proposed (ask card `ask-connection`). Supersedes D5.
+2026-10-09. Proposed (ask card `ask-connection`). Supersedes D5. Accepted
+2026-10-09 with a change: the board opens on the desk, not the rack (round 1,
+"Rack and desk, but the board opens on the desk"). D17 extends the desk.
 One board has two views. The rack is D5: sections, numerals and focus light.
 The desk puts each section in a column, in board order, and draws a line for
 each `from=`, `needs=` and option link. A mention draws a dashed line only
@@ -197,3 +201,62 @@ costs time to arrange, Patchworks in canvas); a force layout (it moves on
 every change, the "rug-pull" in canvas); one layered graph of all cards (it
 loses the sections that the agent wrote).
 Open: which view opens first; free placement.
+
+## D16. Boards are written in Org mode
+
+2026-10-09. Accepted (the human asked for Org in place of markdown). Supersedes D2.
+`board.org` is plain Org: `*` sections, `**` cards, a property drawer for the
+id and the links (`:CUSTOM_ID:`, `:ASK:`, `:BASIS:`, `:FROM:`, `:NEEDS:`),
+the TODO keyword for the status, a `[3/8]` cookie for progress, tags for
+section layout, a description list for the facts, `#+caption:` and
+`#+begin_src sketch|flow` for figures, `[[#id]]` for references. Spec:
+`skill/reference/format.md`. Reader: `skill/lib/org.mjs`.
+Why: the markdown dialect had to invent syntax (`{#id ask=choose}`, facts
+fences, `[[id]]`); Org has a native form for each of them, so a board is
+plain Org that reads correctly in Emacs, on GitHub and in any editor. The
+human reports that frontier models write Org as well as markdown.
+How it fits: both readers produce the same blocks, so figures, widgets, lint
+and the runtime did not change. A version is now a change in meaning
+(`canonical()` in `skill/lib/board.mjs`), so converting this board from
+markdown to Org created no revisions for the 10 cards whose content did not
+change. Older `board.md` boards and log entries still render.
+Costs: two readers to keep; Org's emphasis rules mean paths and keys go in
+`=verbatim=`; a single blank line does not end an Org list, so ours ends a
+list where the item kind changes (description, checkbox, plain).
+Rejected: keeping markdown as the format agents write; JSON (D2).
+
+## D17. The desk is a canvas: zoom, your own layout, typed lines, a note dock
+
+2026-10-09. Accepted as the human's request; five choices inside it are the
+agent's and wait on ask card `ask-canvas`.
+- Opens on the desk at Fit: the whole board, scaled to the window. Fit, 50%
+  and 100% presets (`z`), Ctrl or Cmd with the wheel or a pinch zooms at the
+  pointer. Focusing a card below 75% zooms to it at 100%; Esc goes back.
+  The human suggested 10%; at 10% no text can be read, so Fit is the
+  overview (agent's choice 1).
+- Your layout: drag a card by its top strip (agent's choice 2: the address
+  line is the handle, so text stays selectable) or its grip. The first drag
+  freezes the rule layout, so nothing jumps; a moved card snaps to the 24px
+  dot grid. Arrange restores the rule layout, with Undo. Alt + arrows move a
+  placed card. The layout lives in this browser and never in `board.org`
+  (agent's choice 3: Luhmann never moved a card in the box; the desk is the
+  work surface). A card added later goes to a new column at the right
+  (agent's choice 4), so nothing you placed moves.
+- Typed lines: source grey with an open arrow, needs red (the color of
+  "blocked") with a filled arrow, option violet with a diamond at the
+  decision, mention dashed with a dot. Focus thickens a card's lines and
+  fades the rest; the lines no longer turn blue, so the type stays readable.
+  A key in the desk bar names the four types.
+- The board note moved from a footer to a dock in the bottom-left corner,
+  in both views (`c`).
+- A phone (720px or narrower) opens on the rack: at that width the whole
+  desk fits only as a minimap (agent's choice 5; the Mac review of rev 7).
+  At any zoom, lines keep their screen width and their end shapes their
+  size. On your own layout, lines lie above the cards, faint where they
+  cross one.
+Why: the human asked for each of these. Evidence for the defaults: the Mac
+review (`.claude/review/`, not in git) and the design reviews in STATUS.
+Rejected: free placement that the agent sees or that edits `board.org`; a
+force layout (it moves on every change); pixel zoom without semantic zoom
+(Claim, Gist and Full still change what a card shows).
+Tests: `test/e2e.test.mjs` "desk canvas".

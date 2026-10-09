@@ -159,7 +159,7 @@ function parseList(lines, i) {
 
 const SAFE_URL = /^(https?:\/\/|mailto:|#|\.{0,2}\/|[^:/?#]+(?:[/?#]|$))/i;
 
-function link(url, html) {
+export function link(url, html) {
   if (!SAFE_URL.test(url) || /^\s*(javascript|data|vbscript):/i.test(url)) return html;
   return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${html}</a>`;
 }
@@ -208,13 +208,18 @@ export function plain(src) {
 export function parseFacts(text) {
   return text.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
     const k = l.indexOf(':');
-    return k > 0 ? [l.slice(0, k).trim(), l.slice(k + 1).trim()] : ['', l];
+    // "key: value"; ": value" (or a line with no colon) continues the row above with no key.
+    return k > 0 ? [l.slice(0, k).trim(), l.slice(k + 1).trim()] : ['', k === 0 ? l.slice(1).trim() : l];
   });
 }
 
+// Blocks are shared by both source formats; inline text goes through the
+// format's own renderer, ctx.inline (org.mjs), or the markdown one here.
+const inl = (src, ctx) => (ctx.inline || inline)(src, ctx);
+
 function factsHtml(text, ctx) {
   const rows = parseFacts(text)
-    .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${inline(v, ctx)}</dd>`)
+    .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${inl(v, ctx)}</dd>`)
     .join('');
   return `<dl class="facts">${rows}</dl>`;
 }
@@ -224,7 +229,7 @@ function tradeoffsHtml(text, ctx) {
     const kind = l[0] === '+' ? 'pro' : l[0] === '-' ? 'con' : 'note';
     const body = kind === 'note' ? l : l.slice(1).trim();
     const sign = kind === 'pro' ? '+' : kind === 'con' ? '−' : '';
-    return `<li class="${kind}"><span class="sign" aria-label="${kind}">${sign}</span>${inline(body, ctx)}</li>`;
+    return `<li class="${kind}"><span class="sign" aria-label="${kind}">${sign}</span>${inl(body, ctx)}</li>`;
   });
   return `<ul class="tradeoffs">${items.join('')}</ul>`;
 }
@@ -247,8 +252,8 @@ export function renderBlocks(blocks, ctx = {}) {
 
 function renderBlock(b, ctx) {
   switch (b.type) {
-    case 'paragraph': return `<p>${inline(b.text, ctx)}</p>`;
-    case 'heading': return `<h4>${inline(b.text, ctx)}</h4>`;
+    case 'paragraph': return `<p>${inl(b.text, ctx)}</p>`;
+    case 'heading': return `<h4>${inl(b.text, ctx)}</h4>`;
     case 'hr': return '<hr>';
     case 'quote': return `<blockquote>${renderBlocks(b.blocks, ctx)}</blockquote>`;
     case 'code': {
@@ -262,17 +267,18 @@ function renderBlock(b, ctx) {
     case 'table': {
       const cell = (tag, c, k) => {
         const a = b.align[k] ? ` style="text-align:${b.align[k]}"` : '';
-        return `<${tag}${a}>${inline(c, ctx)}</${tag}>`;
+        return `<${tag}${a}>${inl(c, ctx)}</${tag}>`;
       };
-      const head = `<tr>${b.head.map((c, k) => cell('th', c, k)).join('')}</tr>`;
+      const head = b.head.length ? `<thead><tr>${b.head.map((c, k) => cell('th', c, k)).join('')}</tr></thead>` : '';
       const rows = b.rows.map((r) => `<tr>${r.map((c, k) => cell('td', c, k)).join('')}</tr>`).join('');
-      return `<div class="table"><table><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
+      return `<div class="table"><table>${head}<tbody>${rows}</tbody></table></div>`;
     }
     case 'list': {
       const tag = b.ordered ? 'ol' : 'ul';
       const items = b.items.map((it) => {
         const tight = it.blocks.length === 1 && it.blocks[0].type === 'paragraph';
-        const body = tight ? inline(it.blocks[0].text, ctx) : renderBlocks(it.blocks, ctx);
+        let body = tight ? inl(it.blocks[0].text, ctx) : renderBlocks(it.blocks, ctx);
+        if (it.term) body = `<b>${inl(it.term, ctx)}</b> ${body}`;
         if (it.task === null) return `<li>${body}</li>`;
         const box = `<span class="box" aria-label="${it.task ? 'done' : 'not done'}">${it.task ? '✓' : ''}</span>`;
         return `<li class="task${it.task ? ' checked' : ''}">${box}<span>${body}</span></li>`;

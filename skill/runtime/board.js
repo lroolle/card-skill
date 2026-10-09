@@ -1,4 +1,4 @@
-// board.js -- the board runtime. Fixed code: the agent writes board.md, never this.
+// board.js -- the board runtime. Fixed code: the agent writes board.org, never this.
 //
 // State lives in three places, on purpose:
 //   B  page data from the compiler (read-only here; replaced on live update)
@@ -49,7 +49,11 @@
   }
   function emptyDrafts() { return { cards: {}, order: {}, note: '', sentRev: 0 }; }
 
-  var S = { view: load('view', 'rack'), alts: { rack: load('alt', 'gist'), desk: load('deskAlt', 'claim') }, filter: 'all', sort: 'board', q: '', focus: null, hover: null, open: new Set(), replyOpen: new Set() };
+  // The board opens on the desk (D15): the cards laid out with their links, zoomed to fit.
+  // A phone opens on the rack: at phone width the whole desk fits only as a minimap.
+  var NARROW = window.matchMedia('(max-width: 720px)').matches;
+  var S = { view: load('view', NARROW ? 'rack' : 'desk'), alts: { rack: load('alt', 'gist'), desk: load('deskAlt', 'claim') }, filter: 'all', sort: 'board', q: '', focus: null, hover: null, open: new Set(), replyOpen: new Set(),
+    zoom: load('zoom', 'fit'), scale: 1, back: null, noteOpen: false };
   S.alt = S.alts[S.view];
   var D = load('drafts', null) || emptyDrafts();
   // Without a server, copied drafts stay visible until the agent publishes a new rev.
@@ -122,7 +126,7 @@
   function lastSentOrder(sid) {
     for (var i = B.sends.length - 1; i >= 0; i--) {
       var b = B.sends[i];
-      if (b.rev !== B.board.rev) break; // the agent has published since; board.md order rules
+      if (b.rev !== B.board.rev) break; // the agent has published since; the board source's order rules
       for (var j = 0; j < b.items.length; j++) if (b.items[j].kind === 'order' && b.items[j].section === sid) return b.items[j].value;
     }
     return null;
@@ -259,14 +263,15 @@
       (B.board.lede_html ? '<div class="lede">' + B.board.lede_html + '</div>' : '') +
       '<nav class="rail" aria-label="Asks on this board"></nav></header>');
     if (!n) html.push('<p class="empty">No cards yet. The agent writes them into ' + esc(B.board.path) + '.</p>');
-    html.push('<div class="shelves"><svg class="wires" aria-hidden="true"></svg>');
+    if (S.view === 'desk' && n) html.push(deskBarHtml());
+    // The desk is a view (.shelves) onto a plane that zooms; .sizer gives the zoomed plane its scroll size.
+    html.push('<div class="shelves"><div class="sizer"><div class="plane"><svg class="wires" aria-hidden="true"></svg>');
     B.sections.forEach(function (s) { html.push(sectionHtml(s)); });
-    html.push('</div>');
+    html.push('</div></div></div>');
     html.push('<p class="empty" id="no-match" hidden></p>');
-    html.push('<section class="closing"><h2>Anything else?</h2><p>A note for the agent about the whole board. It goes out with your next send.</p>' +
-      '<textarea data-field="note" rows="3" placeholder="Reply to the whole board" aria-label="Reply to the whole board">' + esc(D.note || '') + '</textarea></section>');
     html.push('</div>');
     html.push(toolbar());
+    html.push(noteDockHtml());
     app.innerHTML = html.join('');
     applyView();
     watchSizes();
@@ -279,8 +284,8 @@
     // On the desk a column is as wide as its widest figure needs (card padding and border: 34px).
     var figW = Math.max.apply(null, [0].concat(ids.map(function (id) { return B.cards[id].fig_w || 0; })));
     var colW = figW ? ' style="--col-w:' + Math.min(560, figW + 34) + 'px"' : '';
-    return '<section class="shelf" data-section="' + esc(s.id) + '"' + colW + '>' + head +
-      (s.note_html ? '<div class="shelf-note">' + s.note_html + '</div>' : '') +
+    var top = head || s.note_html ? '<div class="shelf-top">' + head + (s.note_html ? '<div class="shelf-note">' + s.note_html + '</div>' : '') + '</div>' : '';
+    return '<section class="shelf" data-section="' + esc(s.id) + '"' + colW + '>' + top +
       '<div class="slots" data-layout="' + s.layout + '" style="--cols:' + Math.min(Math.max(ids.length, 1), 4) + '">' +
       ids.map(function (id) { return cardHtml(B.cards[id], keys); }).join('') + '</div></section>';
   }
@@ -484,7 +489,7 @@
     renderRail();
     $$('.grip').forEach(function (g) { g.disabled = S.sort !== 'board'; g.title = S.sort === 'board' ? 'Drag to reorder' : 'Switch to board order to reorder'; });
     alignCompare();
-    drawWires();
+    layoutDesk();
   }
 
   // In a compare shelf, claims and gists share a height so facts line up row by row.
@@ -503,14 +508,33 @@
 
   // ---------- the desk ----------
   //
-  // The same cards, laid out by rule: one column per section in board order,
-  // cards in board order inside it. Nobody places a card, so the layout costs
-  // no agent time and no human time, and it changes only when the board does.
-  // A line means "feeds into": from= (source), needs= (needed first) and
-  // option refs (an option of a decision). Mentions draw only for the focused
-  // card. Focus turns a card's lines blue; the far card names the relation.
+  // The same cards laid out on a table. A rule places them by default: one
+  // column per section, in board order. Drag a card by its top strip and the
+  // table becomes yours: every card keeps the place it had, and only what you
+  // move moves. Arrange goes back to the rule. Your layout lives in this
+  // browser; board.org never changes (the box keeps the order, the desk is
+  // for work).
+  //
+  // The table zooms: Fit shows the whole board; 50% and 100% read it; Ctrl or
+  // a pinch zooms at the pointer. Focusing a card at a small scale zooms to
+  // it, and Esc goes back.
+  //
+  // A line means "feeds into". Each link type has its own color and end:
+  //   source (from)  grey, open arrow       needs   red, filled arrow
+  //   option         violet, a diamond at the decision
+  //   mention        dashed, a dot; drawn only for the card in focus
 
-  var WIRE_Y = 21; // lines meet a card at its address line, where the numeral is
+  var WIRE_Y = 21;  // lines meet a card at its address line, where the numeral is
+  var GRID = 24;    // the dot grid; a moved card snaps to it
+  var TAB_H = 20;
+  var TIP_INSET = { from: 0, needs: 7, option: 12, mentions: 3 };
+  var LEGEND = [['from', 'Source'], ['needs', 'Needs'], ['option', 'Option'], ['mentions', 'Mention']];
+  var PLACE = load('place', null); // your layout: { cards: { id: [x, y, w] }, labels: { section: [x, y, w] } }
+
+  function savePlace() { save('place', PLACE); }
+  function snap(v) { return Math.max(0, Math.round(v / GRID) * GRID); }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function deskOn() { return S.view === 'desk' && !!$('.plane'); }
 
   function wireList() {
     var seen = {};
@@ -531,38 +555,51 @@
     return out;
   }
 
-  // Measure the desk: each column's bounds, its cards, and the open gaps
-  // between cards, where a line may cross the column without touching a card.
-  function measureDesk(box) {
-    // Coordinates in the desk's scrolled content, where the line layer lives.
-    var base = box.getBoundingClientRect();
-    var ox = box.scrollLeft - base.left - box.clientLeft;
-    var oy = box.scrollTop - base.top - box.clientTop;
-    var rel = function (r) { return { l: r.left + ox, r: r.right + ox, t: r.top + oy, b: r.bottom + oy }; };
+  // Layout coordinates inside the plane: offsets, which a zoom transform does not change.
+  function planeBox(el, plane) {
+    var x = 0;
+    var y = 0;
+    for (var n = el; n && n !== plane; n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; }
+    return { l: x, t: y, r: x + el.offsetWidth, b: y + el.offsetHeight };
+  }
+
+  // Each card's box, and for the rule layout each column's bounds and the open
+  // gaps between its cards, where a line may cross without touching a card.
+  function measureDesk(plane) {
     var cols = [];
     var rect = {};
-    $$('.shelf', box).forEach(function (sh) {
+    $$('.shelf', plane).forEach(function (sh) {
       if (sh.hidden) return;
-      var col = { k: cols.length, l: 0, r: 0, gaps: [] };
-      var sr = rel(sh.getBoundingClientRect());
-      col.l = sr.l; col.r = sr.r;
-      var head = sh.querySelector('.slots');
-      var prevBottom = head ? rel(head.getBoundingClientRect()).t - 4 : sr.t;
+      var col = { k: cols.length, gaps: [] };
+      if (!PLACE) {
+        var sb = planeBox(sh, plane);
+        col.l = sb.l;
+        col.r = sb.r;
+      }
+      var prev = PLACE ? 0 : planeBox(sh.querySelector('.slots'), plane).t - 4;
       $$('.card:not([hidden])', sh).forEach(function (el) {
-        var r = rel(el.getBoundingClientRect());
-        var tab = el.querySelector('.tab');
-        var top = tab && tab.offsetParent ? rel(tab.getBoundingClientRect()).t : r.t;
-        if (top - prevBottom >= 6) col.gaps.push({ y0: prevBottom, y1: top, used: 0 });
-        prevBottom = r.b;
-        r.col = col.k;
-        r.ins = [];
-        r.outs = [];
+        var r = planeBox(el, plane);
+        var top = el.querySelector('.tab') ? r.t - TAB_H : r.t;
+        if (!PLACE && top - prev >= 6) col.gaps.push({ y0: prev, y1: top, used: 0 });
+        prev = r.b;
+        r.col = PLACE ? -1 : col.k;
         rect[el.dataset.id] = r;
       });
-      col.gaps.push({ y0: prevBottom, y1: prevBottom + 40, used: 0 });
+      col.gaps.push({ y0: prev, y1: prev + 40, used: 0 });
       cols.push(col);
     });
-    return { cols: cols, rect: rect };
+    return { cols: cols, rect: rect, free: !!PLACE };
+  }
+
+  // Which sides a line leaves and enters: 'r' or 'l'.
+  function sidesOf(a, b, free) {
+    if (free) {
+      if (b.l >= a.r + 16) return ['r', 'l'];
+      if (b.r <= a.l - 16) return ['l', 'r'];
+      return ['r', 'r'];
+    }
+    if (a.col === b.col) return ['r', 'r'];
+    return a.col < b.col ? ['r', 'l'] : ['l', 'r'];
   }
 
   // A line between far columns passes each column in between through the
@@ -581,104 +618,379 @@
     return Math.max(g.y0 + 2, Math.min(g.y1 - 2, (g.y1 - g.y0 < 24 ? mid : Math.max(g.y0 + 8, Math.min(g.y1 - 8, want))) + off));
   }
 
+  // The end of a line, at (x, y); s points back along the line (+1: it comes from the right).
+  // k scales the end so it keeps its size on screen when the desk is zoomed out.
+  function tipD(type, x, y, s, k) {
+    k = k || 1;
+    var a = 4.5 * k;
+    if (type === 'needs') return 'M' + x + ',' + y + ' L' + (x + 8 * k * s) + ',' + (y - a) + ' L' + (x + 8 * k * s) + ',' + (y + a) + ' Z';
+    if (type === 'option') return 'M' + x + ',' + y + ' L' + (x + 6 * k * s) + ',' + (y - a) + ' L' + (x + 12 * k * s) + ',' + y + ' L' + (x + 6 * k * s) + ',' + (y + a) + ' Z';
+    if (type === 'mentions') { var r = 2.5 * k; return 'M' + (x + 3 * k * s - r) + ',' + y + ' a' + r + ',' + r + ' 0 1,0 ' + 2 * r + ',0 a' + r + ',' + r + ' 0 1,0 ' + -2 * r + ',0'; }
+    return 'M' + (x + 6 * k * s) + ',' + (y - 4 * k) + ' L' + x + ',' + y + ' L' + (x + 6 * k * s) + ',' + (y + 4 * k);
+  }
+  function tipScale() { return clamp(1 / (S.scale || 1), 1, 3); }
+
   function wireD(w, m) {
     var a = m.rect[w.a];
     var b = m.rect[w.b];
     var ya = a.t + w.ya;
     var yb = b.t + w.yb;
-    var d;
-    var tip;
-    if (a.col === b.col) {
-      // Same column: an arc in the gutter to the right, wider for longer spans.
-      var k = Math.min(44, 16 + Math.abs(yb - ya) * 0.08);
-      d = 'M' + a.r + ',' + ya + ' C' + (a.r + k) + ',' + ya + ' ' + (b.r + k) + ',' + yb + ' ' + b.r + ',' + yb;
-      tip = [b.r, yb, 1];
+    var sd = sidesOf(a, b, m.free);
+    var x = sd[0] === 'r' ? a.r : a.l;
+    var tx = sd[1] === 'r' ? b.r : b.l;
+    var s = sd[1] === 'r' ? 1 : -1;
+    var k = tipScale();
+    var ex = tx + TIP_INSET[w.type] * k * s; // the line stops where the end shape starts
+    var d = 'M' + x + ',' + ya;
+    if (sd[0] === sd[1]) {
+      // Same side: an arc in the gutter, wider for longer spans.
+      var bend = Math.min(44, 16 + Math.abs(yb - ya) * 0.08) * s;
+      d += ' C' + (x + bend) + ',' + ya + ' ' + (ex + bend) + ',' + yb + ' ' + ex + ',' + yb;
     } else {
-      var fwd = a.col < b.col;
-      var x = fwd ? a.r : a.l;
       var y = ya;
-      d = 'M' + x + ',' + y;
-      var step = fwd ? 1 : -1;
-      for (var c = a.col + step; c !== b.col; c += step) {
-        var col = m.cols[c];
-        var want = ya + (yb - ya) * (c - a.col) / (b.col - a.col);
-        var cy = crossing(col, want);
-        var inX = fwd ? col.l : col.r;
-        var outX = fwd ? col.r : col.l;
-        var dx = (inX - x) / 2;
-        // The run across a column stays solid: it lies in a gap, so it touches no card,
-        // and a dash would read as a mention.
-        d += ' C' + (x + dx) + ',' + y + ' ' + (inX - dx) + ',' + cy + ' ' + inX + ',' + cy + ' L' + outX + ',' + cy;
-        x = outX;
-        y = cy;
+      if (!m.free) {
+        var fwd = a.col < b.col;
+        for (var c = a.col + (fwd ? 1 : -1); c !== b.col; c += fwd ? 1 : -1) {
+          var col = m.cols[c];
+          var cy = crossing(col, ya + (yb - ya) * (c - a.col) / (b.col - a.col));
+          var inX = fwd ? col.l : col.r;
+          var outX = fwd ? col.r : col.l;
+          var dx = (inX - x) / 2;
+          // The run across a column lies in a gap, so it touches no card and stays solid.
+          d += ' C' + (x + dx) + ',' + y + ' ' + (inX - dx) + ',' + cy + ' ' + inX + ',' + cy + ' L' + outX + ',' + cy;
+          x = outX;
+          y = cy;
+        }
       }
-      var endX = fwd ? b.l : b.r;
-      var dx2 = (endX - x) / 2;
-      d += ' C' + (x + dx2) + ',' + y + ' ' + (endX - dx2) + ',' + yb + ' ' + endX + ',' + yb;
-      tip = [endX, yb, fwd ? -1 : 1];
+      var dx2 = (ex - x) / 2;
+      d += ' C' + (x + dx2) + ',' + y + ' ' + (ex - dx2) + ',' + yb + ' ' + ex + ',' + yb;
     }
-    // The arrow tip points into the card: from the left when s = -1, from the right when s = 1.
-    var tx = tip[0], ty = tip[1], s = tip[2];
-    return d + ' M' + (tx + 6 * s) + ',' + (ty - 4) + ' L' + tx + ',' + ty + ' L' + (tx + 6 * s) + ',' + (ty + 4);
+    return { line: d, tip: tipD(w.type, tx, yb, s, k) };
   }
 
   function drawWires() {
     var svg = $('.wires');
     if (!svg) return;
-    if (S.view !== 'desk') { if (svg.innerHTML) svg.innerHTML = ''; return; }
-    var box = $('.shelves');
-    var m = measureDesk(box);
+    if (!deskOn()) { if (svg.innerHTML) svg.innerHTML = ''; return; }
+    var plane = $('.plane');
+    var m = measureDesk(plane);
     var lit = S.focus;
     var list = wireList().filter(function (w) {
       if (!m.rect[w.a] || !m.rect[w.b]) return false;
       return w.type !== 'mentions' || lit === w.a || lit === w.b;
     });
     // Ends that meet one side of one card spread out along its address line,
-    // in the order of their far ends, so arrow tips never sit on each other.
+    // 14px apart in the order of their far ends, so end shapes never overlap.
     var sides = {};
-    function side(id, which, w, end) { (sides[id + which] || (sides[id + which] = [])).push({ w: w, end: end }); }
+    function side(id, which, w, end) { (sides[id + ' ' + which] || (sides[id + ' ' + which] = [])).push({ w: w, end: end }); }
     list.forEach(function (w) {
-      var a = m.rect[w.a];
-      var b = m.rect[w.b];
-      var fwd = a.col <= b.col;
-      side(w.a, fwd ? 'r' : 'l', w, 'ya');
-      side(w.b, a.col === b.col ? 'r' : fwd ? 'l' : 'r', w, 'yb');
+      var sd = sidesOf(m.rect[w.a], m.rect[w.b], m.free);
+      side(w.a, sd[0], w, 'ya');
+      side(w.b, sd[1], w, 'yb');
     });
     Object.keys(sides).forEach(function (k) {
       var ends = sides[k];
+      var r = m.rect[k.split(' ')[0]];
       ends.sort(function (p, q) {
         var po = m.rect[p.end === 'ya' ? p.w.b : p.w.a];
         var qo = m.rect[q.end === 'ya' ? q.w.b : q.w.a];
         return po.t - qo.t;
       });
-      // 14px apart, so arrow tips (8px tall) stay separate; never past the card's own height.
-      var h = m.rect[k.slice(0, -1)];
-      var low = h ? h.b - h.t - 8 : 60;
+      var low = r.b - r.t - 8;
       ends.forEach(function (e, i) { e.w[e.end] = Math.min(low, Math.max(8, WIRE_Y + (i - (ends.length - 1) / 2) * 14)); });
     });
-    // Measure the desk without the line layer, or an old, larger layer keeps the desk wide.
+    // Size the layer to the plane without itself, or an old, larger layer keeps the plane wide.
     svg.setAttribute('width', 0);
     svg.setAttribute('height', 0);
-    var w = box.scrollWidth;
-    var h = box.scrollHeight;
+    var w = plane.scrollWidth;
+    var h = plane.scrollHeight;
     svg.setAttribute('width', w);
     svg.setAttribute('height', h);
     svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-    svg.innerHTML = list.map(function (wi) {
+    var lines = list.map(function (wi) {
       var on = lit === wi.a || lit === wi.b;
       var hot = S.hover && (S.hover === wi.a || S.hover === wi.b);
-      return '<path class="wire w-' + wi.type + (on ? ' on' : '') + (hot ? ' hot' : '') + '" data-a="' + esc(wi.a) + '" data-b="' + esc(wi.b) + '" d="' + wireD(wi, m) + '"/>';
+      var g = wireD(wi, m);
+      return '<g class="wire w-' + wi.type + (on ? ' on' : '') + (hot ? ' hot' : '') + '" data-a="' + esc(wi.a) + '" data-b="' + esc(wi.b) + '">' +
+        '<path class="ln" d="' + g.line + '"/><path class="tip" d="' + g.tip + '"/></g>';
     }).join('');
+    // On your own layout a line cannot always go around a card. The lines lie
+    // above the cards there, faint where they cross one, so a line never seems
+    // to end at a card it does not link.
+    if (m.free) {
+      var holes = Object.keys(m.rect).map(function (id) { var r = m.rect[id]; return '<rect class="hole" x="' + r.l + '" y="' + r.t + '" width="' + (r.r - r.l) + '" height="' + (r.b - r.t) + '"/>'; }).join('');
+      lines = '<defs><mask id="wire-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="' + w + '" height="' + h + '"><rect class="all" width="' + w + '" height="' + h + '"/>' + holes + '</mask></defs><g mask="url(#wire-mask)">' + lines + '</g>';
+    }
+    svg.innerHTML = lines;
   }
 
-  // Lines follow the cards: any change in a card's size redraws them.
+  // ---- your layout ----
+
+  function setBox(el, p) { el.style.left = p[0] + 'px'; el.style.top = p[1] + 'px'; el.style.width = p[2] + 'px'; }
+  function clearBox(el) { el.style.left = el.style.top = el.style.width = el.style.zIndex = ''; }
+
+  // The first move freezes the rule layout as it stands: nothing jumps.
+  function freeze() {
+    var plane = $('.plane');
+    var place = { cards: {}, labels: {} };
+    $$('.card', plane).forEach(function (el) {
+      if (el.hidden) return;
+      var r = planeBox(el, plane);
+      place.cards[el.dataset.id] = [r.l, r.t, el.offsetWidth];
+    });
+    $$('.shelf-top', plane).forEach(function (el) {
+      var sh = el.closest('.shelf');
+      if (sh.hidden) return;
+      var r = planeBox(el, plane);
+      place.labels[sh.dataset.section] = [r.l, r.t, el.offsetWidth];
+    });
+    PLACE = place;
+    savePlace();
+    layoutDesk();
+  }
+
+  function applyPlace(plane) {
+    var right = 0;
+    var bottom = 0;
+    var grow = function (el, p) { right = Math.max(right, p[0] + p[2]); bottom = Math.max(bottom, p[1] + el.offsetHeight); };
+    var waiting = [];
+    var order = Object.keys(PLACE.cards);
+    $$('.card', plane).forEach(function (el) {
+      var p = PLACE.cards[el.dataset.id];
+      if (!p) { if (!el.hidden) waiting.push(el); return; }
+      setBox(el, p);
+      el.style.zIndex = String(1 + order.indexOf(el.dataset.id));
+      if (!el.hidden) grow(el, p);
+    });
+    $$('.shelf-top', plane).forEach(function (el) {
+      var p = PLACE.labels[el.closest('.shelf').dataset.section];
+      el.classList.toggle('stray', !p);
+      if (p) { setBox(el, p); grow(el, p); }
+    });
+    // A card the agent added since you arranged the table goes to a column of
+    // its own at the right, so nothing you placed moves.
+    if (waiting.length) {
+      var x = snap(right + GRID * 4);
+      var y = GRID * 2;
+      waiting.forEach(function (el) {
+        var p = [x, y, 288];
+        PLACE.cards[el.dataset.id] = p;
+        setBox(el, p);
+        grow(el, p);
+        y = snap(y + el.offsetHeight + GRID * 2);
+      });
+      savePlace();
+    }
+    plane.style.width = (right + GRID * 3) + 'px';
+    plane.style.height = (bottom + GRID * 3) + 'px';
+  }
+
+  function nudge(id, key) {
+    var p = PLACE && PLACE.cards[id];
+    if (!p) return;
+    if (key === 'ArrowLeft') p[0] = Math.max(0, p[0] - GRID);
+    if (key === 'ArrowRight') p[0] += GRID;
+    if (key === 'ArrowUp') p[1] = Math.max(GRID, p[1] - GRID);
+    if (key === 'ArrowDown') p[1] += GRID;
+    savePlace();
+    layoutDesk();
+    reveal(id);
+  }
+
+  function arrange() {
+    if (!PLACE) return;
+    var before = PLACE;
+    PLACE = null;
+    savePlace();
+    layoutDesk();
+    toast('Cards are back in their sections.', 'Undo', function () { PLACE = before; savePlace(); layoutDesk(); }, 8000);
+  }
+
+  // ---- zoom ----
+
+  function deskBox() { return $('.shelves'); }
+  function padY(box) {
+    var cs = getComputedStyle(box);
+    return parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  }
+  function fitScale() {
+    var box = deskBox();
+    var plane = $('.plane');
+    var r = box.getBoundingClientRect();
+    var cs = getComputedStyle(box);
+    var w = r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var h = r.height - padY(box);
+    return clamp(Math.min(w / plane.offsetWidth, h / plane.offsetHeight), 0.15, 1);
+  }
+  function syncSizer() {
+    var plane = $('.plane');
+    var sizer = $('.sizer');
+    if (!plane || !sizer) return;
+    plane.style.transform = S.scale === 1 ? '' : 'scale(' + S.scale + ')';
+    sizer.style.width = Math.ceil(plane.offsetWidth * S.scale) + 'px';
+    sizer.style.height = Math.ceil(plane.offsetHeight * S.scale) + 'px';
+  }
+  // Where the zoomed plane starts inside the desk's scroll area: the frame's
+  // padding, and the margin that centers a plane narrower than the frame.
+  function planeOrigin() {
+    var sizer = $('.sizer');
+    return [sizer.offsetLeft, sizer.offsetTop];
+  }
+  // Scale the table; the plane point at (ax, ay) in the desk's view stays put.
+  function setScale(z, ax, ay) {
+    var box = deskBox();
+    var old = S.scale;
+    if (ax === undefined) { ax = box.clientWidth / 2; ay = box.clientHeight / 2; }
+    var o = planeOrigin();
+    var px = (box.scrollLeft + ax - o[0]) / old;
+    var py = (box.scrollTop + ay - o[1]) / old;
+    S.scale = S.target = clamp(z, 0.15, 2);
+    syncSizer();
+    o = planeOrigin();
+    box.scrollLeft = o[0] + px * S.scale - ax;
+    box.scrollTop = o[1] + py * S.scale - ay;
+    updateDeskBar();
+    scheduleWires();
+  }
+  var anim = 0;
+  function animateTo(z, left, top) {
+    var box = deskBox();
+    cancelAnimationFrame(anim);
+    S.target = z;
+    S.animating = true;
+    updateDeskBar(); // the buttons show where the zoom is going, at once
+    var z0 = S.scale;
+    var l0 = box.scrollLeft;
+    var t0 = box.scrollTop;
+    var t = 0;
+    var dur = reduced ? 0 : 260;
+    var start = performance.now();
+    function frame(now) {
+      t = dur ? Math.min(1, (now - start) / dur) : 1;
+      var e = 1 - Math.pow(1 - t, 3);
+      S.scale = z0 * Math.pow(z / z0, e);
+      syncSizer();
+      box.scrollLeft = l0 + (left - l0) * e;
+      box.scrollTop = t0 + (top - t0) * e;
+      if (t < 1) anim = requestAnimationFrame(frame);
+      else { S.animating = false; updateDeskBar(); drawWires(); }
+    }
+    if (dur) anim = requestAnimationFrame(frame); else frame(start);
+  }
+  function setZoom(p) {
+    S.back = null;
+    S.zoom = p;
+    save('zoom', p);
+    var box = deskBox();
+    var z = p === 'fit' ? fitScale() : p;
+    if (p === 'fit') { animateTo(z, 0, 0); return; }
+    var o = planeOrigin();
+    var cx = (box.scrollLeft + box.clientWidth / 2 - o[0]) / S.scale;
+    var cy = (box.scrollTop + box.clientHeight / 2 - o[1]) / S.scale;
+    animateTo(z, o[0] + cx * z - box.clientWidth / 2, o[1] + cy * z - box.clientHeight / 2);
+  }
+  function cycleZoom() {
+    var order = ['fit', 0.5, 1];
+    var k = S.back ? 2 : order.indexOf(S.zoom);
+    setZoom(order[(k + 1) % order.length]);
+  }
+
+  // Focus on the desk: at a small scale, zoom to the card (and remember the
+  // way back for Esc); at a readable scale, bring the card into view.
+  function reveal(id) {
+    var box = deskBox();
+    var el = cardEl(id);
+    if (!box || !el || el.hidden) return;
+    var r = planeBox(el, $('.plane'));
+    var z = S.scale;
+    var target = z;
+    var vw = box.clientWidth;
+    var vh = box.clientHeight - padY(box);
+    if (z < 0.75) {
+      if (!S.back) S.back = { zoom: S.zoom, scale: z, left: box.scrollLeft, top: box.scrollTop };
+      target = 1;
+    } else {
+      var inView = r.l * z >= box.scrollLeft && r.r * z <= box.scrollLeft + vw && r.t * z - TAB_H >= box.scrollTop && Math.min(r.b, r.t + 200) * z <= box.scrollTop + vh;
+      if (inView) return;
+    }
+    var o = planeOrigin();
+    var left = ((r.l + r.r) / 2) * target - vw / 2;
+    var top = (r.b - r.t) * target > vh - 80 ? (r.t - TAB_H) * target - 24 : ((r.t + r.b) / 2) * target - vh / 2;
+    animateTo(target, left + o[0], top + o[1]);
+  }
+  function goBack() {
+    if (!S.back || !deskOn()) return;
+    var b = S.back;
+    S.back = null;
+    S.zoom = b.zoom;
+    animateTo(b.zoom === 'fit' ? fitScale() : b.scale, b.left, b.top);
+  }
+
+  // ---- the desk bar: line key, zoom, arrange ----
+
+  function legendHtml() {
+    return LEGEND.map(function (l) {
+      var s = -1;
+      var x = 30;
+      return '<span class="lg"><svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true"><g class="wire w-' + l[0] + '">' +
+        '<path class="ln" d="M2,6 L' + (x + TIP_INSET[l[0]] * s) + ',6"/><path class="tip" d="' + tipD(l[0], x, 6, s) + '"/></g></svg>' + l[1] + '</span>';
+    }).join('');
+  }
+  function deskBarHtml() {
+    return '<div class="desk-bar"><div class="legend" role="note" aria-label="What the lines mean">' + legendHtml() + '</div>' +
+      '<div class="desk-tools"><span class="zoom-now"></span>' +
+      '<div class="seg seg-zoom" role="group" aria-label="Zoom">' +
+      '<button data-zoom="fit" title="The whole board (z cycles)">Fit</button><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button></div>' +
+      '<button class="btn" data-act="arrange">Arrange</button></div></div>';
+  }
+  function updateDeskBar() {
+    var now = $('.zoom-now');
+    if (!now) return;
+    // The scale in numbers, when no preset button already says it.
+    var preset = !S.back && (S.zoom === 0.5 || S.zoom === 1);
+    var target = S.target === undefined ? S.scale : S.target;
+    now.textContent = preset ? '' : Math.round(target * 100) + '%';
+    $$('[data-zoom]').forEach(function (b) {
+      var v = b.dataset.zoom === 'fit' ? 'fit' : +b.dataset.zoom;
+      var on = v === 'fit' ? S.zoom === 'fit' && !S.back : S.back ? Math.abs(target - v) < 0.01 : S.zoom === v;
+      b.setAttribute('aria-pressed', String(on));
+    });
+    var ar = $('[data-act="arrange"]');
+    ar.disabled = !PLACE;
+    ar.title = PLACE ? 'Put every card back in its section' : 'Cards sit in their sections. Drag a card by its top strip to place it yourself.';
+  }
+
+  // Lay the desk out: your places or the rule, then the scale, then the lines.
+  function layoutDesk() {
+    var plane = $('.plane');
+    if (!plane) return;
+    var root = $('.board');
+    var desk = S.view === 'desk';
+    root.classList.toggle('free', desk && !!PLACE);
+    if (!desk) return;
+    if (PLACE) applyPlace(plane);
+    else {
+      $$('.card, .shelf-top', plane).forEach(clearBox);
+      plane.style.width = plane.style.height = '';
+    }
+    // A running zoom animation owns the scale until it ends.
+    if (!S.animating && !S.back && S.zoom === 'fit') S.scale = S.target = fitScale();
+    else if (!S.animating && !S.back) S.scale = S.target = S.zoom;
+    syncSizer();
+    drawWires();
+    updateDeskBar();
+  }
+
+  // Lines and the fit follow the cards: any change in a card's size redraws them.
   var sizeWatch = window.ResizeObserver ? new ResizeObserver(function () { scheduleWires(); }) : null;
   var wireFrame = 0;
   function scheduleWires() {
     if (wireFrame) return;
-    wireFrame = requestAnimationFrame(function () { wireFrame = 0; drawWires(); });
+    wireFrame = requestAnimationFrame(function () { wireFrame = 0; if (deskOn()) layoutDesk(); });
   }
   function watchSizes() {
+    var bar = $('.bar');
+    if (bar) document.documentElement.style.setProperty('--bar-h', bar.offsetHeight + 'px');
     if (!sizeWatch) return;
     sizeWatch.disconnect();
     if (S.view !== 'desk') return;
@@ -687,22 +999,46 @@
   function setHover(id) {
     if (S.view !== 'desk' || S.hover === id) return;
     S.hover = id;
-    $$('.wire').forEach(function (p) { p.classList.toggle('hot', !!id && (p.dataset.a === id || p.dataset.b === id)); });
+    $$('.wires .wire').forEach(function (p) { p.classList.toggle('hot', !!id && (p.dataset.a === id || p.dataset.b === id)); });
   }
   function setAlt(a) {
     S.alt = S.alts[S.view] = a;
     save(S.view === 'desk' ? 'deskAlt' : 'alt', a);
     applyView();
+    if (S.focus && S.view === 'desk') reveal(S.focus);
   }
   function toggleDesk() {
-    var el = S.focus && cardEl(S.focus);
     S.view = S.view === 'desk' ? 'rack' : 'desk';
     S.alt = S.alts[S.view];
     S.hover = null;
+    S.back = null;
     save('view', S.view);
-    applyView();
-    watchSizes();
-    if (el) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    render();
+    if (S.focus && cardEl(S.focus)) {
+      cardEl(S.focus).focus({ preventScroll: true });
+      if (S.view === 'desk') reveal(S.focus); else cardEl(S.focus).scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  // ---- the note to the agent: a chat dock in the left corner ----
+
+  function noteDockHtml() {
+    var has = !!(D.note && D.note.trim());
+    if (S.noteOpen) {
+      return '<aside class="note-dock open" aria-label="Note to the agent"><div class="note-panel">' +
+        '<div class="note-head"><b>Note to the agent</b><span>About the whole board. It goes out with your next Send.</span>' +
+        '<button class="btn" data-act="note" title="Close (Esc). The note is kept.">Close</button></div>' +
+        '<textarea data-field="note" rows="4" placeholder="Anything else?" aria-label="Note to the agent about the whole board">' + esc(D.note || '') + '</textarea></div></aside>';
+    }
+    return '<aside class="note-dock" aria-label="Note to the agent"><button class="note-pill" data-act="note" aria-expanded="false" title="A note about the whole board (c)">' +
+      'Note to the agent' + (has ? '<i class="dot" title="A note is drafted"></i>' : '') + '</button></aside>';
+  }
+  function toggleNote(open) {
+    S.noteOpen = open === undefined ? !S.noteOpen : open;
+    var dock = $('.note-dock');
+    if (dock) dock.outerHTML = noteDockHtml();
+    if (S.noteOpen) { var ta = $('.note-dock textarea'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    else { var pill = $('.note-pill'); if (pill) pill.focus({ preventScroll: true }); }
   }
 
   function refreshCard(id) {
@@ -732,12 +1068,14 @@
     var el = cardEl(id);
     if (!el) return;
     if (opts.focus !== false) el.focus({ preventScroll: true });
-    if (opts.scroll !== false) el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
+    if (deskOn()) reveal(id);
+    else if (opts.scroll !== false) el.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' });
     if (history.replaceState) history.replaceState(null, '', '#c-' + id);
   }
   function clearFocus() {
     S.focus = null;
     applyView();
+    goBack();
     if (history.replaceState) history.replaceState(null, '', location.pathname + location.search);
   }
   function visibleCards() { return $$('.card:not([hidden])'); }
@@ -874,7 +1212,7 @@
 
   function openHelp() {
     var keys = [['j / k', 'Next / previous card'], ['Enter', 'Open or close the card'], ['Esc', 'Clear focus'], ['n', 'Next card waiting on you'],
-      ['1 2 3', 'Claim / Gist / Full'], ['d', 'Desk: cards laid out, with lines'], ['=  -  m', 'Keep / Drop / More'], ['r', 'Reply to the card'], ['Alt + arrows', 'Move the card'],
+      ['1 2 3', 'Claim / Gist / Full'], ['d', 'Desk or rack'], ['z', 'Desk zoom: Fit, 50%, 100%'], ['c', 'Note to the agent'], ['=  -  m', 'Keep / Drop / More'], ['r', 'Reply to the card'], ['Alt + arrows', 'Move the card'],
       ['/', 'Find'], ['f', 'Next filter'], ['s', 'Next order'], ['Ctrl + Enter', 'Send'], ['Esc', 'Undo a send in its first 5 seconds']];
     var dlg = document.createElement('dialog');
     dlg.innerHTML = '<h2>Keys</h2><dl class="keys">' + keys.map(function (k) { return '<dt>' + k[0] + '</dt><dd>' + k[1] + '</dd>'; }).join('') + '</dl>' +
@@ -912,7 +1250,7 @@
   function refresh() {
     return fetch('/api/' + encodeURIComponent(ID) + '/data', { cache: 'no-store' }).then(function (r) {
       return r.json().then(function (j) {
-        if (r.status === 409) { notice('board.md has an error at line ' + j.errors[0].line + ': ' + j.errors[0].msg + '. Showing rev ' + B.board.rev + '.'); return; }
+        if (r.status === 409) { notice('The board source has an error at line ' + j.errors[0].line + ': ' + j.errors[0].msg + '. Showing rev ' + B.board.rev + '.'); return; }
         if (!r.ok) throw new Error(r.status);
         var same = j.board.rev === B.board.rev && j.sends.length === B.sends.length && j.read === B.read;
         if (same) { notice(''); return; }
@@ -940,10 +1278,13 @@
 
   function rerender(moved) {
     var y = window.scrollY;
+    var box = deskBox();
+    var at = box ? [box.scrollLeft, box.scrollTop] : null;
     var focus = S.focus;
     if (focus && !B.cards[focus]) S.focus = null;
     render();
     window.scrollTo(0, y);
+    if (at && deskBox()) { deskBox().scrollLeft = at[0]; deskBox().scrollTop = at[1]; }
     (moved || []).forEach(function (id) { var el = cardEl(id); if (el && !reduced) el.classList.add('flash'); });
     if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true });
   }
@@ -955,7 +1296,11 @@
 
   app.addEventListener('click', function (e) {
     var t = e.target;
-    if (panned) { panned = false; return; }
+    if (swallow) { swallow = false; return; }
+    var lede = t.closest('.view-desk .lede');
+    if (lede && !t.closest('a')) { lede.classList.toggle('full'); scheduleWires(); return; }
+    var zb = t.closest('[data-zoom]');
+    if (zb) { setZoom(zb.dataset.zoom === 'fit' ? 'fit' : +zb.dataset.zoom); return; }
     var go = t.closest('[data-goto]');
     if (go) { focusCard(go.dataset.goto, { open: go.hasAttribute('data-open') }); return; }
     var ref = t.closest('a.ref[data-ref]');
@@ -985,6 +1330,8 @@
       var a = act.dataset.act;
       if (a === 'reply' && card) toggleReply(card.dataset.id);
       else if (a === 'desk') toggleDesk();
+      else if (a === 'arrange') arrange();
+      else if (a === 'note') toggleNote();
       else if (a === 'send') send();
       else if (a === 'help') openHelp();
       return;
@@ -1058,7 +1405,7 @@
   var drag = null;
   app.addEventListener('pointerdown', function (e) {
     var g = e.target.closest('.grip');
-    if (!g || g.disabled || e.button !== 0) return;
+    if (!g || g.disabled || e.button !== 0 || S.view === 'desk') return;
     var card = g.closest('.card');
     drag = { card: card, slots: card.parentElement, moved: false };
     card.classList.add('dragging');
@@ -1096,34 +1443,91 @@
   });
   app.addEventListener('pointerleave', function () { setHover(null); });
 
-  // Drag the empty desk to pan, as you would slide paper on a table.
+  // Drag the empty desk to pan, as you would slide paper on a table. Drag a
+  // card by its top strip (or its grip) to place it; a click is not a drag.
   var pan = null;
-  var panned = false;
+  var move = null;
+  var swallow = false;
   app.addEventListener('pointerdown', function (e) {
-    if (S.view !== 'desk' || e.button !== 0 || e.pointerType !== 'mouse') return;
+    if (S.view !== 'desk' || e.button !== 0) return;
     var t = e.target;
-    if (!t.closest('.shelves') || t.closest('.card') || t.closest(INTERACTIVE)) return;
+    var card = t.closest('.card');
+    var handle = card && t.closest('.addr, .tab, .grip');
+    if (handle && !t.closest('a, input, textarea, select, label, button:not(.grip)') && (e.pointerType !== 'touch' || t.closest('.grip'))) {
+      move = { el: card, id: card.dataset.id, x: e.clientX, y: e.clientY, moved: false, pid: e.pointerId, handle: handle };
+      return;
+    }
+    if (e.pointerType !== 'mouse' || !t.closest('.shelves') || card || t.closest(INTERACTIVE)) return;
     pan = { x: e.clientX, y: e.clientY, moved: 0, box: t.closest('.shelves') };
   });
   window.addEventListener('pointermove', function (e) {
+    if (move) {
+      var dx = e.clientX - move.x;
+      var dy = e.clientY - move.y;
+      if (!move.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+      if (!move.moved) {
+        move.moved = true;
+        if (!PLACE) freeze();
+        move.start = PLACE.cards[move.id].slice();
+        move.el.classList.add('moving');
+        try { move.handle.setPointerCapture(move.pid); } catch (err) { /* the pointer left already */ }
+      }
+      var p = PLACE.cards[move.id];
+      p[0] = Math.max(0, move.start[0] + dx / S.scale);
+      p[1] = Math.max(GRID, move.start[1] + dy / S.scale);
+      setBox(move.el, p);
+      scheduleWires();
+      e.preventDefault();
+      return;
+    }
     if (!pan) return;
-    var dx = e.clientX - pan.x;
-    var dy = e.clientY - pan.y;
+    var px = e.clientX - pan.x;
+    var py = e.clientY - pan.y;
     pan.x = e.clientX;
     pan.y = e.clientY;
-    pan.moved += Math.abs(dx) + Math.abs(dy);
+    pan.moved += Math.abs(px) + Math.abs(py);
     if (pan.moved > 4) {
       document.documentElement.classList.add('panning');
-      pan.box.scrollLeft -= dx;
-      window.scrollBy(0, -dy);
+      pan.box.scrollLeft -= px;
+      pan.box.scrollTop -= py;
     }
   });
   window.addEventListener('pointerup', function () {
+    if (move) {
+      if (move.moved) {
+        var p = PLACE.cards[move.id];
+        p[0] = snap(p[0]);
+        p[1] = Math.max(GRID, snap(p[1]));
+        move.el.classList.remove('moving');
+        // The card you put down lies on top; the order of PLACE.cards is the stacking order.
+        var keep = PLACE.cards[move.id];
+        delete PLACE.cards[move.id];
+        PLACE.cards[move.id] = keep;
+        savePlace();
+        layoutDesk();
+        swallow = true;
+      }
+      move = null;
+      return;
+    }
     if (!pan) return;
-    panned = pan.moved > 4;
+    swallow = pan.moved > 4;
     pan = null;
     document.documentElement.classList.remove('panning');
   });
+
+  // Ctrl or Cmd with the wheel, or a trackpad pinch, zooms the desk at the pointer.
+  app.addEventListener('wheel', function (e) {
+    if (S.view !== 'desk' || !(e.ctrlKey || e.metaKey) || !e.target.closest('.shelves')) return;
+    e.preventDefault();
+    var box = deskBox();
+    var r = box.getBoundingClientRect();
+    S.back = null;
+    var z = clamp(S.scale * Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.0025)), 0.15, 2);
+    S.zoom = z;
+    save('zoom', z);
+    setScale(z, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
 
   document.addEventListener('keydown', function (e) {
     var t = e.target;
@@ -1131,6 +1535,7 @@
     if (e.key === 'Escape') {
       if (document.querySelector('dialog[open]')) return;
       if (pendingSend) { e.preventDefault(); undoSend(); return; }
+      if (t.closest && t.closest('.note-dock')) { toggleNote(false); return; }
       if (typingTarget(t)) { t.blur(); if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true }); return; }
       if (S.focus) { S.open.delete(S.focus); clearFocus(); }
       return;
@@ -1140,8 +1545,10 @@
     var id = tc ? tc.dataset.id : S.focus;
     if (e.altKey && id && /^Arrow/.test(e.key)) {
       e.preventDefault();
-      // On the desk, left and right mean columns; a card moves only up and down in its own.
-      if (S.view === 'desk' && /Left|Right/.test(e.key)) { toast('On the desk, Alt + Up / Down moves a card in its column.'); return; }
+      // On a desk you arranged, Alt + arrows move the card one grid step. On the
+      // rule layout, Up and Down reorder it in its section; Left and Right do nothing.
+      if (S.view === 'desk' && PLACE) { nudge(id, e.key); return; }
+      if (S.view === 'desk' && /Left|Right/.test(e.key)) { toast('Alt + Up / Down moves a card in its section. Drag its top strip to place it anywhere.'); return; }
       moveCard(id, e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1);
       return;
     }
@@ -1165,6 +1572,8 @@
       case 'r': if (id) { e.preventDefault(); toggleReply(id, true); } break;
       case 'n': nextWaiting(); break;
       case 'd': toggleDesk(); break;
+      case 'z': if (deskOn()) cycleZoom(); break;
+      case 'c': e.preventDefault(); toggleNote(true); break;
       case 'f': S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); break;
       case 's': S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast('Order: ' + $('[data-sort] option[value="' + S.sort + '"]').textContent); break;
       case '/': e.preventDefault(); $('[data-search]').focus(); break;
@@ -1176,7 +1585,7 @@
 
   render();
   var resizeTimer;
-  window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(alignCompare, 120); });
+  window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { alignCompare(); watchSizes(); scheduleWires(); }, 120); });
   var hash = location.hash.replace(/^#c-/, '');
   if (hash && B.cards[hash]) focusCard(hash, { open: true });
   if (B.live && window.EventSource) {

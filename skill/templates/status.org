@@ -1,0 +1,33 @@
+#+title: Search reindex, status
+
+Example board from the status pattern. Replace every card. Work in flight first; done work recedes; blocked work names what it waits on.
+
+* In flight
+
+** DOING The product catalog reindex is five shards in [5/12]
+:PROPERTIES:
+:CUSTOM_ID: reindex-catalog
+:END:
+Each shard takes about the same time. No errors so far.
+
+** BLOCKED Synonym rebuild waits on the dictionary import
+:PROPERTIES:
+:CUSTOM_ID: synonyms
+:NEEDS: dictionary-import
+:END:
+It starts when the import card is done.
+
+** Can I make the search API read-only for 10 minutes at 02:00 UTC?
+:PROPERTIES:
+:CUSTOM_ID: read-only
+:ASK: approve
+:END:
+The final swap needs a write freeze. Reads keep working. 02:00 UTC is the lowest-traffic window this week.
+
+* Done
+
+** DONE The dictionary import loaded all terms
+:PROPERTIES:
+:CUSTOM_ID: dictionary-import
+:END:
+No rejected rows.

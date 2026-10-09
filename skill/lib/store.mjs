@@ -1,40 +1,49 @@
 // store.mjs -- a board directory on disk.
 //
-//   .cards/<board>/board.md    the agent's current intent (source of truth)
+//   .cards/<board>/board.org   the agent's current intent (source of truth;
+//                              an older board.md is read too)
 //   .cards/<board>/log.jsonl   append-only memory: card versions, sends, reads
 //   .cards/<board>/board.html  compiled, discardable
 //
 // The agent never writes history. `sync` diffs board.md against the log on
 // every render and records new versions itself, so revisions cannot be
-// forgotten.
+// forgotten. A version is a change in meaning (board.mjs canonical), not in
+// syntax: converting markdown to org or re-wrapping a line is not a revision.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { ID_RE } from './board.mjs';
+import { ID_RE, canonical, parseCard } from './board.mjs';
 
 export const ROOT_DIR = '.cards';
 
 const hash = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
 const now = () => new Date().toISOString();
 
+// The source file in a board directory: board.org, or an older board.md.
+export const SOURCES = ['board.org', 'board.md'];
+export function sourceIn(dir) {
+  return path.join(dir, SOURCES.find((f) => fs.existsSync(path.join(dir, f))) || SOURCES[0]);
+}
+
 export function boardsRoot(cwd = process.cwd()) {
   return path.resolve(cwd, process.env.CARDS_ROOT || ROOT_DIR);
 }
 
-// resolveBoard('queue') -> { id, dir, file }. Accepts an id, a dir, or a board.md path.
+// resolveBoard('queue') -> { id, dir, file }. Accepts an id, a dir, or a source file path.
 export function resolveBoard(arg, cwd = process.cwd()) {
   if (!arg) throw new Error('name a board: cards <command> <board>');
   let dir;
   const asPath = path.resolve(cwd, arg);
-  if (arg.endsWith('.md') && fs.existsSync(asPath)) {
-    // A loose .md file is fine for `check`; a board that renders is a directory.
-    const base = path.basename(asPath, '.md');
+  if (/\.(org|md)$/.test(arg) && fs.existsSync(asPath)) {
+    // A loose source file is fine for `check`; a board that renders is a directory.
+    const base = path.basename(asPath).replace(/\.(org|md)$/, '');
     dir = path.dirname(asPath);
     if (base !== 'board') return { id: base, dir, file: asPath };
+    return { id: path.basename(dir), dir, file: asPath };
   } else if ((arg.includes('/') || arg.startsWith('.')) && fs.existsSync(asPath)) dir = asPath;
   else dir = path.join(boardsRoot(cwd), arg);
-  return { id: path.basename(dir), dir, file: path.join(dir, 'board.md') };
+  return { id: path.basename(dir), dir, file: sourceIn(dir) };
 }
 
 // boardRef(id) -> a board under the root, from an id only: no paths, no
@@ -42,14 +51,14 @@ export function resolveBoard(arg, cwd = process.cwd()) {
 export function boardRef(id, cwd = process.cwd()) {
   if (!ID_RE.test(String(id))) return null;
   const dir = path.join(boardsRoot(cwd), id);
-  return { id, dir, file: path.join(dir, 'board.md') };
+  return { id, dir, file: sourceIn(dir) };
 }
 
 export function listBoards(cwd = process.cwd()) {
   const root = boardsRoot(cwd);
   if (!fs.existsSync(root)) return [];
   return fs.readdirSync(root, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && fs.existsSync(path.join(root, d.name, 'board.md')))
+    .filter((d) => d.isDirectory() && SOURCES.some((f) => fs.existsSync(path.join(root, d.name, f))))
     .map((d) => resolveBoard(path.join(root, d.name)));
 }
 
@@ -78,8 +87,9 @@ export function fold(events) {
     if (e.t === 'card') {
       const prev = st.cards.get(e.id);
       const entry = prev || { n: e.n, history: [] };
-      entry.history.push({ v: e.v, rev: e.rev, at: e.at, src: e.src });
-      Object.assign(entry, { v: e.v, hash: e.hash, src: e.src, rev: e.rev, at: e.at });
+      const fmt = e.fmt || 'md';
+      entry.history.push({ v: e.v, rev: e.rev, at: e.at, src: e.src, fmt });
+      Object.assign(entry, { v: e.v, hash: e.hash, src: e.src, fmt, rev: e.rev, at: e.at });
       st.cards.set(e.id, entry);
       st.gone.delete(e.id);
       st.nextN = Math.max(st.nextN, e.n + 1);
@@ -108,14 +118,14 @@ export function sync(dir, board) {
   for (const c of board.cards) {
     const h = hash(c.src);
     const prev = st.cards.get(c.id);
-    if (prev && prev.hash === h) {
+    if (prev && (prev.hash === h || sameMeaning(prev, c))) {
       // Gone and back unchanged (a cut and paste mid-edit): same version, so answers stay valid.
       if (st.gone.has(c.id)) events.push({ t: 'back', id: c.id, rev: nextRev, at });
       continue;
     }
     const n = prev ? prev.n : nextN++;
     const v = prev ? prev.v + 1 : 1;
-    events.push({ t: 'card', id: c.id, n, v, rev: nextRev, at, hash: h, src: c.src });
+    events.push({ t: 'card', id: c.id, n, v, rev: nextRev, at, hash: h, src: c.src, fmt: c.fmt || 'md' });
     changed.push(c.id);
   }
   const live = new Set(board.cards.map((c) => c.id));
@@ -131,6 +141,11 @@ export function sync(dir, board) {
   events.push({ t: 'rev', rev: nextRev, at, hash: shape });
   append(dir, events);
   return { rev: nextRev, changed, removed };
+}
+
+function sameMeaning(prev, card) {
+  const before = parseCard(prev.src, prev.fmt);
+  return !!before && canonical(before) === canonical(card);
 }
 
 export function addSend(dir, { rev, items, via = 'board' }) {

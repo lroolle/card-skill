@@ -29,8 +29,9 @@ Hand rejected, each kept as a raise:
 
 The promise is the first comment in `skill/runtime/board.html`.
 
-The desk view (D) is the same cards taken off the rack and laid on a
-table: the steel world's work surface. It adds no color and no new device.
+The desk (the first view since D15/D17) is the same cards taken off the rack
+and laid on a table: the steel world's work surface. It adds two line colors
+with one role each (red: needs; violet: an option) and no new device.
 
 Scene: a developer at a desk mid-session, a terminal on one half of the
 screen and the board on the other, in daylight or late at night.
@@ -64,7 +65,9 @@ uses tokens only.
 | Motion | 140ms ease-out for focus and dimming; a 1.2s fade-out ring on live-changed cards; nothing else moves | reduced motion removes all of it |
 | Icons | two: grip and search, 1.5px stroke, inline SVG | text labels everywhere else |
 | Figures | a drawing panel on the card: 1px `--line` frame, `--r-in`, 12px mono; a sketch in `--fg`; flow boxes stroked `--fg-3` (bold box `--fg` 2px), arrows `--fg-3`, labels `--fg-2` with a card-stock halo; caption "Fig. n.k" in 12px | the card's one ink; no color in a figure, so the role colors keep their meaning |
-| Desk | `--desk-col` 288px columns (wider to fit a figure, up to 560px), `--desk-gutter` 96px; a 24px dot grid in `--line-strong`; lines 1.25px `--fg-3`, 1.75px `--fg` under the pointer, 2px `--accent` in focus; mentions dashed 4-3, as a weak flow arrow | one column per section; lines run under the cards and cross a column only in a gap |
+| Desk | the page is the window: header, the desk bar (line key, zoom, Arrange), then the table, which pans and zooms inside itself. `--desk-col` 288px columns (wider to fit a figure, up to 560px), `--desk-gutter` 96px; a 24px dot grid on the plane, so the grid zooms with the cards and a moved card snaps to it | opens at Fit; one column per section until you move a card; lines run under the cards and cross a column only in a gap |
+| Lines | source `--fg-3` with an open arrow; needs `--danger` with a filled arrow (red already meant blocked); option `--link-option` (violet, new, one meaning) with a hollow diamond at the decision; mention dashed 4-3 with a dot, focus only. 1.25px; under the pointer 2px; in focus 2.25px and the rest fade to 22% | the end shape and the dash carry the type without color |
+| Note dock | a pill in the bottom-left corner; open, a 380px panel with the note; above the toolbar where the toolbar reaches the corner | the board note, in reach in both views |
 | zh mode | `lang:` in frontmatter sets `<html lang>`; leading rises; no embedded CJK face yet | see WARN below |
 
 ## Signature moves and device ration
@@ -74,9 +77,10 @@ you and repeated as the andon rail under the title, one jump per open ask;
 an answered tab turns to a blue outline in the past tense (Chosen, Approved);
 2. the andon line, which states whose turn it is; 3. focus light, which
 names each relation on the related card with the focused card's numeral
-("Source of 8") and dims the rest; on the desk it also turns that card's
-lines blue. These and no others. Figures and the desk are material, not
-signatures: they use the card's ink and the existing focus grammar.
+("Source of 8") and dims the rest; on the desk it also thickens that card's
+lines and fades the others. These and no others. Figures and the desk are
+material, not signatures: they use the card's ink, two role colors for
+lines, and the existing focus grammar.
 
 Marks (Keep, Drop, More, Reply, and the drag grip) sit in an overlay on the
 card's address line and appear with the card under the pointer or focus; on

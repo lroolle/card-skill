@@ -3,8 +3,8 @@
 // Errors stop a render. Warnings do not; they are the writing rules from
 // SKILL.md made checkable, so an agent hears them at the moment it can act.
 
-import { plain, parseBlocks } from './md.mjs';
 import { FIGURE_LANGS, LIMITS as FIG, parseFlow, sketchLines, cols } from './figure.mjs';
+import { syntaxOf } from './board.mjs';
 
 export const LIMITS = {
   claimChars: 110,
@@ -40,9 +40,14 @@ const forms = (w) => {
 };
 const WORD_RE = WORDS.map(([w, use]) => [new RegExp(`\\b(${forms(w).join('|')})\\b`, 'i'), w, use]);
 
+// The plain-text reader of the board being checked (markdown or org).
+let plain = syntaxOf('md').plain;
+
 // The text a reader reads as sentences: no code, no quoted words of others.
 function prose(text) {
-  return plain(String(text).replace(/(`+)[\s\S]*?\1/g, 'code').replace(/https?:\/\/\S+/g, 'link'));
+  const noCode = String(text).replace(/(`+)[\s\S]*?\1/g, 'code')
+    .replace(/(^|[\s\-('"{])([=~])(\S|\S[\s\S]*?\S)\2(?=$|[\s\-.,;:!?'")}\[])/g, '$1code');
+  return plain(noCode.replace(/https?:\/\/\S+/g, 'link'));
 }
 const unquoted = (t) => t.replace(/"[^"]*"|“[^”]*”/g, ' ');
 // Split into sentences. "e.g." and "i.e." do not end one; a decimal point does not either.
@@ -60,45 +65,54 @@ const wordish = (s) => {
 };
 
 // Paragraph-like text in a card: gist, depth paragraphs, list items. Quotes and code are other people's words or not prose.
-function textBlocks(blocks, acc = []) {
+// Each piece carries the line of its top-level block, so a warning points at it.
+function textBlocks(blocks, acc = [], at = null) {
   for (const b of blocks) {
-    if (b.type === 'paragraph') acc.push({ text: b.text, para: true });
-    else if (b.type === 'list') b.items.forEach((it) => textBlocks(it.blocks, acc));
-    else if (b.type === 'table') [...b.head, ...b.rows.flat()].forEach((c) => acc.push({ text: c, para: false }));
-    else if (b.type === 'code' && (b.lang === 'facts' || b.lang === 'tradeoffs')) acc.push({ text: b.text, para: false, cells: true });
+    const line = at ?? b.line;
+    if (b.type === 'paragraph') acc.push({ text: b.text, para: true, line });
+    else if (b.type === 'list') b.items.forEach((it) => textBlocks(it.blocks, acc, line));
+    else if (b.type === 'table') [...b.head, ...b.rows.flat()].forEach((c) => acc.push({ text: c, para: false, line }));
+    else if (b.type === 'code' && (b.lang === 'facts' || b.lang === 'tradeoffs')) acc.push({ text: b.text, para: false, cells: true, line });
   }
   return acc;
 }
+const lineOf = (c, b) => (c.bodyLine && b && Number.isFinite(b.line) ? c.bodyLine + b.line : c.line);
 
-function steWarnings(c, warn) {
+function steWarnings(c, warn, sx) {
   const seen = new Set();
-  const words = (t) => {
+  const words = (t, at) => {
     for (const [re, w, use] of WORD_RE) {
       const m = unquoted(prose(t)).match(re);
-      if (m && !seen.has(w)) { seen.add(w); warn(c.line, `"${m[1]}": write ${use} (writing.md word list)`); }
+      if (m && !seen.has(w)) { seen.add(w); warn(at, `"${m[1]}": write ${use} (writing.md word list)`); }
     }
   };
-  words(c.title);
-  for (const t of textBlocks(parseBlocks(c.body))) {
-    words(t.text);
+  words(c.title, c.line);
+  for (const t of textBlocks(sx.blocks(c.body))) {
+    const at = lineOf(c, t);
+    words(t.text, at);
     if (t.cells) continue;
     const ss = sentences(t.text);
     for (const x of ss) {
       const n = x.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length;
       if (n > LIMITS.sentenceWords) {
-        warn(c.line, `sentence has ${n} words; split it (<= ${LIMITS.sentenceWords}): "${x.split(/\s+/).slice(0, 8).join(' ')} ..."`);
+        warn(at, `sentence has ${n} words; split it (<= ${LIMITS.sentenceWords}): "${x.split(/\s+/).slice(0, 8).join(' ')} ..."`);
       }
     }
     if (t.para && ss.length > LIMITS.paragraphSentences) {
-      warn(c.line, `paragraph has ${ss.length} sentences; one topic per paragraph (<= ${LIMITS.paragraphSentences})`);
+      warn(at, `paragraph has ${ss.length} sentences; one topic per paragraph (<= ${LIMITS.paragraphSentences})`);
     }
   }
 }
 
-function figureWarnings(c, warn) {
-  for (const b of parseBlocks(c.body)) {
+function figureWarnings(c, warn0, sx) {
+  for (const b of sx.blocks(c.body)) {
     if (b.type !== 'code' || !FIGURE_LANGS.includes(b.lang)) continue;
-    if (!b.info) warn(c.line, `\`\`\`${b.lang} has no caption; say what it shows: \`\`\`${b.lang} Rack view: no lines`);
+    const warn = (_line, msg) => warn0(lineOf(c, b), msg);
+    if (!b.info) {
+      warn(c.line, sx.fmt === 'org'
+        ? `the ${b.lang} block has no caption; put "#+caption: What it shows" on the line above #+begin_src ${b.lang}`
+        : `\`\`\`${b.lang} has no caption; say what it shows: \`\`\`${b.lang} Rack view: no lines`);
+    }
     if (b.lang === 'sketch') {
       const w = Math.max(0, ...sketchLines(b.text).map(cols));
       if (w > FIG.sketchCols) warn(c.line, `sketch is ${w} columns wide; draw it in ${FIG.sketchCols} or fewer`);
@@ -116,6 +130,8 @@ export function lint(board) {
   const out = [];
   const warn = (line, msg) => out.push({ line, msg });
   const english = /^en\b/i.test(board.lang || 'en');
+  const sx = syntaxOf(board.fmt);
+  plain = sx.plain;
 
   for (const c of board.cards) {
     if (plain(c.title).length > LIMITS.claimChars) {
@@ -132,16 +148,16 @@ export function lint(board) {
       warn(c.line, `gist is ${wordish(a.gist.text)} words; keep it under ${LIMITS.gistWords} and move the rest below it`);
     }
     if (c.ask === 'choose' && a.options.length && !a.options.some((o) => o.default)) {
-      warn(c.line, 'no recommended option; mark the one you would pick with - [x]');
+      warn(c.line, `no recommended option; mark the one you would pick with - [${sx.fmt === 'org' ? 'X' : 'x'}]`);
     }
     if (c.ask && c.status === 'done') {
-      warn(c.line, `ask=${c.ask} on a done card; drop the ask once it is answered`);
+      warn(c.line, `${sx.fmt === 'org' ? ':ASK:' : 'ask='} ${c.ask} on a done card; drop the ask once it is answered`);
     }
-    figureWarnings(c, warn);
-    if (english) steWarnings(c, warn);
+    figureWarnings(c, warn, sx);
+    if (english) steWarnings(c, warn, sx);
   }
   for (const [text, line] of [[board.lede, 1], ...board.sections.map((s) => [s.note, s.line])]) {
-    if (parseBlocks(text).some((b) => b.type === 'code' && FIGURE_LANGS.includes(b.lang))) {
+    if (sx.blocks(text).some((b) => b.type === 'code' && FIGURE_LANGS.includes(b.lang))) {
       warn(line, 'figures belong in cards; move it into the card it explains');
     }
   }

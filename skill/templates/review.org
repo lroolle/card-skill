@@ -1,0 +1,41 @@
+#+title: Review of the retry change in payments-client
+
+Example board from the review pattern. Replace every card. One finding per card, worst first. The gate at the end asks before anything changes.
+
+* Findings  :list:
+
+** A retry after a timeout can charge the customer twice  :correctness:
+:PROPERTIES:
+:CUSTOM_ID: double-charge
+:BASIS: inference
+:END:
+The client retries on timeout, but the server may have committed the first charge. Without an idempotency key the retry is a second charge.
+
+#+begin_src diff
+  - await post('/charges', body)
+  + await post('/charges', body, { idempotencyKey: body.orderId })
+#+end_src
+
+** Backoff has no ceiling, so a long outage stalls the worker for hours  :reliability:
+:PROPERTIES:
+:CUSTOM_ID: backoff-ceiling
+:BASIS: fact
+:END:
+The delay doubles on every attempt with no maximum. After 12 attempts one job waits more than an hour.
+
+** The new test mocks the clock but never moves it  :tests:
+:PROPERTIES:
+:CUSTOM_ID: test-clock
+:BASIS: fact
+:END:
+=retry.test.ts= installs fake timers and then awaits the real delay, so the test passes without exercising backoff.
+
+* Gate
+
+** Apply the three fixes and rerun the payments suite?
+:PROPERTIES:
+:CUSTOM_ID: apply-fixes
+:ASK: approve
+:FROM: double-charge backoff-ceiling test-clock
+:END:
+I will change only the lines named in the findings and report the test result on this card.

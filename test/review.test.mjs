@@ -28,9 +28,12 @@ function rawGet(url, pathname, headers = {}) {
   });
 }
 
+// The fixtures here are the older markdown format, so the board file is board.md.
+const mdRef = (id, cwd) => { const r = resolveBoard(id, cwd); return { ...r, file: path.join(r.dir, 'board.md') }; };
+
 async function withServer(fn) {
   const cwd = tmp();
-  const ref = resolveBoard('queue', cwd);
+  const ref = mdRef('queue', cwd);
   fs.mkdirSync(ref.dir, { recursive: true });
   fs.writeFileSync(ref.file, board('## A claim with words {#a}\nGist.\n'));
   const { server, url, token } = await serve({ cwd, port: 0, log: () => {} });
@@ -105,7 +108,7 @@ test('store: a card that leaves and returns unchanged keeps its version', () => 
 
 test('compile: the terminal outline prints plain text, not entities', () => {
   const cwd = tmp();
-  const ref = resolveBoard('demo', cwd);
+  const ref = mdRef('demo', cwd);
   fs.mkdirSync(ref.dir, { recursive: true });
   fs.writeFileSync(ref.file, board(`## R&D owns the "ingest" model's queue {#a}\nx\n`));
   const r = buildBoard(ref, { cwd });
@@ -115,7 +118,7 @@ test('compile: the terminal outline prints plain text, not entities', () => {
 test('cli: boolean flags do not eat the board name; --title is literal', () => {
   const cwd = tmp();
   execFileSync('node', [CLI, 'new', 'q', '--pattern', 'decide', '--title', 'Cost $& more'], { cwd });
-  assert.match(fs.readFileSync(path.join(cwd, '.cards/q/board.md'), 'utf8'), /^title: Cost \$& more$/m);
+  assert.match(fs.readFileSync(path.join(cwd, '.cards/q/board.org'), 'utf8'), /^#\+title: Cost \$& more$/m);
   const out = execFileSync('node', [CLI, 'render', '--quiet', 'q'], { cwd, encoding: 'utf8' });
   assert.match(out, /^rev 1/);
   assert.throws(() => execFileSync('node', [CLI, 'new', 'Bad Name'], { cwd, stdio: 'pipe' }));

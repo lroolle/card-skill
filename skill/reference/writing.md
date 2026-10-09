@@ -3,12 +3,12 @@
 ASD-STE100 (Simplified Technical English) is a controlled language for
 aircraft maintenance. Karpathy suggests it for model output, about "80% of
 the way", because the full spec is strict. Cards use the rules below. The
-source is the ASD-STE100 sheet on his post, in this repo at
-`vault/assets/x/2105819303471976479-ste100-sheet.png`.
+source is the ASD-STE100 sheet on his post:
+https://x.com/karpathy/status/2105819303471976479
 
 `cards check` and `cards render` test the rules marked **checked**. The
-writer keeps the other rules. A board with `lang:` other than English skips
-the checks.
+writer keeps the other rules. A board with `#+language:` other than English
+skips the checks.
 
 ## Sentences
 
@@ -83,8 +83,8 @@ Quoted words of other people and code do not count.
 
 - The claim is one sentence that can be true or false.
 - The gist is one paragraph, 60 words at most (**checked**).
-- Say how you know with `basis=`, not with "I think" or "it seems".
-- Technical names stay as they are: `board.md`, `from=`, `cards serve`.
+- Say how you know with `:BASIS:`, not with "I think" or "it seems".
+- Technical names stay as they are: `board.org`, `:FROM:`, `cards serve`.
 
 ## Show, then tell
 
