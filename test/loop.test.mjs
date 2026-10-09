@@ -448,3 +448,26 @@ test('hook: cards hook prints the settings lines that hand the agent unread repl
   assert.match(run(), /reply from the board "Pick the band" \(watch\)[\s\S]*#4 verify\s+do\s+done/);
   assert.equal(run(), '', 'read once');
 });
+
+test('ids: a card may be written without a drawer; cards ids writes one, and the id then stays', () => {
+  const src = '#+title: T\n\n* Options\n\n** NATS covers the peak with one binary\nIt meets both needs.\n\n** DONE Kafka pays off only with months of replay\nCLOSED: [2026-10-09 Fri 10:00]\nMore headroom.\n\n** Pick one\n:PROPERTIES:\n:ASK: choose\n:END:\n- [X] a :: A\n- [ ] b :: B\n\n** 选一个队列\n要点。\n\n** NATS covers the peak with one binary\nA second card with the same claim.\n\n** Has one already\n:PROPERTIES:\n:CUSTOM_ID: mine\n:END:\nGist.\n\n#+begin_src sketch\n** not a card\n#+end_src\n';
+  const { cwd, ref } = project(src, 'q');
+  const missing = fails(cwd, ['check', 'q']);
+  assert.match(missing, /card has no id[\s\S]*or let the tool write the ids of every such card: cards ids q/);
+  assert.match(cards(cwd, ['ids', 'q']), /added 5 ids: nats-covers-the-peak-with-one-bi, kafka-pays-off-only-with-months, pick-one, card-[0-9a-f]{6}, nats-covers-the-peak-with-one-bi-2\./);
+  const after = fs.readFileSync(ref.file, 'utf8');
+  // A drawer goes right under the heading, after a planning line; into a drawer that is there, the id is added.
+  assert.match(after, /\*\* NATS covers the peak with one binary\n:PROPERTIES:\n:CUSTOM_ID: nats-covers-the-peak-with-one-bi\n:END:\nIt meets both needs\./);
+  assert.match(after, /CLOSED: \[2026-10-09 Fri 10:00\]\n:PROPERTIES:\n:CUSTOM_ID: kafka-pays-off-only-with-months\n:END:\nMore headroom\./);
+  assert.match(after, /\*\* Pick one\n:PROPERTIES:\n:CUSTOM_ID: pick-one\n:ASK: choose\n:END:/);
+  assert.match(after, /#\+begin_src sketch\n\*\* not a card\n#\+end_src/, 'a heading inside a block is text');
+  assert.match(after, /:CUSTOM_ID: mine/);
+  const board = parseBoard(after, { fmt: 'org' });
+  assert.deepEqual(board.errors, []);
+  assert.equal(board.cards.length, 6);
+  assert.match(cards(cwd, ['ids', 'q']), /every card has an id; nothing to do\./);
+  // The claim changes; the id written once is still the card's id, so it is a revision, not a new card.
+  cards(cwd, ['render', 'q', '--quiet']);
+  fs.writeFileSync(ref.file, after.replace('** NATS covers the peak with one binary\n:PROPERTIES:\n:CUSTOM_ID: nats-covers-the-peak-with-one-bi\n', '** NATS covers the peak on three nodes\n:PROPERTIES:\n:CUSTOM_ID: nats-covers-the-peak-with-one-bi\n'));
+  assert.match(cards(cwd, ['render', 'q', '--quiet']), /rev 2 \(1 revised\)/);
+});

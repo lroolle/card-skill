@@ -388,7 +388,7 @@ function parseOrgBoard(src, id) {
     const cid = p.CUSTOM_ID;
     if (!h.title) err(c.line, 'card has an empty claim', '** NATS covers the peak with one binary');
     if (!cid) {
-      err(c.line, 'card has no id', `${headLine.trim()}\n:PROPERTIES:\n:CUSTOM_ID: ${slug(h.title)}\n:END:`);
+      err(c.line, 'card has no id', `${headLine.trim()}\n:PROPERTIES:\n:CUSTOM_ID: ${slug(h.title)}\n:END:\n(or let the tool write the ids of every such card: cards ids ${id})`);
     } else if (!ID_RE.test(cid)) {
       err(c.line, `id "${cid}" must be lowercase letters, digits and dashes`, `:CUSTOM_ID: ${slug(cid)}`);
     }
@@ -460,6 +460,53 @@ function parseOrgBoard(src, id) {
     s.cards.push(card.id);
   }
   return board;
+}
+
+// addIds(src) -> { src, added: [[line, id]] }. Gives every card of a board.org
+// that has no :CUSTOM_ID: one made from its claim, written into the file once.
+// After that the id is the card's own: the claim may change, the id stays.
+export function addIds(src) {
+  const lines = String(src).split('\n');
+  const taken = new Set([...String(src).matchAll(/^\s*:CUSTOM_ID:\s*(\S+)\s*$/gim)].map((m) => m[1]));
+  const fresh = (title) => {
+    let base = slug(title).replace(/-+$/, ''); // a cut at 32 characters may end on a dash
+    if (!/[a-z0-9]/i.test(plain(title))) {
+      let hsh = 0x811c9dc5;
+      for (const ch of String(title)) hsh = Math.imul(hsh ^ ch.codePointAt(0), 0x01000193) >>> 0;
+      base = `card-${hsh.toString(16).padStart(8, '0').slice(0, 6)}`;
+    }
+    let idv = base;
+    for (let k = 2; taken.has(idv); k++) idv = `${base.slice(0, 44)}-${k}`;
+    taken.add(idv);
+    return idv;
+  };
+  const added = [];
+  let block = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].replace(/\r$/, '');
+    if (block) { if (new RegExp(`^\\s*#\\+end_${block}\\s*$`, 'i').test(line)) block = null; continue; }
+    const b = line.match(/^\s*#\+begin_(\w+)/i);
+    if (b) { block = b[1]; continue; }
+    const hd = line.match(/^\*\*\s+(.*?)\s*$/);
+    if (!hd) continue;
+    const eol = lines[i].endsWith('\r') ? '\r' : '';
+    let at = i + 1;
+    if (PLANNING_RE.test(lines[at] || '')) at++;
+    const drawer = (lines[at] || '').trim().toUpperCase() === ':PROPERTIES:';
+    if (drawer) {
+      let end = at + 1;
+      while (end < lines.length && lines[end].trim().toUpperCase() !== ':END:') end++;
+      if (lines.slice(at, end).some((l) => /^\s*:CUSTOM_ID:/i.test(l))) continue;
+      const idv = fresh(orgHead(hd[1]).title);
+      lines.splice(at + 1, 0, `:CUSTOM_ID: ${idv}${eol}`);
+      added.push([i + 1, idv]);
+    } else {
+      const idv = fresh(orgHead(hd[1]).title);
+      lines.splice(at, 0, `:PROPERTIES:${eol}`, `:CUSTOM_ID: ${idv}${eol}`, `:END:${eol}`);
+      added.push([i + 1, idv]);
+    }
+  }
+  return { src: lines.join('\n'), added };
 }
 
 // canonical(card) -> what a card means, independent of its source format and

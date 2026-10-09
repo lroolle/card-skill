@@ -103,6 +103,10 @@ Why, in one paragraph.
 Writing rules. `cards check` enforces the mechanical ones.
 
 - The heading is the claim, not the topic. "NATS covers the peak", not "NATS".
+- Every card needs a `:CUSTOM_ID:`. Give a short one by hand to a card that
+  other cards point at. For the rest you may leave the drawer out and run
+  `node <skill>/bin/cards.mjs ids <board>`: it writes an id made from the
+  claim into `board.org`, once. Never change an id afterwards.
 - The first paragraph is the gist. Everything else is depth.
 - Write near ASD-STE100 (`reference/writing.md`): one fact per sentence,
   25 words at most, active verbs in the present tense, the same word for the

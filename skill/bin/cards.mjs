@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE } from '../lib/board.mjs';
+import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE, addIds } from '../lib/board.mjs';
 import { lint, formatWarnings } from '../lib/lint.mjs';
 import { buildBoard, outline } from '../lib/compile.mjs';
 import { resolveAssets } from '../lib/assets.mjs';
@@ -33,6 +33,8 @@ const USAGE = `cards -- agent-native card boards
   cards inbox [<board>] [--peek]   print unread replies and mark them read
   cards ingest [<board>]           record a reply the human pasted (text on stdin, or --file)
   cards settle <board> [id ...]    mark answered asks DONE in board.org
+  cards ids <board>                give every card without one a :CUSTOM_ID:,
+                                   made from its claim and written into board.org
   cards say <board> "message"      answer the human in the board's chat
   cards hook                       the lines for a Claude Code hook that hands you
                                    unread replies with the human's next message
@@ -272,6 +274,19 @@ const commands = {
     console.log(`recorded round ${ev.round} of ${ref.id}: ${items.length} responses, ${answered} asks answered${held.length ? `, ${held.length} held (${held.map((it) => it.card).join(', ')}: ask again)` : ''}.`);
     if (earlier) console.log(`${earlier} earlier round${earlier > 1 ? 's are' : ' is'} unread. Read ${earlier > 1 ? 'them' : 'it'} first: cards inbox ${ref.id}`);
     console.log(`Next: revise ${rel(ref.file)}, close the answered asks (cards settle ${ref.id}), then: cards render ${ref.id}`);
+  },
+
+  // Write a card as a heading and its text; this adds the drawer with an id made
+  // from the claim. The id is written once, so a later change of the claim keeps it.
+  ids(a) {
+    const ref = resolveBoard(a._[0]);
+    if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
+    if (!/\.org$/.test(ref.file)) die('cards ids edits board.org; this board is an older board.md', 1);
+    const { src, added } = addIds(fs.readFileSync(ref.file, 'utf8'));
+    if (!added.length) return console.log('every card has an id; nothing to do.');
+    fs.writeFileSync(ref.file, src);
+    console.log(`added ${added.length} id${added.length > 1 ? 's' : ''}: ${added.map(([, idv]) => idv).join(', ')}.`);
+    console.log(`Use these ids in :NEEDS:, :FROM: and [[#id]] links. Then: cards render ${ref.id}`);
   },
 
   // One word per card: the TODO keyword becomes DONE. The card keeps its ask and

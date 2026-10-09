@@ -608,3 +608,22 @@ must not change what runs on every message without the human's own hand);
 a Stop hook that blocks the agent until a reply arrives (it turns a
 question into a lock).
 Tests: `test/loop.test.mjs` "hook".
+
+## D34. An id may be written by the tool, once
+
+2026-10-09. Built. Supersedes the rejection in D28 (field report 3.1: three
+drawer lines on every card, about 80 lines on a board of 27).
+A card may be written as a heading and its text. `cards ids <board>` gives
+every card without a `:CUSTOM_ID:` one made from its claim, and writes the
+drawer into `board.org`. The error for a missing id names the command.
+Why this and not ids derived on every parse: an id holds the card's
+history, its answers and its links, and a claim is rewritten often. Written
+once into the file, the id survives the rewrite; derived each time, it
+would not. The agent still saves the typing; the file still says, in plain
+Org, which card is which.
+Cost: a second command that edits `board.org` (after `settle`). It only
+adds lines, and only where no id is.
+Rejected: writing the ids during `render` (a render that changes its own
+input surprises the agent that holds the file open); a short one-line id
+syntax of our own (not Org).
+Tests: `test/loop.test.mjs` "ids".

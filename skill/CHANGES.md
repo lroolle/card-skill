@@ -42,6 +42,8 @@ New
   replies with the human's next message. Show them; do not install them
   yourself.
 - `cards export --home <url>` gives a published copy a "Back" link.
+- `cards ids <board>` writes a `:CUSTOM_ID:` for every card that has none,
+  so you can write a card as a heading and its text.
 - `cards ingest`: records a reply the human pasted, so the board shows the
   answers. `cards settle`: marks the answered asks DONE.
 - `cards export <board> --out <dir>`: a copy to publish, with no replies,

@@ -93,6 +93,14 @@ The gist: one paragraph, under 60 words.
 | `:FROM:` | ids, space-separated | this card exists because of those cards |
 | `:NEEDS:` | ids, space-separated; on an ask also `id=value` or `id=*` | this card waits on those cards (see Asks for the forms with `=`) |
 
+You may write a card as a heading and its text, with no drawer.
+`cards ids <board>` then gives every such card a `:CUSTOM_ID:` made from its
+claim and writes the drawer into `board.org`. It does this once: when you
+change the claim later, the id stays, and so do the card's history and the
+human's answers. Name cards in `:NEEDS:`, `:FROM:` and `[[#id]]` by the ids
+it prints. A card that other cards point at is better given a short id by
+hand.
+
 The drawer comes right after the heading, with no blank line between: that
 is where Org reads it. A planning line that Emacs writes (`CLOSED:`,
 `SCHEDULED:`, `DEADLINE:`) may stand between the two. Unknown properties
