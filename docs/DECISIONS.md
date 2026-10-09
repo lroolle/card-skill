@@ -553,7 +553,11 @@ on every answer, on every board.
 Rejected: a separate "demo build" of the page (a sample must be the real
 page); a reset button on the landing page (state that should not exist is
 better not kept).
-Tests: `test/e2e.test.mjs` "a sample in a frame".
+In a frame the tools are a strip along the lower edge, the ask tabs stay
+in sight while the cards scroll, and the link to the board's other language
+keeps the options of the address. A sample (`?fresh`) says that it is one
+when you send. All four came from a second review of the landing page.
+Tests: `test/e2e.test.mjs` "a sample in a frame", "touch".
 
 ## D31. Org itself is in the test loop
 

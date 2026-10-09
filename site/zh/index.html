@@ -66,7 +66,7 @@ is the product running; pool 7, roll 503b4783.
       </div>
     </div>
     <div class="frame">
-      <span class="cap">这个示例可以直接操作。随便答，不会发出，也不会保存。</span>
+      <span class="cap"><span class="cap-wide">这个示例可以直接操作。随便答，不会发出，也不会保存。</span><span class="cap-narrow">这个示例可以直接操作。先点“6 选择”。</span></span>
       <iframe id="sample" title="示例看板：给接入服务选一个消息队列" data-src="../demo-zh/index.html?embed&amp;fresh"></iframe>
       <noscript><a href="../demo-zh/index.html">打开示例看板</a></noscript>
     </div>
@@ -74,15 +74,16 @@ is the product running; pool 7, roll 503b4783.
       <li><b>点橙色标签“6 选择”，打开提问。</b>Agent 建议的选项标着“建议”，你选了才算数。</li>
       <li><b>选 Kafka，不选建议的那个。</b>卡片 7 是按 NATS 写的，所以会暂缓。</li>
       <li><b>点“发送”。</b>弹出的就是 Agent 会读到的完整回复。</li>
+      <li class="wide-only"><b>再点“桌面”。</b>同样的卡片铺在桌面上，有关联的卡片之间连着线。</li>
     </ol>
   </main>
 </div>
 <script>
-// 框够大就把卡片铺在桌面上，不够大就列成一串结论。
+// 示例用阅读视图打开，这样文字是正常大小。框够宽就带要点，不够宽就只列结论。
 (function () {
   var f = document.getElementById('sample');
   var r = f.getBoundingClientRect();
-  f.src = f.getAttribute('data-src') + (r.width >= 880 && r.height >= 600 ? '' : '&view=rack&level=claim');
+  f.src = f.getAttribute('data-src') + '&view=rack&level=' + (r.width >= 880 ? 'gist' : 'claim');
 })();
 </script>
 
@@ -123,14 +124,14 @@ NATS 两条需求都满足。
   </section>
 
   <section class="shelf far" id="more">
-    <div class="shelf-head"><h2>示例里看不到的两件事</h2></div>
+    <div class="shelf-head"><h2>卡片还能做的两件事</h2></div>
     <div class="shown">
       <div class="say">
         <h3>卡片改了会标出来，旧的说法也留着</h3>
         <p>Agent 改的是卡片，不是把回答重写一遍。卡片编号不变，版本加一，之前的版本划掉留在下面。你对旧版本的回答会被标出来，不会直接沿用。</p>
-        <p class="where">本项目设计评审看板里的卡片 25，已经改到 v3。看板是英文的。</p>
+        <p class="where">本项目设计评审看板里的卡片 13，已经改到 v5。看板是英文的。</p>
       </div>
-      <figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/changed-dark.png"><img src="../shots/changed-light.png" width="1320" height="900" alt="一张标着 v3 的卡片，下面是两个划掉的旧版本" loading="lazy"></picture></figure>
+      <figure><picture><source media="(max-width: 900px) and (prefers-color-scheme: dark)" srcset="../shots/changed-narrow-dark.png"><source media="(max-width: 900px)" srcset="../shots/changed-narrow-light.png"><source media="(prefers-color-scheme: dark)" srcset="../shots/changed-dark.png"><img src="../shots/changed-light.png" alt="一张标着 v5 的卡片，下面是四个划掉的旧版本" loading="lazy"></picture></figure>
     </div>
     <div class="shown flip">
       <div class="say">
@@ -138,7 +139,7 @@ NATS 两条需求都满足。
         <p>Agent 只写谁指向谁，方框和箭头由页面来画。截图和文件里的二十行也这样放进卡片，全在同一个 HTML 文件里。</p>
         <p class="where">同一个看板的卡片 11：回复传回 Agent 的两条路。</p>
       </div>
-      <figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/figure-dark.png"><img src="../shots/figure-light.png" width="1320" height="900" alt="一张带流程图的卡片：发送之后走服务器或者走文件，两条路都通到 Agent" loading="lazy"></picture></figure>
+      <figure><picture><source media="(max-width: 900px) and (prefers-color-scheme: dark)" srcset="../shots/figure-narrow-dark.png"><source media="(max-width: 900px)" srcset="../shots/figure-narrow-light.png"><source media="(prefers-color-scheme: dark)" srcset="../shots/figure-dark.png"><img src="../shots/figure-light.png" alt="一张带流程图的卡片：发送之后走服务器或者走文件，两条路都通到 Agent" loading="lazy"></picture></figure>
     </div>
   </section>
 
@@ -146,10 +147,10 @@ NATS 两条需求都满足。
     <div class="shelf-head"><h2>可以打开的看板</h2><span class="count">4</span></div>
     <p class="shelf-note">两个是示例，中英文各一个；两个是这个项目自己在用的看板。在哪个看板上点“发送”，都只显示回复，不会发出去。</p>
     <div class="tiles">
-      <a class="tile" href="../demo-zh/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-zh-dark.png"><img src="../shots/demo-zh-light.png" width="1520" height="950" alt="三个选项并排，各项数据逐行对齐" loading="lazy"></picture><figcaption><b>一个决定，选项并排着比</b><span>示例的阅读视图：三个队列，各项数据逐行对齐。页面自带中文字体。</span><span class="meta">{{CARDS}} 张卡片 · 2 个提问 · 示例，数字是编的</span></figcaption></figure></a>
-      <a class="tile" href="../demo/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-dark.png"><img src="../shots/demo-light.png" width="1520" height="950" alt="同一个示例的英文版" loading="lazy"></picture><figcaption><b>同一个示例，英文版</b><span>按钮跟着看板的语言走，两个页面互相链接。</span><span class="meta">{{CARDS}} 张卡片 · 2 个提问 · 示例</span></figcaption></figure></a>
-      <a class="tile" href="../design-review/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/design-review-dark.png"><img src="../shots/design-review-light.png" width="1520" height="950" alt="卡片按列摆在桌面上，有依赖关系的卡片之间连着线" loading="lazy"></picture><figcaption><b>这个项目是怎么设计出来的</b><span>三轮评审，一张卡片一张卡片地过。</span><span class="meta">27 张卡片 · 12 次修订 · 真实看板，英文</span></figcaption></figure></a>
-      <a class="tile" href="../roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/roadmap-dark.png"><img src="../shots/roadmap-light.png" width="1520" height="950" alt="一张显示 Org 源码的卡片：一个结论，带着验证它的命令" loading="lazy"></picture><figcaption><b>接下来做什么</b><span>11 个方向，每一个 Org mode 都已有现成的语法。</span><span class="meta">16 张卡片 · 1 个提问待处理 · 真实看板，英文</span></figcaption></figure></a>
+      <a class="tile" href="../demo-zh/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-zh-dark.png"><img src="../shots/demo-zh-light.png" width="1520" height="950" alt="三个选项并排，各项数据逐行对齐" loading="lazy"></picture><figcaption><b>一个决定，选项并排着比</b><span>示例的阅读视图：三个队列，各项数据逐行对齐。页面自带中文字体。</span><span class="meta">{{CARDS}} 张卡片 · {{DEMO_ASKS}} 个提问 · 示例，数字是编的</span></figcaption></figure></a>
+      <a class="tile" href="../demo/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-dark.png"><img src="../shots/demo-light.png" width="1520" height="950" alt="同一个示例的英文版" loading="lazy"></picture><figcaption><b>同一个示例，英文版</b><span>按钮跟着看板的语言走，两个页面互相链接。</span><span class="meta">{{CARDS}} 张卡片 · {{DEMO_ASKS}} 个提问 · 示例</span></figcaption></figure></a>
+      <a class="tile" href="../design-review/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/design-review-dark.png"><img src="../shots/design-review-light.png" width="1520" height="950" alt="卡片按列摆在桌面上，有依赖关系的卡片之间连着线" loading="lazy"></picture><figcaption><b>这个项目是怎么设计出来的</b><span>两轮评审，一张卡片一张卡片地过。</span><span class="meta">{{DR_CARDS}} 张卡片 · 第 {{DR_REV}} 版 · 真实看板，英文</span></figcaption></figure></a>
+      <a class="tile" href="../roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/roadmap-dark.png"><img src="../shots/roadmap-light.png" width="1520" height="950" alt="一张显示 Org 源码的卡片：一个结论，带着验证它的命令" loading="lazy"></picture><figcaption><b>接下来做什么</b><span>11 个方向，每一个 Org mode 都已有现成的语法。</span><span class="meta">{{RM_CARDS}} 张卡片 · {{RM_ASKS}} 个提问待处理 · 真实看板，英文</span></figcaption></figure></a>
     </div>
   </section>
 
@@ -170,7 +171,7 @@ node skill/bin/cards.mjs serve</code></pre>
         <p><b>然后让 Agent 做一件要你拿主意的事。</b></p>
         <blockquote>比较三个消息队列，给接入服务用，让我来选。用卡片回答。</blockquote>
         <p>技能里写了什么时候值得用看板，什么时候直接说更好。多数回答还是该用文字。</p>
-        <p>需要 Node 18 及以上，没有其他依赖。复制的那一份不会自己更新，拉取新版本后再复制一次。<code>cards --version</code> 能看到当前版本。</p>
+        <p>需要 Node 18 及以上，没有其他依赖。复制的那一份不会自己更新，拉取新版本后再复制一次。<code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> 能看到当前版本。</p>
       </div>
     </div>
   </section>

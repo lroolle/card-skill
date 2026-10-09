@@ -418,7 +418,8 @@
     var list = B.board.langs || [];
     if (list.length < 2) return '';
     return '<nav class="langs" aria-label="' + esc(t('langs_label')) + '">' + list.map(function (m) {
-      return m.self ? '<b aria-current="page">' + esc(langName(m.lang)) + '</b>' : '<a href="' + esc(m.href) + '" lang="' + esc(m.lang) + '">' + esc(langName(m.lang)) + '</a>';
+      // The other language opens the way this page was opened: in a frame, as a sample, on this view.
+      return m.self ? '<b aria-current="page">' + esc(langName(m.lang)) + '</b>' : '<a href="' + esc(m.href + location.search) + '" lang="' + esc(m.lang) + '">' + esc(langName(m.lang)) + '</a>';
     }).join('') + '</nav>';
   }
 
@@ -1561,7 +1562,7 @@
 
   function openCopy(text, after, title, key) {
     var dlg = document.createElement('dialog');
-    dlg.innerHTML = '<h2>' + esc(title || t('send_copy_title')) + '</h2><p>' + (B.public ? esc(t('send_copy_body_public')) : tHtml('send_copy_body', { cmd: '<code>cards serve</code>' })) + '</p>' +
+    dlg.innerHTML = '<h2>' + esc(title || t('send_copy_title')) + '</h2><p>' + (ASKED.fresh ? esc(t('send_copy_body_sample')) : B.public ? esc(t('send_copy_body_public')) : tHtml('send_copy_body', { cmd: '<code>cards serve</code>' })) + '</p>' +
       '<textarea readonly aria-label="' + esc(t('send_copy_label')) + '">' + esc(text) + '</textarea>' +
       '<div class="row"><button class="btn" data-close>' + esc(t('close')) + '</button><button class="send" data-copy>' + esc(t('copy')) + '</button></div>';
     document.body.appendChild(dlg);

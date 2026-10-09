@@ -128,8 +128,7 @@ three at surface scope; roll key `503b4783`; the other two, "sponsor seats
 as a numbered plate" and "pricing as one slider", have nothing to stand on:
 no sponsors, no price). The live sample board owns the first viewport at
 working size. The offer, one action (Install) and three steps to try stand
-beside it. Where the frame is too small to lay cards out (under about 880
-by 600 px), the sample opens as a list of claims. On a phone the sentence
+beside it. The sample opens in the reading view (see the second review, below). On a phone the sentence
 comes first, then the board in its phone form, then the steps; Install
 stays in the top bar. Below: the loop, two claims shown on real cards, four
 boards, the install lines, three limits. The promise is the first comment
@@ -168,4 +167,23 @@ cards and controls, 4 nested inside them, 3 for marks smaller than text),
 used here for the same three things. Type: six sizes (12, 13, 15, 17, 20,
 30).
 
-Not seen on a real device. A second review after the rebuild is open.
+Rules that the second review set (2026-10-09, another reviewer; its
+disposition: fix):
+- Working size means the text of the sample at its real size. In the frame
+  the sample opens in the reading view: with gists from 880 px of frame
+  width, as a list of claims below. The desk is one press away, and the
+  steps say so; a desk fitted into the frame was a map at 59 to 77%.
+- Under 1100 px the steps sit below the frame, so the caption on the frame
+  gives the first one.
+- The sample stays a sample across its own language link, and says so when
+  you send.
+- Every number about a board (cards, revision, open asks) is read from the
+  board at build time. Two were typed by hand and were wrong.
+- A tile's picture starts at the head of the section its caption names.
+- On a phone the two "shown" cards are separate pictures taken at phone
+  width, not the desktop pictures at 27%.
+
+Open after the second review: below the first viewport the page is the
+usual order (steps, claims, gallery, install). The reviewer's idea: show one
+card in its three forms, with the reply the visitor's own Send produced.
+Not seen on a real device.

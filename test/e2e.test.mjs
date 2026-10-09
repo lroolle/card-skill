@@ -818,14 +818,14 @@ test('translations and published copies: a language link in the same tab; a copy
     assert.equal(await page.getAttribute('.langs a', 'target'), null);
     await page.click('.langs a');
     await page.waitForSelector('#c-verify');
-    assert.match(page.url(), /watch-zh\/board\.html$/);
+    assert.match(page.url(), /watch-zh\/board\.html\?view=rack$/, 'the other language opens the way this page was opened');
     assert.equal(await page.getAttribute('html', 'lang'), 'zh-Hans');
     assert.equal(await page.textContent('#c-verify [data-done="done"]'), '办好了');
 
     // The published copy: no path, no past rounds, and Send explains itself to a reader who has no agent.
     await page.goto(pathToFileURL(path.join(out, 'watch', 'index.html')).href + '?view=rack');
     assert.equal(await page.textContent('.andon .path'), '');
-    assert.match(await page.getAttribute('.langs a', 'href'), /^\.\.\/watch-zh\/index\.html$/);
+    assert.match(await page.getAttribute('.langs a', 'href'), /^\.\.\/watch-zh\/index\.html\?view=rack$/);
     await page.click('#c-verify [data-done="done"]');
     await page.keyboard.press('Control+Enter');
     assert.match(await page.textContent('dialog p'), /published copy of the board; nothing is sent from this page\. Copy your reply and send it to the board’s author\./);
@@ -952,6 +952,7 @@ test('a sample in a frame: one row of tools, no chat box, nothing kept between v
     assert.deepEqual(shown.filter((x) => x[1]).map((x) => x[0]).sort(), ['seg seg-alt', 'send']);
     assert.ok((await page.locator('.bar').boundingBox()).height < 60, 'the tools are one row');
     assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY), 'auto', 'the wheel goes on to the page around the board');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.rail')).position), 'sticky', 'the ask tabs stay in sight');
 
     // Choosing with the keyboard: the card is drawn again, and the focus is on the same option.
     await page.focus('#c-pick-band input[value="link"]');
@@ -963,6 +964,10 @@ test('a sample in a frame: one row of tools, no chat box, nothing kept between v
     assert.equal(await page.evaluate(() => document.activeElement.dataset.done), 'done');
     assert.equal(await page.getAttribute('#c-verify [data-done="done"]', 'aria-pressed'), 'true');
     assert.match(await page.textContent('.lamp'), /Ready to send/);
+    // A sample says what it is when you send.
+    await page.keyboard.press('Control+Enter');
+    assert.match(await page.textContent('dialog p'), /This is a sample: nothing is sent, and nothing is kept\. This is the reply an agent would read\./);
+    await page.click('dialog [data-close]');
 
     // ?fresh: a reload starts with the board as the agent wrote it.
     await page.reload();
@@ -1012,6 +1017,19 @@ test('touch: on a phone-size touch screen, taps answer an ask, open a picture at
     assert.ok(await page.evaluate(() => document.querySelector('dialog.lightbox').classList.contains('actual')));
     await page.tap('dialog.lightbox [data-close]');
     await page.waitForSelector('dialog.lightbox', { state: 'detached' });
+    // At Claim a card is one row, and under a finger the claim still has the row's width.
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?level=claim');
+    await page.waitForSelector('.board.view-rack.alt-claim');
+    const row = await page.evaluate(() => { const c = document.querySelector('#c-band'); return [c.querySelector('.claim').offsetWidth, c.offsetHeight, document.documentElement.scrollWidth <= innerWidth]; });
+    assert.ok(row[0] > 150 && row[1] < 120 && row[2], `a claim row: claim ${row[0]}px wide, row ${row[1]}px tall, no sideways scroll ${row[2]}`);
+    // A tap on the row opens it; the answer from before is still there, and another tap changes it.
+    await page.tap('#c-pick .claim');
+    await page.waitForSelector('#c-pick.open');
+    assert.ok(await page.isChecked('#c-pick input[value="link"]'));
+    await page.tap('#c-pick .opt:has(input[value="sport"])');
+    await page.waitForFunction(() => document.querySelector('#c-pick input[value="sport"]').checked);
+    await page.tap('#c-pick .opt:has(input[value="link"])');
+    await page.waitForFunction(() => document.querySelector('#c-pick input[value="link"]').checked);
     // Send is on screen and takes a tap.
     const send = await page.locator('[data-act="send"]').boundingBox();
     assert.ok(send.y + send.height <= 844, 'Send is on screen');

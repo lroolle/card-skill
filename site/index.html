@@ -62,7 +62,7 @@ is the product running; pool 7, roll 503b4783.
       </div>
     </div>
     <div class="frame">
-      <span class="cap">A live sample. Answer it; nothing is sent or kept.</span>
+      <span class="cap"><span class="cap-wide">A live sample. Answer it; nothing is sent or kept.</span><span class="cap-narrow">A live sample. Start with the tab "6 Choose".</span></span>
       <iframe id="sample" title="A sample board: pick a queue for the ingest service" data-src="demo/index.html?embed&amp;fresh"></iframe>
       <noscript><a href="demo/index.html">Open the sample board</a></noscript>
     </div>
@@ -70,16 +70,17 @@ is the product running; pool 7, roll 503b4783.
       <li><b>Open the ask: the tab "6 Choose".</b> The agent's pick is marked Suggested. It counts only if you choose it.</li>
       <li><b>Pick Kafka, not the suggestion.</b> Card 7 was written for NATS, so it goes on hold.</li>
       <li><b>Press Send.</b> The text you get is the whole reply, as the agent reads it.</li>
+      <li class="wide-only"><b>Then press Desk.</b> The same cards on a table, with a line for each link between them.</li>
     </ol>
   </main>
 </div>
 <script>
-// The sample opens on the desk where the frame is large enough to lay the cards
-// out, and as a list of claims where it is not.
+// The sample opens in the reading view, where text is at its real size: with
+// gists where the frame has the width, as a list of claims where it has not.
 (function () {
   var f = document.getElementById('sample');
   var r = f.getBoundingClientRect();
-  f.src = f.getAttribute('data-src') + (r.width >= 880 && r.height >= 600 ? '' : '&view=rack&level=claim');
+  f.src = f.getAttribute('data-src') + '&view=rack&level=' + (r.width >= 880 ? 'gist' : 'claim');
 })();
 </script>
 
@@ -120,14 +121,14 @@ NATS meets both needs.
   </section>
 
   <section class="shelf far" id="more">
-    <div class="shelf-head"><h2>Two things the sample does not show</h2></div>
+    <div class="shelf-head"><h2>Two more things a card does</h2></div>
     <div class="shown">
       <div class="say">
         <h3>A changed card says so, and keeps what it said before</h3>
         <p>The agent revises a card instead of writing a new answer. The card keeps its number, gets a version, and shows its earlier versions struck through. An answer you gave to an old version is flagged, not reused.</p>
-        <p class="where">Card 25 of this project's design review, at its third version.</p>
+        <p class="where">Card 13 of this project's design review, at its fifth version.</p>
       </div>
-      <figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/changed-dark.png"><img src="shots/changed-light.png" width="1320" height="900" alt="A card marked v3, with two earlier versions of its claim struck through under it" loading="lazy"></picture></figure>
+      <figure><picture><source media="(max-width: 900px) and (prefers-color-scheme: dark)" srcset="shots/changed-narrow-dark.png"><source media="(max-width: 900px)" srcset="shots/changed-narrow-light.png"><source media="(prefers-color-scheme: dark)" srcset="shots/changed-dark.png"><img src="shots/changed-light.png" alt="A card marked v5, with four earlier versions of its claim struck through under it" loading="lazy"></picture></figure>
     </div>
     <div class="shown flip">
       <div class="say">
@@ -135,7 +136,7 @@ NATS meets both needs.
         <p>The agent writes which thing leads to which; the page draws the boxes and the arrows. A screenshot or twenty lines of a file go into the card the same way, inside the one HTML file.</p>
         <p class="where">Card 11 of the same board: the two ways a reply gets back to the agent.</p>
       </div>
-      <figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/figure-dark.png"><img src="shots/figure-light.png" width="1320" height="900" alt="A card with a drawn figure: Send leads to a served page or a file page, and both lead to the agent" loading="lazy"></picture></figure>
+      <figure><picture><source media="(max-width: 900px) and (prefers-color-scheme: dark)" srcset="shots/figure-narrow-dark.png"><source media="(max-width: 900px)" srcset="shots/figure-narrow-light.png"><source media="(prefers-color-scheme: dark)" srcset="shots/figure-dark.png"><img src="shots/figure-light.png" alt="A card with a drawn figure: Send leads to a served page or a file page, and both lead to the agent" loading="lazy"></picture></figure>
     </div>
   </section>
 
@@ -143,10 +144,10 @@ NATS meets both needs.
     <div class="shelf-head"><h2>Boards you can open</h2><span class="count">4</span></div>
     <p class="shelf-note">Two are this project's own working boards. Two are the sample, in English and in Chinese. On each, Send shows the reply and sends nothing.</p>
     <div class="tiles">
-      <a class="tile" href="design-review/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/design-review-dark.png"><img src="shots/design-review-light.png" width="1520" height="950" alt="Cards on a desk in columns, with lines between the cards that depend on each other" loading="lazy"></picture><figcaption><b>How this project was designed</b><span>Its own design, argued card by card across three review rounds.</span><span class="meta">27 cards · 12 revisions · real</span></figcaption></figure></a>
-      <a class="tile" href="roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/roadmap-dark.png"><img src="shots/roadmap-light.png" width="1520" height="950" alt="A card that shows Org source for a claim with the command that proves it" loading="lazy"></picture><figcaption><b>What comes next</b><span>Eleven directions, each one a feature Org mode already has syntax for.</span><span class="meta">16 cards · 1 open ask · real</span></figcaption></figure></a>
-      <a class="tile" href="demo/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/demo-dark.png"><img src="shots/demo-light.png" width="1520" height="950" alt="Three options side by side, their facts in aligned rows" loading="lazy"></picture><figcaption><b>A decision, with its options side by side</b><span>The sample in the reading view: three queues, their facts in aligned rows.</span><span class="meta">{{CARDS}} cards · 2 asks · sample, the numbers are made up</span></figcaption></figure></a>
-      <a class="tile" href="demo-zh/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/demo-zh-dark.png"><img src="shots/demo-zh-light.png" width="1520" height="950" alt="The same three options in Chinese" loading="lazy"></picture><figcaption><b lang="zh-Hans">同一个看板，中文版</b><span>The sample in Chinese. The buttons follow the board's language, the page carries its own Chinese font, and the two pages link to each other.</span><span class="meta">{{CARDS}} cards · 2 asks · sample</span></figcaption></figure></a>
+      <a class="tile" href="design-review/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/design-review-dark.png"><img src="shots/design-review-light.png" width="1520" height="950" alt="Cards on a desk in columns, with lines between the cards that depend on each other" loading="lazy"></picture><figcaption><b>How this project was designed</b><span>Its own design, argued card by card over two review rounds.</span><span class="meta">{{DR_CARDS}} cards · revision {{DR_REV}} · real</span></figcaption></figure></a>
+      <a class="tile" href="roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/roadmap-dark.png"><img src="shots/roadmap-light.png" width="1520" height="950" alt="A card that shows Org source for a claim with the command that proves it" loading="lazy"></picture><figcaption><b>What comes next</b><span>Eleven directions, each one a feature Org mode already has syntax for.</span><span class="meta">{{RM_CARDS}} cards · {{RM_ASKS}} open ask · real</span></figcaption></figure></a>
+      <a class="tile" href="demo/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/demo-dark.png"><img src="shots/demo-light.png" width="1520" height="950" alt="Three options side by side, their facts in aligned rows" loading="lazy"></picture><figcaption><b>A decision, with its options side by side</b><span>The sample in the reading view: three queues, their facts in aligned rows.</span><span class="meta">{{CARDS}} cards · {{DEMO_ASKS}} asks · sample, the numbers are made up</span></figcaption></figure></a>
+      <a class="tile" href="demo-zh/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/demo-zh-dark.png"><img src="shots/demo-zh-light.png" width="1520" height="950" alt="The same three options in Chinese" loading="lazy"></picture><figcaption><b lang="zh-Hans">同一个看板，中文版</b><span>The sample in Chinese. The buttons follow the board's language, the page carries its own Chinese font, and the two pages link to each other.</span><span class="meta">{{CARDS}} cards · {{DEMO_ASKS}} asks · sample</span></figcaption></figure></a>
     </div>
   </section>
 
@@ -167,7 +168,7 @@ node skill/bin/cards.mjs serve</code></pre>
         <p><b>Then ask for something that ends in a decision:</b></p>
         <blockquote>Compare three queues for our ingest service and let me pick. Answer with cards.</blockquote>
         <p>The skill tells the agent when a board is earned and when prose is better. Most answers should stay prose.</p>
-        <p>Node 18 or later. No dependencies. The copy does not update itself: copy it again after a pull. <code>cards --version</code> says which build you have.</p>
+        <p>Node 18 or later. No dependencies. The copy does not update itself: copy it again after a pull. <code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> says which build you have.</p>
       </div>
     </div>
   </section>

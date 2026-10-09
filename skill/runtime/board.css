@@ -761,6 +761,9 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
 /* Touch: every target reaches 44px. The bar and the card footer grow; the card body does not. */
 @media (pointer: coarse) {
   .acts { position: static; display: flex; padding: 0; margin: 0 calc(var(--s2) * -1); border: 0; background: none; }
+  /* A claim row is one line: number, claim, state. Its marks show when the row is opened;
+     in the row they would take the whole width and leave the claim none. */
+  .view-rack.alt-claim .card:not(.open) .acts { display: none; }
   .act.reply-btn { margin-left: auto; }
   .act, .seg button, .send, .icon-btn, .bar select, .search input, .btn, .rail-tab, .history summary { min-height: 44px; }
   .seg button { min-width: 44px; }
@@ -784,6 +787,14 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
 /* One row of tools: how much shows, which view, and Send. The page around the
    board owns everything else, and the wheel goes on to it at the board's edge. */
 .embed .bar :is(.seg-filter, .sep, [data-sort], .search, [data-act="help"]) { display: none; }
-.embed .bar { flex-wrap: nowrap; }
 .embed .bar .tools { flex-wrap: nowrap; }
 .embed, .embed body, .embed .view-desk .shelves { overscroll-behavior: auto; }
+/* In a frame the tools are a strip along its lower edge, not a box that floats over a card. */
+.embed .bar { left: 0; right: 0; bottom: 0; transform: none; max-width: none; flex-wrap: nowrap; justify-content: space-between; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }
+.embed .page { padding-bottom: calc(var(--bar-h, 56px) + var(--s5)); }
+/* The page around the frame has the large title; this one is a board's name. */
+.embed h1.title { font-size: var(--t-xl); }
+/* The ask tabs stay in sight while the cards scroll under them, so an ask
+   that goes on hold is seen to do so. */
+.embed .view-rack > header { display: contents; }
+.embed .view-rack .rail { position: sticky; top: 0; z-index: 6; padding-top: var(--s2); background: var(--bg); }

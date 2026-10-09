@@ -44,7 +44,10 @@ function build(dir) {
   }
 
   // The reply in "The loop" is the reply the sample gives: the same function, the same cards.
-  const demo = JSON.parse(fs.readFileSync(path.join(dir, 'demo', 'index.html'), 'utf8').match(/<script type="application\/json" id="board-data">([\s\S]*?)<\/script>/)[1]);
+  // Every number the page states about a board is read from that board.
+  const dataOf = (id) => JSON.parse(fs.readFileSync(path.join(dir, id, 'index.html'), 'utf8').match(/<script type="application\/json" id="board-data">([\s\S]*?)<\/script>/)[1]);
+  const open = (d) => Object.values(d.cards).filter((c) => c.ask && c.status !== 'done').length;
+  const [demo, review, roadmap] = ['demo', 'design-review', 'roadmap'].map(dataOf);
   const index = Object.fromEntries(Object.values(demo.cards).map((c) => [c.id, { n: c.n, v: c.v }]));
   const reply = globalThis.cardsDigest({ items: [
     { card: 'pick-queue', v: 1, kind: 'choose', value: ['kafka'], default: ['nats'], state: 'changed' },
@@ -63,6 +66,11 @@ function build(dir) {
     BG_NIGHT: tokenOf('--bg', true),
     REPLY: esc(reply),
     CARDS: Object.keys(demo.cards).length,
+    DEMO_ASKS: open(demo),
+    DR_CARDS: Object.keys(review.cards).length,
+    DR_REV: review.board.rev,
+    RM_CARDS: Object.keys(roadmap.cards).length,
+    RM_ASKS: open(roadmap),
     // The page wears the board's own tokens: one source for both.
     TOKENS: css.slice(css.indexOf(':root {'), css.indexOf('* { box-sizing')).trim(),
   };
@@ -94,20 +102,26 @@ async function shots() {
   const browser = await chromium.launch();
   const hide = '.bar, .chat, .toast { display: none !important; }';
   // [name, page, viewport, what to do before the picture, the element or the region to take]
+  const top = (id) => async (p) => { await p.evaluate((sel) => document.querySelector(sel).closest('.shelf').scrollIntoView({ block: 'start' }), id); await p.evaluate(() => window.scrollBy(0, -12)); };
+  const local = pathToFileURL(path.join(ROOT, '.cards', 'design-review', 'board.html')).href + '?view=rack&level=gist&fresh';
+  const history = async (p) => { await p.click('#c-signal-cards .claim'); await p.click('#c-signal-cards .history summary'); };
   const list = [
     ['design-review', 'design-review/index.html?level=claim', [1440, 900], async (p) => {
       await p.click('[data-zoom="1"]');
       await p.waitForTimeout(600);
       await p.evaluate(() => { const d = document.querySelector('.shelves'); d.scrollLeft = 0; d.scrollTop = 0; });
     }, { inside: '.shelves' }],
-    ['roadmap', 'roadmap/index.html?view=rack&level=gist', [1180, 900], async (p) => { await p.locator('#c-proof').scrollIntoViewIfNeeded(); await p.evaluate(() => window.scrollBy(0, -70)); }, { clip: [30, 40, 760, 475] }],
-    ['demo', 'demo/index.html?view=rack&level=gist', [1180, 900], async (p) => { await p.locator('#c-nats').scrollIntoViewIfNeeded(); await p.evaluate(() => window.scrollBy(0, -110)); }, { clip: [30, 30, 760, 475] }],
-    ['demo-zh', 'demo-zh/index.html?view=rack&level=gist', [1180, 900], async (p) => { await p.locator('#c-nats').scrollIntoViewIfNeeded(); await p.evaluate(() => window.scrollBy(0, -110)); }, { clip: [30, 30, 760, 475] }],
-    // Two things the sample cannot show: a card that changed, and a card that draws what it says.
-    // The first is the repo's own working page, not the export: an export drops past versions.
-    ['changed', pathToFileURL(path.join(ROOT, '.cards', 'design-review', 'board.html')).href + '?view=rack&level=gist&fresh', [700, 1200],
-      async (p) => { await p.click('#c-opt-desk .claim'); await p.click('#c-opt-desk .history summary'); }, { el: '#c-opt-desk' }],
-    ['figure', 'design-review/index.html?view=rack&level=gist', [700, 1200], null, { el: '#c-return-channel' }],
+    // A tile shows a section from its head: what the caption names is what the picture shows.
+    ['roadmap', 'roadmap/index.html?view=rack&level=gist', [1180, 900], top('#c-proof'), { inside: '.shelf:has(#c-proof)' }],
+    ['demo', 'demo/index.html?view=rack&level=gist', [1180, 900], top('#c-nats'), { inside: '.shelf:has(#c-nats)' }],
+    ['demo-zh', 'demo-zh/index.html?view=rack&level=gist', [1180, 900], top('#c-nats'), { inside: '.shelf:has(#c-nats)' }],
+    // Two more things a card does, each on a real card. The first is the repo's own
+    // working page, not the export: an export drops past versions. Each is taken twice:
+    // at the width of a desktop column, and at the width of a phone.
+    ['changed', local, [700, 1400], history, { el: '#c-signal-cards' }],
+    ['changed-narrow', local, [400, 1400], history, { el: '#c-signal-cards' }],
+    ['figure', 'design-review/index.html?view=rack&level=gist', [700, 1400], null, { el: '#c-return-channel' }],
+    ['figure-narrow', 'design-review/index.html?view=rack&level=gist', [400, 1400], null, { el: '#c-return-channel' }],
   ];
   for (const theme of ['light', 'dark']) {
     for (const [name, rel, [w, h], before, take] of list) {
@@ -120,7 +134,7 @@ async function shots() {
       const file = path.join(dir, `${name}-${theme}.png`);
       if (take.inside) {
         const box = await page.locator(take.inside).boundingBox();
-        take.clip = [box.x + 8, box.y + 8, 760, 475];
+        take.clip = [Math.max(0, box.x - 6), Math.max(0, box.y + (take.inside === '.shelves' ? 8 : -4)), 760, 475];
       }
       if (take.el) await page.locator(take.el).screenshot({ path: file });
       else await page.screenshot({ path: file, clip: { x: take.clip[0], y: take.clip[1], width: take.clip[2], height: take.clip[3] } });

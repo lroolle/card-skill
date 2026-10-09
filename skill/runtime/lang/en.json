@@ -155,6 +155,7 @@
   "send_copy_title": "Copy your reply",
   "send_copy_body": "No board server is running, so the reply goes through the clipboard. Paste it into your agent. With {cmd}, Send writes it to disk instead.",
   "send_copy_body_public": "This is a published copy of the board; nothing is sent from this page. Copy your reply and send it to the board’s author.",
+  "send_copy_body_sample": "This is a sample: nothing is sent, and nothing is kept. This is the reply an agent would read.",
   "send_copy_label": "Reply text",
   "send_copy_done": "Copied. Paste it into your agent.",
   "send_copy_failed": "Select the text and copy it.",
