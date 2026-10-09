@@ -706,7 +706,8 @@ test('a pasted reply, recorded with cards ingest, shows on the page as answered 
     const url = pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack';
     await page.goto(url);
     assert.equal(await page.title(), '(2) Pick the band', 'the browser tab counts the asks that wait');
-    assert.match(decodeURIComponent(await page.getAttribute('link[rel="icon"]', 'href')), /\.t\{fill:#d9480f\}/, 'and the icon lights its tab');
+    const signal = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--signal').trim());
+    assert.ok(decodeURIComponent(await page.getAttribute('link[rel="icon"]', 'href')).includes(`<path fill="${signal}"`), 'and the icon lights its tab in the signal color');
     assert.ok(await page.$('.mark.lit'));
     assert.match(await page.getAttribute('.mark', 'title'), /^Made with cards \d+\.\d+\.\d+$/);
     assert.match(await page.textContent('.andon .stat'), /by Claude/);

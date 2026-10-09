@@ -76,7 +76,8 @@
 
   // The board opens on the desk (D15): the cards laid out with their links, zoomed to fit.
   // A phone opens on the rack: at phone width the whole desk fits only as a minimap.
-  var NARROW = window.matchMedia('(max-width: 720px)').matches;
+  // So does a short window (a phone on its side, a small frame): the desk needs height.
+  var NARROW = window.matchMedia('(max-width: 720px), (max-height: 560px)').matches;
   // The desk has no level of its own until you pick one: the first view takes the
   // most detail that still fits the window at a readable size (firstView, below).
   var deskAltSet = load('deskAlt', null);
@@ -667,20 +668,26 @@
   }
 
   // The browser tab says it too: a count before the title, and the lit tab of the mark.
+  // The icon is its own small document, so it cannot read the page's tokens;
+  // their values are read here and written into it.
   var iconState = null;
+  function token(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
   function setIcon(waiting) {
-    var state = (waiting ? 1 : 0) + ':' + waiting + ':' + B.board.title;
+    var ink = token('--fg');
+    var state = waiting + ':' + ink + ':' + B.board.title;
     if (state === iconState) return;
     iconState = state;
     document.title = (waiting ? '(' + waiting + ') ' : '') + B.board.title;
-    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><style>.i{fill:#2a2d34}.t{fill:' + (waiting ? '#d9480f' : '#2a2d34') + '}@media(prefers-color-scheme:dark){.i{fill:#e9e9e6}.t{fill:' + (waiting ? '#ff8a4c' : '#e9e9e6') + '}}</style>' +
-      '<path class="t" d="' + MARK_TAB + '"/><path class="i" d="' + MARK_CARD + '"/></svg>';
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">' +
+      '<path fill="' + (waiting ? token('--signal') : ink) + '" d="' + MARK_TAB + '"/><path fill="' + ink + '" d="' + MARK_CARD + '"/></svg>';
     var link = document.querySelector('link[rel="icon"]');
     if (!link) { link = document.createElement('link'); link.rel = 'icon'; link.type = 'image/svg+xml'; document.head.appendChild(link); }
     link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
     var mark = $('.mark');
     if (mark) mark.classList.toggle('lit', !!waiting);
   }
+  // Day or night changes the ink: draw the icon again.
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { iconState = null; applyView(); });
 
   // In a compare shelf, claims and gists share a height so facts line up row by row.
   function alignCompare() {

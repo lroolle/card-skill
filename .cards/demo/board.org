@@ -4,8 +4,7 @@
 #+author: an agent, as a sample
 #+description: A sample board: two needs, three options, one decision. Answer it and press Send to see what the agent reads.
 
-A sample answer from an agent; the numbers are made up. Pick an option,
-then press Send. The text that appears is what the agent reads.
+A sample answer from an agent. The numbers are made up.
 
 * What the queue must do
 

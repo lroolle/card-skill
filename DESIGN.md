@@ -116,3 +116,29 @@ Known gap: a Chinese board falls back to the system CJK face. The skill's zh
 rule wants a self-hosted face; for an offline single file that means
 embedding a subset per board. Deferred; it is an option on the
 design-review board.
+
+## The landing page
+
+`site/index.html`, built by `scripts/site.mjs`. Mode: persuade. It is a new
+surface in the same world: it takes its tokens from `board.css` at build
+time and adds no color, no face and no radius.
+
+Composition: **first viewport is the product running** (dealt first of
+three at surface scope; roll key `503b4783`). The live sample board owns
+the first viewport at working size. The offer, one action (Install) and
+three steps to try stand beside it. On a phone the board comes first in its
+phone form, Install stays in the top bar, and the offer follows. Below:
+the loop, six claims, four real boards, the install lines, three limits.
+The promise is the first comment in the page's body.
+
+Check: `kit/check.sh --no-zh --tokens skill/runtime/board.css site` runs
+clean. `--no-zh` because the page is English; it carries one Chinese line,
+the title of the Chinese sample, in the system face. A Chinese landing page
+waits for the CJK font work that the board itself still needs.
+
+`kit/render-check.mjs` on the served page: no fail. One warning with its
+reason: three corner radii. They are the board's own concentric set (6 for
+cards and controls, 4 nested inside them, 3 for marks smaller than text),
+used here for the same three things.
+
+Not reviewed in a fresh context yet, and not seen on a real device.

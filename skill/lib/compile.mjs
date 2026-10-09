@@ -206,8 +206,17 @@ function readRuntime(name) {
 }
 
 // The mark: a card with its tab. In a browser tab it is the page icon; the
-// tab of the mark lights while an ask waits (runtime/board.js swaps it).
-export const MARK = (lit = false) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><style>.i{fill:#2a2d34}.t{fill:${lit ? '#d9480f' : '#2a2d34'}}@media(prefers-color-scheme:dark){.i{fill:#e9e9e6}.t{fill:${lit ? '#ff8a4c' : '#e9e9e6'}}}</style><path class="t" d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.5A1.5 1.5 0 0 1 8 3v2.5H1.5z"/><path class="i" d="M1.5 5h11.5A1.5 1.5 0 0 1 14.5 6.5v6.5a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z"/></svg>`;
+// tab of the mark lights while an ask waits (runtime/board.js swaps it). The
+// icon is its own small document, so the two inks are read from the tokens of
+// board.css, for day and for night, and written into it.
+export function MARK(lit = false) {
+  const css = readRuntime('board.css');
+  const night = css.indexOf('prefers-color-scheme: dark');
+  const tok = (name, from) => css.slice(from).match(new RegExp(`${name}:\\s*([^;]+);`))[1].trim();
+  const [ink, sig, inkN, sigN] = [tok('--fg', 0), tok('--signal', 0), tok('--fg', night), tok('--signal', night)];
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><style>.i{fill:${ink}}.t{fill:${lit ? sig : ink}}@media(prefers-color-scheme:dark){.i{fill:${inkN}}.t{fill:${lit ? sigN : inkN}}}</style>` +
+    '<path class="t" d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.5A1.5 1.5 0 0 1 8 3v2.5H1.5z"/><path class="i" d="M1.5 5h11.5A1.5 1.5 0 0 1 14.5 6.5v6.5a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z"/></svg>';
+}
 const dataUri = (svg) => `data:image/svg+xml,${encodeURIComponent(svg)}`;
 
 // What a link preview and a browser tab show. A board has no public URL of

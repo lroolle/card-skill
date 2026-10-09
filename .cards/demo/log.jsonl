@@ -7,3 +7,4 @@
 {"t":"card","id":"cutover","n":7,"v":1,"rev":1,"at":"2026-10-09T12:35:58.166Z","hash":"6c60fcd469920280","src":"** Move to NATS with a week of dual-write, then switch\n:PROPERTIES:\n:CUSTOM_ID: cutover\n:ASK: approve\n:NEEDS: pick-queue\n:END:\nThis plan is written for NATS. If you pick another queue above, the board\nholds this ask back, and the agent writes a new plan.\n\n#+caption: The cutover: both queues take every message for a week\n#+begin_src flow\n  producers -> old queue\n  producers -> NATS: dual-write\n  old queue -> consumers\n  NATS -> compare: for one week\n  compare -> switch: when equal\n#+end_src","fmt":"org"}
 {"t":"rev","rev":1,"at":"2026-10-09T12:35:58.166Z","hash":"7caad53ff6729730"}
 {"t":"build","v":"0.1.0","at":"2026-10-09T12:35:58.167Z"}
+{"t":"rev","rev":2,"at":"2026-10-09T12:53:11.545Z","hash":"c07b4ce027227d9b"}
