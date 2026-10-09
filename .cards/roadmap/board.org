@@ -135,6 +135,10 @@ would do the same; an archived card keeps its numeral and its history.
 - what is new :: =cards archive <board>=; an "Archived" count that opens the list
 - risk :: links to an archived card must still resolve
 
+It happened to this project at once. Its own progress board passed 30 cards
+within a day. I moved 16 settled cards to a second board by hand, and three
+links between the two boards had to become plain words.
+
 ** A finding carries its severity, and the board sorts by it
 :PROPERTIES:
 :CUSTOM_ID: priority
