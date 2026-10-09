@@ -600,3 +600,20 @@ test('move and set keep the line endings of the file, and a last line with no en
   assert.deepEqual(order(src.replace(/\r/g, '')), ['* Steps', 'drop', 'freeze', 'copy', 'switch', '* Later']);
   assert.deepEqual(parseBoard(src, { fmt: 'org' }).errors, []);
 });
+
+// The repo keeps the page of one board, and the README tells a new user to render it.
+// A page that carried the time of the render would differ each time and leave their clone changed.
+test('render: the same board and the same log give the same page, byte for byte', async () => {
+  const { cwd, ref } = project();
+  cards(cwd, ['render', 'watch', '--quiet']);
+  const page = path.join(ref.dir, 'board.html');
+  const [first, log] = [fs.readFileSync(page), fs.readFileSync(path.join(ref.dir, 'log.jsonl'))];
+  await new Promise((r) => setTimeout(r, 1100)); // a time in the page would show after a second
+  cards(cwd, ['render', 'watch', '--quiet']);
+  assert.ok(first.equals(fs.readFileSync(page)), 'the page is the same');
+  assert.ok(log.equals(fs.readFileSync(path.join(ref.dir, 'log.jsonl'))), 'and the log got no new line');
+  const index = path.join(path.dirname(ref.dir), 'index.html');
+  const list = fs.readFileSync(index);
+  cards(cwd, ['render', 'watch', '--quiet']);
+  assert.ok(list.equals(fs.readFileSync(index)), 'the list of boards is the same too');
+});

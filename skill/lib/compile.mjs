@@ -152,7 +152,6 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       lede_text: sx.plain(board.lede).slice(0, 300),
       rev: st.rev,
       path: publish ? '' : displayPath(cwd, ref.file),
-      generated: new Date().toISOString(),
       // The way back: the list of this project's boards (lib/index.mjs), or for a
       // published copy the page its publisher names (`cards export --home`).
       home: publish ? (home || '') : live ? '/' : ref && ref.dir && isBoardsRoot(path.dirname(ref.dir)) ? '../index.html' : '',

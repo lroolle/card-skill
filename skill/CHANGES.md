@@ -32,6 +32,9 @@ Changed
 - Figures are numbered in the order of the source, also a picture inside a
   list or a quote. `cards check` warns when such a picture has no caption.
 - The size of an AVIF or SVG picture is read exactly.
+- A render of a board that did not change writes the same page, byte for
+  byte. The page no longer carries the time of the render, so a board kept
+  in git shows a change only when it changed.
 
 Fixed
 - A keyword with a hyphen, such as `#+translation-of:`, was shown as text of
