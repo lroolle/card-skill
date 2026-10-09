@@ -6,7 +6,7 @@ comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
-`npm test`: 105 tests. 18 of them drive a real browser; on GitHub they run
+`npm test`: 106 tests. 19 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
@@ -38,7 +38,8 @@ from `site/` and the boards under `.cards/`.
 
 - Safari itself, and a phone in a hand. WebKit and Firefox run the browser
   tests on Linux; the phone layout is tested at 390 px.
-- Touch in the image viewer; pinch zoom on the desk.
+- Pinch zoom on the desk. (Taps are tested on a touch screen of phone size
+  in Chromium and WebKit: answer, open a picture, send.)
 - The Chinese chrome on a real device, by a human native reader. A second
   reader with a native register guide went through all 223 strings and the
   sample board; its 49 corrections are in.

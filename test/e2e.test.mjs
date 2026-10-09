@@ -982,3 +982,43 @@ test('a sample in a frame: one row of tools, no chat box, nothing kept between v
     await browser.close();
   }
 });
+
+test('touch: on a phone-size touch screen, taps answer an ask, open a picture at full size, and send', { skip: (!chromium && 'playwright not installed') || (ENGINE === 'firefox' && 'Firefox has no touch emulation') }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const ref = resolveBoard('touch', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  fs.writeFileSync(path.join(cwd, 'band.png'), png(1200, 2400));
+  fs.writeFileSync(ref.file, '#+title: Touch\n\n** The sport band is the lighter one\n:PROPERTIES:\n:CUSTOM_ID: band\n:END:\nIt weighs 12 g less.\n\n#+caption: The sport band\n[[file:../../band.png]]\n\n** Which band?\n:PROPERTIES:\n:CUSTOM_ID: pick\n:ASK: choose\n:END:\nPick one.\n\n- [X] sport :: Sport\n- [ ] link :: Link\n');
+  assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+  const browser = await chromium.launch();
+  try {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await page.waitForSelector('.board.view-rack', undefined);
+    // An option is a target a finger can hit.
+    const opt = await page.locator('#c-pick .opt:has(input[value="link"])').boundingBox();
+    assert.ok(opt.height >= 32, `an option is ${opt.height}px tall`);
+    await page.tap('#c-pick .opt:has(input[value="link"])');
+    await page.waitForFunction(() => document.querySelector('#c-pick .tab').textContent === 'Chosen');
+    // A tap on the picture opens it in the page; a tap on it shows its real pixels; Close goes back.
+    await page.tap('#c-band .fig-zoom');
+    await page.waitForSelector('dialog.lightbox[open]');
+    const fit = await page.locator('dialog.lightbox img').boundingBox();
+    assert.ok(fit.height <= 844 && fit.width <= 390, 'the picture fits the phone');
+    await page.tap('dialog.lightbox img');
+    assert.ok(await page.evaluate(() => document.querySelector('dialog.lightbox').classList.contains('actual')));
+    await page.tap('dialog.lightbox [data-close]');
+    await page.waitForSelector('dialog.lightbox', { state: 'detached' });
+    // Send is on screen and takes a tap.
+    const send = await page.locator('[data-act="send"]').boundingBox();
+    assert.ok(send.y + send.height <= 844, 'Send is on screen');
+    await page.tap('[data-act="send"]');
+    assert.match(await page.inputValue('dialog textarea'), /#2 pick\s+choose\s+changed: link/);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
