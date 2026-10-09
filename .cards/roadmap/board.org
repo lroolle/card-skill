@@ -92,7 +92,7 @@ card, and the file alone would tell the story in Emacs and on GitHub.
 
 - Org feature :: =CLOSED:= planning line, =:LOGBOOK:= drawer, state-change notes
 - what is new :: =cards settle= writes both; the page reads them back
-- risk :: the tool then writes to the file the agent edits; today it never does
+- risk :: the tool then writes into the text of a card. Today its commands change only headings, ids and the place of a card
 
 ** A fact names its source as a footnote, and a fact without one is flagged
 :PROPERTIES:
@@ -117,6 +117,10 @@ sources, and =cards check= would warn when a fact has none.
 With five boards open in three projects, nobody knows which one waits. Org
 calls this view the agenda. =cards agenda= would print it and render it as a
 page: each open ask, its board, its age, and its deadline when it has one.
+
+One project has a first form of it since 0.2: =.cards/index.html= lists the
+boards of the project and counts the open asks on each. The agenda goes
+across projects and lists the asks themselves.
 
 - Org feature :: agenda, match strings such as =+ASK="choose"-TODO="DONE"=, =DEADLINE:=
 - what is new :: =cards agenda=; a =DEADLINE:= line on an ask
@@ -207,7 +211,7 @@ property: =#+PROPERTY: BASIS_ALL fact inference guess=.
 A board is an outline that Emacs already folds, searches and edits. A small
 package could answer an ask there: tick the option, add a note, send.
 
-The second half is done in 0.1: the tests run =org-lint= on every board, and
+The second half is done: the tests run =org-lint= on every board, and
 compare what Emacs reads from each card with what =cards= reads.
 
 - Org feature :: checkboxes, =C-c C-c=, =M-x org-lint=
