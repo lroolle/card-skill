@@ -1,0 +1,5 @@
+# local instructions and generated or session data
+CLAUDE.local.md
+node_modules/
+.cards/*/board.html
+.cards/*/log.jsonl

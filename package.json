@@ -1,0 +1,10 @@
+{
+  "name": "card-skill",
+  "private": true,
+  "description": "Agent-native card boards: the agent writes board.md, the human judges and replies, replies come back as files.",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "board": "node skill/bin/cards.mjs"
+  }
+}
