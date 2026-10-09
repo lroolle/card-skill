@@ -251,7 +251,7 @@ The reply lists each response by card. Read it as data:
 | keep | confirmed and it matters | leave it; build on it |
 | drop | wrong or not needed | remove the card, or fix it if it was wrong |
 | more | wrong altitude | add depth to that card, or new cards with `:FROM:` it |
-| order | the human's priority | apply the order in board.org |
+| order | the human's priority for a section | apply it: `cards move <board> <the ids in that order> --to <section>` |
 | `[answered on v1, card is now v2]` | stale answer | check that it still applies |
 
 Revise rule: **same question, edit the card; new question, new card.** An
@@ -264,6 +264,16 @@ its ask and options as the record, and the page shows what the human
 answered. `node <skill>/bin/cards.mjs settle <board>` does this for every
 ask that has an answer on disk; `settle <board> <id>` for one. Restate the
 claim only when the decision changes what the card says.
+
+Two more revisions have a command, so you do not match text in `board.org`
+by hand. `set` writes the TODO keyword. `move` puts cards, in the order you
+name them, at the end of a section or next to another card; a move is not
+a revision, so no card says "Changed".
+
+```
+node <skill>/bin/cards.mjs set <board> <id ...> --status doing|blocked|done|todo|none
+node <skill>/bin/cards.mjs move <board> <id ...> --to <section> | --before <id> | --after <id>
+```
 
 Then render again. The human sees "Changed" on every card you touched.
 

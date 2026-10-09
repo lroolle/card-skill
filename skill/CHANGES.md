@@ -10,6 +10,10 @@ New
 - `cards ids <board>` writes a `:CUSTOM_ID:` for every card that has none,
   so you can write a card as a heading and its text. The id is written
   once; it stays when the claim changes.
+- `cards set <board> <id ...> --status doing|blocked|done|todo|none` writes
+  the TODO keyword of cards. `cards move <board> <id ...> --to <section>`
+  (or `--before <id>`, `--after <id>`) moves cards in `board.org`, in the
+  order given. Use them in place of a text replace.
 - Each render writes `.cards/index.html`, the list of the project's boards
   with their open asks; every board links back to it.
 - `cards hook` prints the lines for a Claude Code hook that hands you unread
@@ -30,6 +34,9 @@ Changed
 - The size of an AVIF or SVG picture is read exactly.
 
 Fixed
+- A keyword with a hyphen, such as `#+translation-of:`, was shown as text of
+  the lede with no warning. `cards check` now names it, and for this one it
+  names the right spelling: `#+translation_of:`.
 - On a touch screen, the reading view at Claim set each claim one letter
   per line.
 - The Chinese buttons: 49 strings corrected by a second reader.

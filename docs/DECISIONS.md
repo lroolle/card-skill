@@ -648,3 +648,32 @@ Rejected: a hash of `skill/` in the name of the build. It finds every
 change but cannot say what changed, and CHANGES.md is written by version.
 Tests: `test/loop.test.mjs` "version: skill/ does not change under a
 version that is already tagged".
+
+## D36. Two more revisions are commands: set a status, move a card
+
+2026-10-09. Built. Completes D22 (field report 2.1).
+The report asked for three commands for the common revisions: resolve an
+ask, set a status, move a card. Only the first was built (`settle`), and
+the report was counted as answered. An audit of that count against the
+report found the gap. This project's own progress board showed the cost:
+every round changed it with a script that matched and replaced text.
+`cards set <board> <id ...> --status todo|doing|blocked|done|none` writes
+the TODO keyword. `cards move <board> <id ...> --to <section>`, `--before
+<id>` or `--after <id>` moves cards in the order given, so the human's
+order for a section is one command. A card is its heading and every line
+down to the next heading of a card or a section.
+Why a move is safe to automate: the result is parsed before it is written.
+If it has an error, or not the same cards, nothing is written. Line
+endings stay as they are. A move is not a revision: the numeral and the
+history stay, and no card says "Changed".
+Cost: four commands edit `board.org` now (`settle`, `ids`, `set`, `move`).
+Each one changes headings or whole cards, never the text of a card.
+Rejected: a general `cards edit` that sets any property (the text of a
+card is the agent's to write; a tool that rewrites it hides the diff);
+a move to another board (that is the archive direction on the roadmap,
+and the links between the two boards need a rule first).
+Same audit, same commit: a keyword with a hyphen (`#+translation-of:`, as
+the report spelled it) was read as a line of the lede, with no warning.
+It is a keyword now, and `cards check` names the right spelling.
+Tests: `test/loop.test.mjs` "set", "move", "lint: syntax that does
+nothing here".

@@ -329,7 +329,8 @@ function parseOrgBoard(src, id) {
   // Before the first heading: #+keywords and the lede.
   const lede = [];
   chunks[0].lines.forEach((line, k) => {
-    const m = line.match(/^#\+(\w+):\s*(.*?)\s*$/);
+    // A hyphen is part of a keyword's name, so that #+translation-of: is a keyword we do not read, not a line of the lede.
+    const m = line.match(/^#\+([\w-]+):\s*(.*?)\s*$/);
     if (m) {
       const key = m[1].toLowerCase();
       if (key === 'title') board.title = m[2];
@@ -507,6 +508,80 @@ export function addIds(src) {
     }
   }
   return { src: lines.join('\n'), added };
+}
+
+// Lines as the parser counts them (\r\n, \r or \n each end one), each with
+// its own ending kept, so join('') gives the file back.
+function srcLines(src) {
+  const parts = String(src).split(/(\r\n|\r|\n)/);
+  const out = [];
+  for (let i = 0; i < parts.length; i += 2) out.push(parts[i] + (parts[i + 1] || ''));
+  if (out[out.length - 1] === '') out.pop();
+  return out;
+}
+
+// setStatus(src, cards, kw) -> { src }, or { bad: card } when a line is not
+// that card's heading. kw is a TODO keyword, or '' to take the keyword away.
+const KEYWORD_RE = /^(\*\*\s+)(?:(?:TODO|DOING|BLOCKED|DONE)\s+)?/;
+export function setStatus(src, cards, kw) {
+  const L = srcLines(src);
+  for (const c of cards) {
+    const head = L[c.line - 1] || '';
+    if (!/^\*\*\s/.test(head) || !head.includes(c.title)) return { bad: c };
+    L[c.line - 1] = head.replace(KEYWORD_RE, `$1${kw ? `${kw} ` : ''}`);
+  }
+  return { src: L.join('') };
+}
+
+// moveCards(src, board, cards, where) -> { src, into }. The cards go, in the
+// order given, to the end of a section ({ to: name }), or before or after
+// another card ({ before: card } / { after: card }). A card is its heading
+// and every line down to the next heading of a card or a section.
+export function moveCards(src, board, cards, where) {
+  const L = srcLines(src);
+  const eol = ((L[0] || '').match(/(\r\n|\r|\n)$/) || ['\n'])[0];
+  const named = board.sections.filter((x) => x.title);
+  const heads = [...board.cards.map((c) => c.line), ...named.map((x) => x.line)].sort((x, y) => x - y);
+  const endOf = (line) => heads.find((h) => h > line) ?? L.length + 1; // the first line after it
+  const blank = (l) => /^\s*$/.test(l);
+
+  let at;
+  let into;
+  if (where.to !== undefined) {
+    const name = String(where.to).replace(/^§/, '');
+    const sec = named.find((x) => x.id === name || x.title.toLowerCase() === name.toLowerCase());
+    if (!sec) throw new Error(`no section "${name}" on this board. Sections: ${named.map((x) => x.id).join(', ')}`);
+    const next = named[named.indexOf(sec) + 1];
+    at = next ? next.line : L.length + 1;
+    into = `the end of "${sec.title}"`;
+  } else {
+    const t = where.before || where.after;
+    if (cards.some((c) => c.id === t.id)) throw new Error(`${t.id} is one of the cards to move`);
+    at = where.before ? t.line : endOf(t.line);
+    into = `${where.before ? 'before' : 'after'} ${t.id}`;
+  }
+
+  const gone = new Set();
+  const chunks = cards.map((c) => {
+    const lines = L.slice(c.line - 1, endOf(c.line) - 1);
+    for (let i = c.line; i < endOf(c.line); i++) gone.add(i);
+    while (lines.length && blank(lines[lines.length - 1])) lines.pop();
+    return lines;
+  });
+  const kept = (from, to) => L.slice(from - 1, to - 1).filter((_, i) => !gone.has(from + i));
+  const head = kept(1, at);
+  const tail = kept(at, L.length + 1);
+  while (head.length && blank(head[head.length - 1])) head.pop();
+  while (tail.length && blank(tail[0])) tail.shift();
+  // One empty line between the parts; a last line with no ending gets one.
+  const out = [];
+  for (const part of [head, ...chunks, tail]) {
+    if (!part.length) continue;
+    if (out.length) out.push(eol);
+    out.push(...part);
+    if (!/[\r\n]$/.test(out[out.length - 1])) out[out.length - 1] += eol;
+  }
+  return { src: out.join(''), into };
 }
 
 // canonical(card) -> what a card means, independent of its source format and

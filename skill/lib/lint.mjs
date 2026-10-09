@@ -178,7 +178,11 @@ export function lint(board) {
     if (c.drawerGap) warn(c.line + 1, 'a blank line before :PROPERTIES:; Emacs reads the drawer as the card\'s properties only when it follows the heading directly');
   }
   for (const u of board.unknown || []) {
-    warn(u.line, `${u.what} does nothing in this build (read before the first heading: #+title, #+language, #+author, #+description, #+translation_of)`);
+    const READ = ['title', 'language', 'author', 'description', 'translation_of'];
+    const near = u.what.slice(2, -1).toLowerCase().replace(/-/g, '_');
+    warn(u.line, READ.includes(near)
+      ? `${u.what} does nothing in this build; the keyword is #+${near}: (an underscore, not a hyphen)`
+      : `${u.what} does nothing in this build (read before the first heading: ${READ.map((k) => `#+${k}`).join(', ')})`);
   }
   const english = /^en\b/i.test(board.lang || 'en');
   const sx = syntaxOf(board.fmt);

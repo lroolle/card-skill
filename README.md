@@ -106,6 +106,8 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
 | `cards wait <board>` / `cards inbox` | read the reply |
 | `cards ingest <board>` | record a reply the human pasted |
 | `cards settle <board>` | mark the answered asks `DONE` |
+| `cards set <board> <id ...> --status done` | set the TODO keyword of cards |
+| `cards move <board> <id ...> --to <section>` | move cards, in the order given |
 | `cards ids <board>` | write an id for every card that has none |
 | `cards say <board> "..."` | answer in the board's chat |
 | `cards hook` | the lines for a Claude Code hook that hands the agent unread replies |
@@ -174,7 +176,7 @@ DESIGN.md, TASTE.md   the visual material and its rulings
 npm test
 ```
 
-111 tests. The browser tests need Playwright and skip without it; three
+114 tests. The browser tests need Playwright and skip without it; three
 tests need Emacs (they run `org-lint` on the boards) and skip without it.
 On GitHub nothing skips: the suite runs in Chromium, Firefox and WebKit
 (`CARDS_BROWSER`), with Emacs and with the font tools.

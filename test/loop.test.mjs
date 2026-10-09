@@ -117,6 +117,10 @@ test('lint: syntax that does nothing here is said, not swallowed', () => {
   const has = (re) => assert.ok(ws.some((m) => re.test(m)), `${re} in:\n${ws.join('\n')}`);
   has(/^#\+icon: does nothing in this build/);
   assert.ok(!ws.some((m) => /startup/.test(m)), 'an Org setting for Emacs passes without a word');
+  // A keyword with a hyphen is a keyword too. The field report wrote the translation link that way.
+  const hy = parseBoard('#+title: T\n#+translation-of: watch\n\nThe lede.\n\n** One claim stands here\n:PROPERTIES:\n:CUSTOM_ID: a\n:END:\nGist.\n', { fmt: 'org' });
+  assert.equal(hy.lede, 'The lede.', 'the line is not shown as text of the lede');
+  assert.ok(lint(hy).some((w) => /^#\+translation-of: does nothing in this build; the keyword is #\+translation_of: \(an underscore, not a hyphen\)/.test(w.msg)));
   has(/^DOING is not a TODO keyword to Emacs or GitHub.*#\+todo: TODO DOING BLOCKED \| DONE/);
   has(/a blank line before :PROPERTIES:/);
   has(/#\+begin_src image is shown as code, not drawn.*\[\[file:shot\.png\]\]/);
@@ -485,4 +489,114 @@ test('ids: a card may be written without a drawer; cards ids writes one, and the
   cards(cwd, ['render', 'q', '--quiet']);
   fs.writeFileSync(ref.file, after.replace('** NATS covers the peak with one binary\n:PROPERTIES:\n:CUSTOM_ID: nats-covers-the-peak-with-one-bi\n', '** NATS covers the peak on three nodes\n:PROPERTIES:\n:CUSTOM_ID: nats-covers-the-peak-with-one-bi\n'));
   assert.match(cards(cwd, ['render', 'q', '--quiet']), /rev 2 \(1 revised\)/);
+});
+
+const PLAN = `#+title: Plan the cutover
+#+todo: TODO DOING BLOCKED | DONE
+
+The lede.
+
+* Steps  :list:
+A note of the section.
+
+** TODO Freeze the schema [1/2]
+:PROPERTIES:
+:CUSTOM_ID: freeze
+:END:
+Gist one.
+
+#+begin_src sketch
+** not a card
+#+end_src
+
+** Copy the data
+:PROPERTIES:
+:CUSTOM_ID: copy
+:NEEDS: freeze
+:END:
+Gist two.
+
+** DOING Switch the readers  :risk:
+:PROPERTIES:
+:CUSTOM_ID: switch
+:NEEDS: copy
+:END:
+Gist three.
+
+* Later
+
+** Drop the old table
+:PROPERTIES:
+:CUSTOM_ID: drop
+:END:
+Gist four.
+`;
+const order = (src) => [...src.matchAll(/^(\*\*? .*|:CUSTOM_ID: .*)$/gm)].map((m) => m[1]).filter((l) => /^\* |^:CUSTOM_ID/.test(l)).map((l) => l.replace(/^:CUSTOM_ID: /, '').replace(/\s+:\w+:$/, ''));
+
+test('set: the status of cards is one command; the cookie, the tag and the rest of the heading stay', () => {
+  const { cwd, ref } = project(PLAN, 'q');
+  cards(cwd, ['render', 'q', '--quiet']);
+  // By id and by numeral (switch is card 3), several at once.
+  assert.match(cards(cwd, ['set', 'q', 'copy', '3', '--status', 'done']), /DONE: copy, switch\. Then: cards render q/);
+  assert.match(cards(cwd, ['set', 'q', 'freeze', '--status', 'blocked']), /BLOCKED: freeze\./);
+  let src = fs.readFileSync(ref.file, 'utf8');
+  assert.match(src, /^\*\* BLOCKED Freeze the schema \[1\/2\]$/m);
+  assert.match(src, /^\*\* DONE Copy the data$/m);
+  assert.match(src, /^\*\* DONE Switch the readers {2}:risk:$/m);
+  assert.match(src, /#\+begin_src sketch\n\*\* not a card\n#\+end_src/, 'a heading inside a block is text');
+  assert.match(cards(cwd, ['set', 'q', 'freeze', '--status', 'none']), /no keyword: freeze\./);
+  src = fs.readFileSync(ref.file, 'utf8');
+  assert.match(src, /^\*\* Freeze the schema \[1\/2\]$/m);
+  assert.equal(src.replace(/^\*\* .*$/gm, ''), PLAN.replace(/^\*\* .*$/gm, ''), 'only headings changed');
+  assert.deepEqual(parseBoard(src, { fmt: 'org' }).errors, []);
+
+  assert.match(fails(cwd, ['set', 'q', 'copy', '--status', 'finished']), /usage: cards set <board> <id\|n \.\.\.> --status todo\|doing\|blocked\|done\|none/);
+  assert.match(fails(cwd, ['set', 'q', 'copy']), /usage: cards set/);
+  assert.match(fails(cwd, ['set', 'q', 'nope', '--status', 'done']), /no card "nope" on q/);
+});
+
+test('move: cards go to a section, or before or after a card, in the order given; nothing else changes', () => {
+  const { cwd, ref } = project(PLAN, 'q');
+  cards(cwd, ['render', 'q', '--quiet']);
+  const read = () => fs.readFileSync(ref.file, 'utf8');
+  assert.deepEqual(order(PLAN), ['* Steps', 'freeze', 'copy', 'switch', '* Later', 'drop']);
+
+  // To the end of a section, named by its id, its title or as the reply writes it (a section sign and the id).
+  assert.match(cards(cwd, ['move', 'q', 'switch', 'freeze', '--to', 'Later']), /moved switch, freeze to the end of "Later"\. Then: cards render q/);
+  assert.deepEqual(order(read()), ['* Steps', 'copy', '* Later', 'drop', 'switch', 'freeze']);
+  // A card takes all its lines with it, a block that holds a heading too; one empty line stands between cards.
+  assert.match(read(), /Gist three\.\n\n\*\* TODO Freeze the schema \[1\/2\]\n:PROPERTIES:\n:CUSTOM_ID: freeze\n:END:\nGist one\.\n\n#\+begin_src sketch\n\*\* not a card\n#\+end_src\n$/);
+  assert.match(read(), /A note of the section\.\n\n\*\* Copy the data/);
+  assert.ok(!/\n\n\n/.test(read()), 'no doubled empty line');
+
+  // The human's order for a section comes as "§steps order freeze, switch, copy": one command applies it.
+  cards(cwd, ['move', 'q', 'freeze', 'switch', 'copy', '--to', '§steps']);
+  assert.deepEqual(order(read()), ['* Steps', 'freeze', 'switch', 'copy', '* Later', 'drop']);
+  cards(cwd, ['move', 'q', 'drop', '--before', 'switch']);
+  assert.deepEqual(order(read()), ['* Steps', 'freeze', 'drop', 'switch', 'copy', '* Later']);
+  cards(cwd, ['move', 'q', '4', '--after', 'copy']); // drop is card 4
+  assert.deepEqual(order(read()), ['* Steps', 'freeze', 'switch', 'copy', 'drop', '* Later']);
+
+  // Every line is still there, and a move is not a revision: no card says "Changed", and each keeps its numeral.
+  assert.deepEqual(read().split('\n').filter(Boolean).sort(), PLAN.split('\n').filter(Boolean).sort());
+  assert.match(cards(cwd, ['render', 'q', '--quiet']), /rev 2\. /);
+  assert.match(cards(cwd, ['show', 'q']), /#4\s+drop/);
+
+  const before = read();
+  assert.match(fails(cwd, ['move', 'q', 'copy', '--after', 'copy']), /copy is one of the cards to move/);
+  assert.match(fails(cwd, ['move', 'q', 'copy', '--to', 'nowhere']), /no section "nowhere" on this board\. Sections: steps, later/);
+  assert.match(fails(cwd, ['move', 'q', 'copy', '--to', 'later', '--before', 'drop']), /usage: cards move/);
+  assert.match(fails(cwd, ['move', 'q', 'copy']), /usage: cards move/);
+  assert.equal(read(), before, 'a refused move writes nothing');
+});
+
+test('move and set keep the line endings of the file, and a last line with no ending', () => {
+  const crlf = project(PLAN.replace(/\n/g, '\r\n').replace(/\r\n$/, ''), 'q');
+  cards(crlf.cwd, ['move', 'q', 'drop', '--before', 'freeze']);
+  cards(crlf.cwd, ['set', 'q', 'drop', '--status', 'doing']);
+  const src = fs.readFileSync(crlf.ref.file, 'utf8');
+  assert.ok(!/[^\r]\n/.test(src), 'every line still ends with \\r\\n');
+  assert.match(src, /A note of the section\.\r\n\r\n\*\* DOING Drop the old table\r\n:PROPERTIES:\r\n:CUSTOM_ID: drop\r\n:END:\r\nGist four\.\r\n\r\n\*\* TODO Freeze/);
+  assert.deepEqual(order(src.replace(/\r/g, '')), ['* Steps', 'drop', 'freeze', 'copy', 'switch', '* Later']);
+  assert.deepEqual(parseBoard(src, { fmt: 'org' }).errors, []);
 });

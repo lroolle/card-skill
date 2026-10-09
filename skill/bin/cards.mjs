@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE, addIds } from '../lib/board.mjs';
+import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE, addIds, setStatus, moveCards } from '../lib/board.mjs';
 import { lint, formatWarnings } from '../lib/lint.mjs';
 import { buildBoard, outline } from '../lib/compile.mjs';
 import { resolveAssets } from '../lib/assets.mjs';
@@ -33,6 +33,10 @@ const USAGE = `cards -- agent-native card boards
   cards inbox [<board>] [--peek]   print unread replies and mark them read
   cards ingest [<board>]           record a reply the human pasted (text on stdin, or --file)
   cards settle <board> [id ...]    mark answered asks DONE in board.org
+  cards set <board> <id|n ...> --status todo|doing|blocked|done|none
+                                   set the TODO keyword of cards in board.org
+  cards move <board> <id|n ...> --to <section> | --before <id|n> | --after <id|n>
+                                   move cards in board.org, in the order given
   cards ids <board>                give every card without one a :CUSTOM_ID:,
                                    made from its claim and written into board.org
   cards say <board> "message"      answer the human in the board's chat
@@ -79,6 +83,28 @@ function cardIndex(ref) {
   for (const [id, rec] of st.cards) cards[id] = { n: rec.n, v: rec.v, title: titles[id] || id };
   return { st, cards };
 }
+
+// A board.org that a command is about to edit: it must parse, so every card
+// has a line. find() takes an id or the card's numeral.
+function editable(name, verb) {
+  const ref = resolveBoard(name);
+  if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
+  if (!/\.org$/.test(ref.file)) die(`cards ${verb} edits board.org; this board is an older board.md`, 1);
+  const src = fs.readFileSync(ref.file, 'utf8');
+  const board = parseBoard(src, { id: ref.id, file: ref.file });
+  if (board.errors.length) die(formatErrors(board.errors, rel(ref.file)), 1);
+  const st = fold(readLog(ref.dir));
+  const find = (name0) => {
+    const w = String(name0).replace(/^#/, '');
+    return board.cards.find((c) => c.id === w || String(st.cards.get(c.id)?.n) === w) || die(`no card "${w}" on ${ref.id}`, 1);
+  };
+  return { ref, src, board, st, find };
+}
+const writeStatus = (e, cards, kw) => {
+  const r = setStatus(e.src, cards, kw);
+  if (r.bad) die(`line ${r.bad.line} of ${rel(e.ref.file)} is not the heading of ${r.bad.id}; nothing was written. Set the keyword by hand: ** ${kw ? `${kw} ` : ''}${r.bad.title}`, 1);
+  fs.writeFileSync(e.ref.file, r.src);
+};
 
 function boardTitle(ref) {
   return (fs.existsSync(ref.file) && titleOf(fs.readFileSync(ref.file, 'utf8'), ref.file)) || ref.id;
@@ -292,35 +318,45 @@ const commands = {
   // One word per card: the TODO keyword becomes DONE. The card keeps its ask and
   // its options as the record of what was asked; the page shows the answer.
   settle(a) {
-    const ref = resolveBoard(a._[0]);
-    if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
-    if (!/\.org$/.test(ref.file)) die('cards settle edits board.org; this board is an older board.md', 1);
-    const src = fs.readFileSync(ref.file, 'utf8');
-    const board = parseBoard(src, { id: ref.id, file: ref.file });
-    if (board.errors.length) die(formatErrors(board.errors, rel(ref.file)), 1);
-    const st = fold(readLog(ref.dir));
+    const e = editable(a._[0], 'settle');
+    const { ref, board, st } = e;
     const answered = globalThis.cardsAnswered(st.sends);
     // Answered means: at the version of the card the log holds now. An answer to an older version is stale.
     const isAnswered = (c) => answered.has(`${c.id}@${st.cards.get(c.id)?.v}`);
-    const want = a._.slice(1).map((x) => x.replace(/^#/, ''));
-    const pick = want.length
-      ? want.map((w) => board.cards.find((c) => c.id === w || String(st.cards.get(c.id)?.n) === w) || die(`no card "${w}" on ${ref.id}`, 1))
-      : board.cards.filter((c) => c.ask && c.status !== 'done' && isAnswered(c));
+    const want = a._.slice(1);
+    const pick = want.length ? want.map(e.find) : board.cards.filter((c) => c.ask && c.status !== 'done' && isAnswered(c));
     const todo = pick.filter((c) => c.status !== 'done');
     if (!todo.length) return console.log(want.length ? 'already DONE; nothing to do.' : `no open ask on ${ref.id} has an answer on disk. A pasted reply is recorded with: cards ingest ${ref.id}`);
-    // Lines as the parser counts them (\r\n, \r or \n each end one), with every line ending kept as it is.
-    const parts = src.split(/(\r\n|\r|\n)/);
-    for (const c of todo) {
-      const at = 2 * (c.line - 1);
-      if (!/^\*\*\s/.test(parts[at] || '') || !parts[at].includes(c.title)) die(`line ${c.line} of ${rel(ref.file)} is not the heading of ${c.id}; nothing was written. Set the keyword by hand: ** DONE ${c.title}`, 1);
-      parts[at] = parts[at].replace(/^(\*\*\s+)(?:(?:TODO|DOING|BLOCKED|DONE)\s+)?/, '$1DONE ');
-    }
-    fs.writeFileSync(ref.file, parts.join(''));
+    writeStatus(e, todo, 'DONE');
     console.log(`DONE: ${todo.map((c) => c.id).join(', ')}. Then: cards render ${ref.id}`);
   },
 
-  // A copy that can leave the machine. It is the board as it is now and
-  // nothing else: no replies, no chat, no past versions, no path on this disk.
+  // The two other common revisions, so the agent does not match text in board.org by hand.
+  set(a) {
+    const kw = { todo: 'TODO', doing: 'DOING', blocked: 'BLOCKED', done: 'DONE', none: '' }[String(a.status).toLowerCase()];
+    if (kw === undefined || a._.length < 2) die('usage: cards set <board> <id|n ...> --status todo|doing|blocked|done|none');
+    const e = editable(a._[0], 'set');
+    const picked = [...new Set(a._.slice(1).map(e.find))];
+    writeStatus(e, picked, kw);
+    console.log(`${kw || 'no keyword'}: ${picked.map((c) => c.id).join(', ')}. Then: cards render ${e.ref.id}`);
+  },
+
+  move(a) {
+    const where = ['to', 'before', 'after'].filter((k) => typeof a[k] === 'string');
+    if (a._.length < 2 || where.length !== 1) die('usage: cards move <board> <id|n ...> --to <section> | --before <id|n> | --after <id|n>');
+    const e = editable(a._[0], 'move');
+    const picked = [...new Set(a._.slice(1).map(e.find))];
+    const k = where[0];
+    const r = moveCards(e.src, e.board, picked, { [k]: k === 'to' ? a.to : e.find(a[k]) });
+    // The same cards and no error after the move, or nothing is written.
+    const after = parseBoard(r.src, { id: e.ref.id, file: e.ref.file });
+    const ids = (b) => b.cards.map((c) => c.id).sort().join(' ');
+    if (after.errors.length) die(`the move would break the board; nothing was written.\n${formatErrors(after.errors, rel(e.ref.file))}`, 1);
+    if (ids(after) !== ids(e.board)) die('the move would lose or double a card; nothing was written.', 1);
+    fs.writeFileSync(e.ref.file, r.src);
+    console.log(`moved ${picked.map((c) => c.id).join(', ')} to ${r.into}. Then: cards render ${e.ref.id}`);
+  },
+
   export(a) {
     const ref = resolveBoard(a._[0]);
     const out = typeof a.out === 'string' ? path.resolve(a.out) : die('cards export <board> --out <dir> [--home <url>]');
