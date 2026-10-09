@@ -37,7 +37,10 @@ test('font: a Chinese board carries two weights of only its own characters, with
   const f = boardFont('zh-Hans', '给接入服务选一个消息队列。发送', { env });
   assert.equal(f.state, 'embedded');
   assert.equal(f.chars, 15);
-  const faces = [...f.css.matchAll(/@font-face\{font-family:"Cards CJK";font-style:normal;font-weight:([\d ]+);font-display:swap;src:url\(data:font\/(woff2?);base64,([A-Za-z0-9+/=]+)\) format\("woff2?"\);unicode-range:U\+2E80/g)];
+  // The face keeps its own name, and board.css is told which one it is.
+  assert.match(f.family, /^(Noto Sans|Source Han Sans)( CJK)? SC$/);
+  assert.ok(f.css.startsWith(`:root{--cjk:"${f.family}"}`));
+  const faces = [...f.css.matchAll(/@font-face\{font-family:"[^"]+ SC";font-style:normal;font-weight:([\d ]+);font-display:swap;src:url\(data:font\/(woff2?);base64,([A-Za-z0-9+/=]+)\) format\("woff2?"\);unicode-range:U\+2E80/g)];
   assert.deepEqual(faces.map((m) => m[1]), ['400', '600 700']);
   for (const m of faces) {
     const bin = Buffer.from(m[3], 'base64');
@@ -55,16 +58,17 @@ test('font: render puts the font into the page and says so once; an export carri
   fs.writeFileSync(ref.file, '#+title: 选一个队列\n#+language: zh-Hans\n\n** NATS 用一个二进制文件就能扛住峰值\n:PROPERTIES:\n:CUSTOM_ID: nats\n:END:\n三节点集群就够。\n');
   const cards = (args, e = env) => execFileSync('node', [CLI, ...args], { cwd, env: e, encoding: 'utf8' });
   const first = cards(['render', 'zh', '--quiet']);
-  assert.match(first, /font: the page carries its own font for this language \(\d+ characters of NotoSansCJK|font: the page carries its own font/);
+  assert.match(first, /font: the page carries its own font for this language \(\d+ characters of (Noto Sans|Source Han Sans)/);
   const html = fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8');
-  assert.equal((html.match(/@font-face\{font-family:"Cards CJK"/g) || []).length, 2);
-  assert.match(html, /--font: "Cards CJK", system-ui/);
+  assert.equal((html.match(/@font-face\{font-family:"[^"]+ SC"/g) || []).length, 2);
+  assert.match(html, /--font: var\(--cjk\), system-ui/);
+  assert.match(html, /:root\{--cjk:"[^"]+ SC"\}/);
   assert.equal(fold(readLog(ref.dir)).font, 'embedded');
   assert.ok(!/font:/.test(cards(['render', 'zh', '--quiet'])), 'said once');
   // The same machine with the font turned off: the page falls back, and that is said once too.
   const off = cards(['render', 'zh', '--quiet'], { ...env, CARDS_CJK_FONT: 'none' });
   assert.match(off, /font: the page uses the reader's system font for this language: CARDS_CJK_FONT=none\. To carry one in the page, see .*format\.md, "A font in the page"/);
-  assert.ok(!fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8').includes('@font-face{font-family:"Cards CJK"'));
+  assert.ok(!fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8').includes('@font-face{'));
   assert.match(cards(['export', 'zh', '--out', path.join(cwd, 'out')]), /font: the page carries its own font/);
-  assert.equal((fs.readFileSync(path.join(cwd, 'out', 'index.html'), 'utf8').match(/@font-face\{font-family:"Cards CJK"/g) || []).length, 2);
+  assert.equal((fs.readFileSync(path.join(cwd, 'out', 'index.html'), 'utf8').match(/@font-face\{font-family:"[^"]+ SC"/g) || []).length, 2);
 });

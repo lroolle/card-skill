@@ -27,11 +27,12 @@
   --mask-faint:  oklch(0.42 0 0);
   --shadow:      oklch(0.235 0.014 260 / 0.16);
 
-  /* "Cards CJK" is the subset of an open font that a Chinese, Japanese or Korean board
-     carries (lib/font.mjs); it covers CJK characters only, and where the page has none
-     the name matches no font and the stack goes on. */
-  --font: "Cards CJK", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", "Cards CJK", monospace;
+  /* --cjk is the subset of an open font that a Chinese, Japanese or Korean board
+     carries (lib/font.mjs sets it to the face's own name). It covers CJK characters
+     only. Where the page carries none, the name matches no font and the stack goes on. */
+  --cjk: "Cards CJK";
+  --font: var(--cjk), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", "Noto Sans Mono", var(--cjk), monospace;
   --t-xs: 12px;  --t-s: 13px;  --t-m: 15px;  --t-l: 17px;  --t-xl: 20px;  --t-xxl: 28px;
   --w-regular: 400;  --w-strong: 600;
 
@@ -80,7 +81,7 @@ body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }
-:lang(zh), :lang(ja) { line-height: 1.75; }
+:lang(zh), :lang(ja), :lang(ko) { --leading-body: 1.75; line-height: var(--leading-body); }
 /* Chinese and Japanese have no italics; a browser slants the glyphs instead.
    Emphasis is a dot under each character, as in print. */
 :lang(zh) pre, :lang(ja) pre { line-height: 1.5; }

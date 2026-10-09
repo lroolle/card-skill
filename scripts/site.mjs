@@ -19,6 +19,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { NAME, VERSION, HOME } from '../skill/lib/version.mjs';
 import { MARK, tokenOf } from '../skill/lib/compile.mjs';
+import { boardFont } from '../skill/lib/font.mjs';
 import '../skill/runtime/digest.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -65,8 +66,16 @@ function build(dir) {
     // The page wears the board's own tokens: one source for both.
     TOKENS: css.slice(css.indexOf(':root {'), css.indexOf('* { box-sizing')).trim(),
   };
-  const page = path.join(dir, 'index.html');
-  fs.writeFileSync(page, fs.readFileSync(page, 'utf8').replace(/\{\{(\w+)\}\}/g, (m, k) => (k in fill ? fill[k] : m)));
+  fill.CSS = fs.readFileSync(path.join(ROOT, 'site', 'landing.css'), 'utf8').trim();
+  fs.rmSync(path.join(dir, 'landing.css'));
+  for (const rel of ['index.html', path.join('zh', 'index.html')]) {
+    const page = path.join(dir, rel);
+    const src = fs.readFileSync(page, 'utf8');
+    // The Chinese page carries its own font, as a Chinese board does: a subset of an open face.
+    const font = /<html lang="zh/.test(src) ? boardFont('zh-Hans', src + fill.REPLY) : { css: '', state: 'none' };
+    if (font.state !== 'none') console.log(`${rel}: font ${font.state}${font.why ? ` (${font.why})` : ''}`);
+    fs.writeFileSync(page, src.replace(/\{\{(\w+)\}\}/g, (m, k) => (k === 'FONT' ? font.css : k in fill ? fill[k] : m)));
+  }
   return dir;
 }
 

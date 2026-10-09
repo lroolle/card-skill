@@ -1,0 +1,124 @@
+/* The landing page, in English and in Chinese. Its tokens are the board's own (skill/runtime/board.css),
+   put in front of this file at build time by scripts/site.mjs. */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 17px/1.55 var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection { background: var(--accent-soft); }
+/* Six sizes: 12 marks and code, 13 captions, 15 small text, 17 text, 20 headings, 30 the one sentence. */
+code, pre { font-family: var(--mono); }
+img { max-width: 100%; height: auto; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 var(--s6); }
+
+.top { display: flex; align-items: center; gap: var(--s5); padding: var(--s4) 0; font-size: 15px; }
+.brand { display: inline-flex; align-items: center; gap: var(--s2); min-height: 44px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.brand svg path { fill: currentColor; }
+.top nav { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: var(--s5); color: var(--fg-2); }
+.top nav a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+.top nav a:hover { color: var(--fg); text-decoration: underline; }
+
+/* The first viewport is the product running: a live board at working size,
+   and beside it the offer in one sentence, one action, and how to try it. */
+.stage { padding: 0 var(--s6) var(--s6); border-bottom: 1px solid var(--line); }
+.stage .top, .first { max-width: 1440px; margin: 0 auto; }
+.first { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-areas: "frame head" "frame steps"; grid-template-rows: auto 1fr; gap: var(--s5) var(--s6); align-items: start; padding-top: 28px; }
+.head { grid-area: head; }
+.steps-try { grid-area: steps; }
+.frame { grid-area: frame; position: relative; border: 1px solid var(--line-strong); border-radius: 0 var(--r) var(--r) var(--r); background: var(--bg); box-shadow: 0 24px 48px -28px var(--shadow); }
+/* The caption stands on the frame as a tab does on a card, in paper: the signal color is for an ask only. */
+.frame .cap { position: absolute; left: -1px; bottom: 100%; height: 26px; padding: 0 var(--s3); display: inline-flex; align-items: center; font-size: 13px; color: var(--fg-2); background: var(--surface); border: 1px solid var(--line-strong); border-bottom: 0; border-radius: var(--r) var(--r) 0 0; white-space: nowrap; }
+.frame iframe { display: block; width: 100%; height: clamp(520px, calc(100vh - 150px), 820px); border: 0; border-radius: 0 var(--r) var(--r) var(--r); }
+.frame noscript a { display: block; padding: var(--s6); }
+h1 { margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -0.01em; font-weight: 600; text-wrap: balance; }
+.sub { margin: var(--s3) 0 0; font-size: 15px; line-height: 1.55; color: var(--fg-2); }
+.sub b { color: var(--fg); font-weight: 600; }
+.act { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s4); }
+.btn { display: inline-flex; align-items: center; min-height: 44px; padding: 0 var(--s4); border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface); font: 600 15px var(--font); color: var(--fg); text-decoration: none; cursor: pointer; }
+.btn:hover { border-color: var(--fg-3); }
+.btn.primary { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.steps-try { margin: 0; padding: var(--s4) 0 0; border-top: 1px solid var(--line-strong); list-style: none; display: grid; gap: var(--s3); font-size: 15px; color: var(--fg-2); counter-reset: step; }
+.steps-try li { counter-increment: step; padding-left: 32px; position: relative; }
+.steps-try li::before { content: counter(step); position: absolute; left: 0; top: 2px; width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: var(--r-s); background: var(--surface); color: var(--fg); font-size: 12px; font-weight: 600; }
+.steps-try b { color: var(--fg); font-weight: 600; }
+
+section.shelf { padding: var(--s7) 0 0; }
+section.shelf.far { padding-top: calc(var(--s7) + var(--s6)); }
+.shelf-head { display: flex; align-items: baseline; gap: var(--s3); }
+.shelf-head h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.shelf-head .count { font-size: 13px; color: var(--fg-3); }
+.shelf-head::after { content: ""; flex: 1; height: 1px; background: var(--line-strong); align-self: center; }
+.shelf-note { max-width: 62ch; margin: var(--s2) 0 0; color: var(--fg-2); }
+
+.cards { display: grid; gap: var(--s5); margin-top: var(--s5); }
+.cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.card { position: relative; min-width: 0; padding: var(--s4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.card .n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px; border: 1px solid var(--line-strong); border-radius: var(--r-s); font-size: 12px; font-weight: 600; }
+.card h3 { margin: var(--s2) 0 0; font-size: 17px; line-height: 1.35; font-weight: 600; text-wrap: balance; }
+.card p { margin: var(--s2) 0 0; font-size: 15px; color: var(--fg-2); }
+.card pre { margin: var(--s3) 0 0; padding: var(--s3); background: var(--surface-2); border-radius: var(--r-in); font-size: 12px; line-height: 1.6; color: var(--fg); white-space: pre-wrap; overflow-wrap: anywhere; }
+.card pre .dim { color: var(--fg-3); }
+.card pre .sig { color: var(--signal-ink); background: var(--signal); border-radius: var(--r-s); font-weight: 600; }
+/* A line means "feeds into", as on the desk: grey, with an open arrow. */
+.loop { gap: 64px; }
+.loop .card:not(:last-child)::after { content: ""; position: absolute; left: 100%; top: 26px; width: 64px; height: 9px; background: linear-gradient(var(--fg-3), var(--fg-3)) left center / calc(100% - 2px) 1.5px no-repeat; }
+.loop .card:not(:last-child)::before { content: ""; position: absolute; left: calc(100% + 54px); top: 26px; width: 8px; height: 8px; border-top: 1.5px solid var(--fg-3); border-right: 1.5px solid var(--fg-3); transform: translateY(0.5px) rotate(45deg); }
+
+/* Two claims the sample cannot show, each beside the real card that shows it. */
+.shown { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--s6); align-items: start; margin-top: var(--s6); }
+.shown + .shown { margin-top: var(--s7); }
+.shown.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.shown.flip .say { order: 2; }
+.shown h3 { margin: 0; font-size: 20px; line-height: 1.25; font-weight: 600; text-wrap: balance; }
+.shown p { margin: var(--s3) 0 0; color: var(--fg-2); }
+.shown .where { font-size: 13px; color: var(--fg-3); }
+.shown figure { margin: 0; }
+.shown img { display: block; width: 100%; border-radius: var(--r); box-shadow: 0 16px 32px -20px var(--shadow); }
+
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s6) var(--s5); margin-top: var(--s5); }
+.tile { display: block; text-decoration: none; }
+.tile figure { margin: 0; }
+.tile img { display: block; width: 100%; aspect-ratio: 8 / 5; object-fit: cover; object-position: top left; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--bg); }
+.tile:hover img { border-color: var(--fg-3); }
+.tile figcaption { margin-top: var(--s3); }
+.tile b { display: block; font-size: 17px; font-weight: 600; }
+.tile span { display: block; font-size: 15px; color: var(--fg-2); }
+.tile .meta { margin-top: var(--s1); font-size: 13px; color: var(--fg-3); }
+
+.steps { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: var(--s6); margin-top: var(--s5); align-items: start; }
+.steps pre { margin: 0; padding: var(--s4); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); font-size: 13px; line-height: 1.7; overflow-x: auto; }
+.steps pre .dim { color: var(--fg-3); }
+.steps p { margin: 0 0 var(--s3); font-size: 15px; color: var(--fg-2); }
+.steps p b { color: var(--fg); font-weight: 600; }
+.steps blockquote { margin: var(--s3) 0; padding: var(--s3) var(--s4); border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface); font-size: 15px; color: var(--fg); }
+.steps blockquote::before { content: "You"; display: block; margin-bottom: var(--s1); font-size: 12px; font-weight: 600; color: var(--accent); }
+.limits { margin: var(--s5) 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s5); font-size: 15px; color: var(--fg-2); }
+.limits b { display: block; color: var(--fg); font-weight: 600; }
+
+footer { margin-top: calc(var(--s7) + var(--s6)); padding: var(--s5) 0 var(--s7); border-top: 1px solid var(--line-strong); font-size: 13px; color: var(--fg-2); }
+footer .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s5); }
+footer .row > * { display: inline-flex; align-items: center; min-height: 44px; }
+footer p { max-width: 70ch; margin: var(--s2) 0 0; color: var(--fg-3); }
+
+/* A narrow window: the sentence first, then the board in its phone form, then how to try it. */
+@media (max-width: 1100px) {
+  .first { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "frame" "steps"; grid-template-rows: none; gap: var(--s4); padding-top: 0; }
+  .frame { margin-top: 26px; }
+  .frame iframe { height: 62vh; min-height: 440px; }
+}
+@media (max-width: 900px) {
+  .wrap { padding: 0 var(--s4); }
+  .stage { padding: 0 var(--s4) var(--s5); }
+  body { font-size: 15px; }
+  .cards.three, .tiles, .steps, .limits, .shown, .shown.flip { grid-template-columns: minmax(0, 1fr); }
+  .shown.flip .say { order: 0; }
+  .loop { gap: var(--s5); }
+  .loop .card::after, .loop .card::before { display: none; }
+  .top { gap: var(--s3); }
+  /* The one action stays in sight: Install, in the top bar. */
+  .top nav a:not(.go) { display: none; }
+  .top nav .go { padding: 0 var(--s4); border-radius: var(--r); background: var(--fg); color: var(--bg); font-weight: 600; }
+  h1 { font-size: 20px; }
+  .act { display: none; }
+}

@@ -415,7 +415,8 @@ side by side. The export records nothing in `log.jsonl`.
 
 A board whose `#+language:` is Chinese, Japanese or Korean carries its own
 font: a subset of an open font with only the characters the board uses, in
-two weights, inside `board.html`. The page then looks the same on every
+two weights, inside `board.html`, under the font's own name (for example
+"Noto Sans CJK SC"). The page then looks the same on every
 machine, and a machine with no CJK font shows no boxes. A Chinese sample
 of 7 cards adds about 165 KB.
 

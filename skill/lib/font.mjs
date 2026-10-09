@@ -22,7 +22,18 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 
+// The face keeps its own name in the page ("Noto Sans CJK SC"), so anyone who
+// looks can tell what it is. A font named by CARDS_CJK_FONT has no name we
+// can read here; it goes by this one.
 export const FAMILY = 'Cards CJK';
+const SCRIPT_NAME = { JP: 'JP', KR: 'KR', SC: 'SC', TC: 'TC', HK: 'HK' };
+export function familyOf(file, script) {
+  const base = path.basename(file);
+  if (/^NotoSansCJK/i.test(base)) return `Noto Sans CJK ${SCRIPT_NAME[script]}`;
+  if (/^NotoSans(SC|TC|HK|JP|KR)/i.test(base)) return `Noto Sans ${SCRIPT_NAME[script]}`;
+  if (/^SourceHanSans/i.test(base)) return `Source Han Sans ${SCRIPT_NAME[script]}`;
+  return FAMILY;
+}
 // The face of a pan-CJK collection for each language, and the suffix of the
 // single-language files (NotoSansSC-Regular.otf).
 const SCRIPTS = { JP: 0, KR: 1, SC: 2, TC: 3, HK: 4 };
@@ -118,14 +129,16 @@ export function boardFont(lang, text, { env = process.env } = {}) {
   const faces = [[regular, '400']];
   const bold = findFont(script, 'Bold', env);
   if (bold) faces.push([bold, '600 700']);
-  const rules = [];
+  const family = familyOf(regular, script);
+  // board.css puts var(--cjk) first in its font stacks; here it gets its face.
+  const rules = [`:root{--cjk:"${family}"}`];
   let bytes = 0;
   for (const [file, weight] of faces) {
     const s = subset(file, script, chars, tool);
     if (!s) return { css: '', state: 'system', why: `fonttools could not subset ${path.basename(file)}` };
     const data = fs.readFileSync(s.file);
     bytes += data.length;
-    rules.push(`@font-face{font-family:"${FAMILY}";font-style:normal;font-weight:${weight};font-display:swap;src:url(data:font/${s.flavor};base64,${data.toString('base64')}) format("${s.flavor}");unicode-range:${RANGE}}`);
+    rules.push(`@font-face{font-family:"${family}";font-style:normal;font-weight:${weight};font-display:swap;src:url(data:font/${s.flavor};base64,${data.toString('base64')}) format("${s.flavor}");unicode-range:${RANGE}}`);
   }
-  return { css: rules.join('\n'), state: 'embedded', why: `${chars.length} characters of ${path.basename(regular).replace(/-Regular.*$/, '')}, ${Math.round(bytes / 1024)} KB`, bytes, chars: chars.length };
+  return { css: rules.join('\n'), state: 'embedded', family, why: `${chars.length} characters of ${family}, ${Math.round(bytes / 1024)} KB`, bytes, chars: chars.length };
 }

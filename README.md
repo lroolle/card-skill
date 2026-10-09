@@ -12,6 +12,7 @@ card.
 
 **Try it in the browser: https://lroolle.github.io/card-skill/** A live
 board waits there; answer it and press Send to see what the agent reads.
+中文介绍： https://lroolle.github.io/card-skill/zh/
 
 ## The loop
 

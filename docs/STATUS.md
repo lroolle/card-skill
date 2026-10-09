@@ -44,7 +44,7 @@ from `site/` and the boards under `.cards/`.
   reader with a native register guide went through all 223 strings and the
   sample board; its 49 corrections are in.
 - GitHub's rendering of `board.org` beyond the heading keywords.
-- The landing page after its rebuild, by a reviewer who did not build it.
+- The Chinese landing page, by any reader but its writer.
 
 ## Known limits
 
@@ -53,7 +53,6 @@ from `site/` and the boards under `.cards/`.
 - The CJK font needs an open font and fonttools on the machine that
   renders; without them the page falls back to the system font and says so.
   Characters typed into a reply are not in the subset.
-- No Chinese landing page.
 - A picture inside a list gets no caption warning and no figure number.
 - The size of an AVIF or SVG picture is read approximately.
 - A published page has no way to send a reply except copy and paste.

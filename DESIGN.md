@@ -150,9 +150,18 @@ the page; disposition: rebuild the first viewport, fix the rest):
 - The sample keeps nothing between visits (`?fresh`), so the page around it
   never contradicts it.
 
-Check: `kit/check.sh --no-zh --tokens skill/runtime/board.css site` runs
-clean. `--no-zh` because the page is English; it carries one Chinese line,
-the title of the Chinese sample, in the system face.
+The page exists twice: `site/index.html` and `site/zh/index.html`, written
+by hand in each language over one stylesheet (`site/landing.css`). The
+Chinese page frames the Chinese sample, sets its text at a leading of 1.75
+and a measure of 34 em, breaks its headline between its two clauses, and
+carries a subset of Noto Sans CJK SC made at build time, as a Chinese board
+does.
+
+Check: `kit/check.sh --no-zh --tokens skill/runtime/board.css site/index.html`
+runs clean (`--no-zh`: the English page carries one Chinese word, the link
+to the other page). For the Chinese page the check runs on the built file,
+because its font is put in at build time:
+`kit/check.sh --zh --tokens _site/zh/index.html _site/zh`, also clean.
 `kit/render-check.mjs` on the served page: no fail, one warning with its
 reason: three corner radii. They are the board's own concentric set (6 for
 cards and controls, 4 nested inside them, 3 for marks smaller than text),
