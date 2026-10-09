@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE } from '../lib/board.mjs';
 import { lint, formatWarnings } from '../lib/lint.mjs';
 import { buildBoard, outline } from '../lib/compile.mjs';
+import { resolveAssets } from '../lib/assets.mjs';
 import { resolveBoard, listBoards, readLog, fold, unread, markRead, boardsRoot, addSay } from '../lib/store.mjs';
 import { serve } from '../lib/serve.mjs';
 import '../runtime/digest.js';
@@ -94,6 +95,13 @@ const commands = {
     if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
     const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file });
     const ws = lint(board);
+    if (!board.errors.length) {
+      // The files a board shows must exist and be safe to put into the page.
+      const assets = resolveAssets(board, ref.dir);
+      board.errors.push(...assets.errors);
+      ws.push(...assets.warnings);
+      ws.sort((x, y) => x.line - y.line);
+    }
     if (board.errors.length) console.log(formatErrors(board.errors, rel(ref.file)));
     if (ws.length) console.log(formatWarnings(ws, rel(ref.file)));
     if (board.errors.length) process.exit(1);

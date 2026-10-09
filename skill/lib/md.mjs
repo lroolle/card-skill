@@ -229,7 +229,8 @@ function tradeoffsHtml(text, ctx) {
     const kind = l[0] === '+' ? 'pro' : l[0] === '-' ? 'con' : 'note';
     const body = kind === 'note' ? l : l.slice(1).trim();
     const sign = kind === 'pro' ? '+' : kind === 'con' ? '−' : '';
-    return `<li class="${kind}"><span class="sign" aria-label="${kind}">${sign}</span>${inl(body, ctx)}</li>`;
+    const said = ctx.t ? ctx.t(`tradeoff_${kind}`) : kind;
+    return `<li class="${kind}"><span class="sign" aria-label="${esc(said)}">${sign}</span>${inl(body, ctx)}</li>`;
   });
   return `<ul class="tradeoffs">${items.join('')}</ul>`;
 }
@@ -264,6 +265,12 @@ function renderBlock(b, ctx) {
       const lang = b.lang ? ` data-lang="${esc(b.lang)}"` : '';
       return `<pre${lang}><code>${esc(b.text)}</code></pre>`;
     }
+    case 'file':
+    case 'include': {
+      const fig = b.type === 'file' && ctx.figure && ctx.figure(b);
+      if (fig) return fig;
+      return ctx.asset ? ctx.asset(b) : `<p class="file"><span class="file-chip missing"><span class="file-name">${esc(b.path)}</span></span></p>`;
+    }
     case 'table': {
       const cell = (tag, c, k) => {
         const a = b.align[k] ? ` style="text-align:${b.align[k]}"` : '';
@@ -280,7 +287,8 @@ function renderBlock(b, ctx) {
         let body = tight ? inl(it.blocks[0].text, ctx) : renderBlocks(it.blocks, ctx);
         if (it.term) body = `<b>${inl(it.term, ctx)}</b> ${body}`;
         if (it.task === null) return `<li>${body}</li>`;
-        const box = `<span class="box" aria-label="${it.task ? 'done' : 'not done'}">${it.task ? '✓' : ''}</span>`;
+        const said = ctx.t ? ctx.t(it.task ? 'task_done' : 'task_open') : it.task ? 'done' : 'not done';
+        const box = `<span class="box" aria-label="${esc(said)}">${it.task ? '✓' : ''}</span>`;
         return `<li class="task${it.task ? ' checked' : ''}">${box}<span>${body}</span></li>`;
       });
       return `<${tag}>${items.join('')}</${tag}>`;

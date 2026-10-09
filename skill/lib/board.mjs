@@ -16,7 +16,7 @@
 
 import { parseBlocks, plain, fenceOpen, fenceCloses, inline, renderBlocks, esc } from './md.mjs';
 import { parseOrgBlocks, orgInline, orgPlain, orgRefs } from './org.mjs';
-import { FIGURE_LANGS, parseFlow, sketchLines } from './figure.mjs';
+import { FIGURE_LANGS, parseFlow, sketchLines, isFigure } from './figure.mjs';
 
 export const ASKS = ['choose', 'approve', 'answer'];
 export const STATUSES = ['open', 'doing', 'done', 'blocked'];
@@ -49,6 +49,15 @@ export function formatOf(src, file = '') {
 
 export const slug = (s) =>
   plain(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'card';
+// A section's default id. A title with no Latin letters or digits ("选项")
+// has no slug; it gets a short hash of the title, so it stays the same when
+// sections move (reorder answers and desk places name sections by id).
+const sectionId = (title) => {
+  if (/[a-z0-9]/i.test(plain(title))) return slug(title);
+  let h = 0x811c9dc5;
+  for (const ch of String(title)) h = Math.imul(h ^ ch.codePointAt(0), 0x01000193) >>> 0;
+  return `section-${h.toString(16).padStart(8, '0').slice(0, 6)}`;
+};
 
 function parseAttrs(text) {
   const out = { id: null, tags: [], kv: {}, flags: [], bad: [] };
@@ -150,7 +159,7 @@ function parseMdBoard(src, id) {
         if (!LAYOUTS.includes(f)) err(c.line, `unknown section flag "${f}"`, `# ${title} {compare}   (flags: ${LAYOUTS.join(', ')})`);
       }
       for (const k of Object.keys(attrs.kv)) err(c.line, `sections take no "${k}="`, `# ${title} {list}`);
-      section = { id: attrs.id || slug(title), title, note: text, layout, line: c.line + 1, cards: [] };
+      section = { id: attrs.id || sectionId(title), title, note: text, layout, line: c.line + 1, cards: [] };
       board.sections.push(section);
       continue;
     }
@@ -327,7 +336,7 @@ function parseOrgBoard(src, id) {
       for (const [k, at] of d.at) {
         if (k !== 'CUSTOM_ID') err(c.line + 1 + at, `sections take only :CUSTOM_ID:, not :${k}:`, `* ${h.title}  :list:`);
       }
-      section = { id: d.props.CUSTOM_ID || slug(h.title), title: h.title, note: text, layout, line: c.line + 1, cards: [] };
+      section = { id: d.props.CUSTOM_ID || sectionId(h.title), title: h.title, note: text, layout, line: c.line + 1, cards: [] };
       board.sections.push(section);
       continue;
     }
@@ -412,6 +421,11 @@ export function canonical(card) {
       const body = g ? JSON.stringify([g.dir, g.nodes, g.edges]) : sketchLines(b.text).join('\n');
       return `[fig:${b.lang}|${esc(sx.inline(b.info || '', ctx))}|${esc(body)}]`;
     },
+    // A file stands for its path here; what the file holds is versioned by
+    // its hash in the log (store.sync), since the file can change on its own.
+    asset: (b) => (b.type === 'include'
+      ? `[include:${esc(b.path)}|${b.kind}|${b.lang}|${b.from ?? ''}-${b.to ?? ''}|${esc(b.info || '')}]`
+      : `[file:${esc(b.path)}|${esc(b.info || '')}]`),
   };
   return JSON.stringify([
     sx.inline(card.title, ctx), card.ask, card.status, card.basis, card.from, card.needs, card.tags, card.multi, card.progress,
@@ -460,7 +474,7 @@ function crossChecks(board) {
 
 // anatomy(card) -> { gist, figure, facts, options, depth, refs }
 //   gist     first block, when it is a paragraph
-//   figure   the first ```sketch or ```flow block (shown with the gist)
+//   figure   the first sketch or flow block, or image file (shown with the gist)
 //   facts    the first ```facts block (shown with the gist; aligned in compare rows)
 //   options  task-list items of a choose card
 //   depth    every other block, in order
@@ -471,7 +485,7 @@ export function anatomy(card) {
   let rest = blocks;
   if (rest[0]?.type === 'paragraph') { out.gist = rest[0]; rest = rest.slice(1); }
   for (const b of rest) {
-    if (!out.figure && b.type === 'code' && FIGURE_LANGS.includes(b.lang)) { out.figure = b; continue; }
+    if (!out.figure && isFigure(b)) { out.figure = b; continue; }
     if (!out.facts && b.type === 'code' && b.lang === 'facts') { out.facts = b; continue; }
     if (card.ask === 'choose' && !out.options.length && b.type === 'list' && b.items.length && b.items.every((it) => it.task !== null)) {
       out.options = b.items.map((it) => {

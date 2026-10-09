@@ -1,9 +1,8 @@
 # local instructions and generated or session data
 CLAUDE.local.md
 node_modules/
-.cards/*/board.html
-.cards/*/log.jsonl
-# The design-review board is the built-in example: its log (the version
-# history) and its rendered page are kept, so the repo opens as a working board.
-!.cards/design-review/board.html
-!.cards/design-review/log.jsonl
+# Boards are working files and stay local. The design-review board is the
+# built-in example: it is kept whole (source, log, page), so the repo opens
+# as a working board.
+.cards/*
+!.cards/design-review/

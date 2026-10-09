@@ -3,7 +3,7 @@
 // Errors stop a render. Warnings do not; they are the writing rules from
 // SKILL.md made checkable, so an agent hears them at the moment it can act.
 
-import { FIGURE_LANGS, LIMITS as FIG, parseFlow, sketchLines, cols } from './figure.mjs';
+import { LIMITS as FIG, parseFlow, sketchLines, cols, isFigure } from './figure.mjs';
 import { syntaxOf } from './board.mjs';
 
 export const LIMITS = {
@@ -106,8 +106,12 @@ function steWarnings(c, warn, sx) {
 
 function figureWarnings(c, warn0, sx) {
   for (const b of sx.blocks(c.body)) {
-    if (b.type !== 'code' || !FIGURE_LANGS.includes(b.lang)) continue;
+    if (!isFigure(b)) continue;
     const warn = (_line, msg) => warn0(lineOf(c, b), msg);
+    if (b.type === 'file') {
+      if (!b.info) warn(c.line, `the image ${b.path} has no caption; put "#+caption: What it shows" on the line above it`);
+      continue;
+    }
     if (!b.info) {
       warn(c.line, sx.fmt === 'org'
         ? `the ${b.lang} block has no caption; put "#+caption: What it shows" on the line above #+begin_src ${b.lang}`
@@ -157,7 +161,7 @@ export function lint(board) {
     if (english) steWarnings(c, warn, sx);
   }
   for (const [text, line] of [[board.lede, 1], ...board.sections.map((s) => [s.note, s.line])]) {
-    if (sx.blocks(text).some((b) => b.type === 'code' && FIGURE_LANGS.includes(b.lang))) {
+    if (sx.blocks(text).some(isFigure)) {
       warn(line, 'figures belong in cards; move it into the card it explains');
     }
   }

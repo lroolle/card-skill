@@ -23,6 +23,9 @@ The client retries on timeout, but the server may have committed the first charg
 :END:
 The delay doubles on every attempt with no maximum. After 12 attempts one job waits more than an hour.
 
+# Show the code itself, not a retelling. Paths are relative to this file:
+# #+include: "../../src/retry.ts" src ts :lines "40-53"
+
 ** The new test mocks the clock but never moves it  :tests:
 :PROPERTIES:
 :CUSTOM_ID: test-clock

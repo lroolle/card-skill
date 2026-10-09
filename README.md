@@ -21,6 +21,11 @@ headings is a scan of the conclusions.
 - Every card takes Keep, Drop, More, and a reply. More means "go deeper".
 - A card about a shape shows it: a sketch or a box-and-arrow figure under
   the gist, numbered like the card ("Fig. 12.1").
+- A card shows its evidence itself: a screenshot (click for full size), an
+  excerpt of a file with its line numbers, or a chip for any other file.
+  The page carries them; it stays one file.
+- The buttons and help speak the board's language (`#+language:`): English
+  and Simplified Chinese ship.
 - Click a card to open it. Related cards stay lit and say how they relate
   ("Source of 8", "Option of 17", "Needs 4"); the rest dims.
 - The desk: grey lines are sources, red lines are needs, violet lines with a

@@ -101,6 +101,14 @@ Writing rules. `cards check` enforces the mechanical ones.
   then `#+begin_src sketch` (text characters) or `#+begin_src flow`
   (`a -> b: label` lines; the compiler places the boxes). A decision about a
   view or a UI shows each option as a figure. Do not draw a single fact.
+- Show the evidence itself when it is a file. A screenshot or a chart:
+  `#+caption:` then `[[file:../../shots/x.png]]` alone on a line. Code or a
+  log: `#+include: "../../src/x.js" src js :lines "40-61"` (lines 40 to 60;
+  as in Org, the upper end is not included). Paths are relative to
+  `board.org`; the file must be in the project. The page carries the file,
+  so keep images under 1 MB and excerpts to the lines that matter.
+- Write the board in the human's language and set `#+language:` (`en`,
+  `zh-Hans`, ...). The page chrome follows it.
 - Mark how you know: `:BASIS: fact` (you checked it against a source; a quote
   is a fact about what was said), `inference` (your reading), or `guess`.
   A proposal (an option card) and an ask card take no basis.

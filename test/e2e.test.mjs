@@ -13,12 +13,15 @@ import { pathToFileURL } from 'node:url';
 import { serve } from '../skill/lib/serve.mjs';
 import { resolveBoard, fold, readLog, unread, addSay } from '../skill/lib/store.mjs';
 import { buildBoard } from '../skill/lib/compile.mjs';
+import { png } from './png.mjs';
 
 const require = createRequire(import.meta.url);
 let chromium = null;
 for (const p of ['playwright', path.join(os.homedir(), '.npm-global/lib/node_modules/playwright')]) {
   try { ({ chromium } = require(p)); break; } catch { /* try next */ }
 }
+// CI sets CARDS_E2E=required: there, a missing browser fails the run instead of passing it quietly.
+if (!chromium && process.env.CARDS_E2E === 'required') throw new Error('CARDS_E2E=required, but Playwright did not load');
 const SKILL = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'skill');
 
 // The board opens on the desk (D15). Tests about reading and answering use the rack.
@@ -285,6 +288,63 @@ test('figures: a flow box darkens its own arrows under the pointer', { skip: !ch
     assert.equal(await page.locator('#c-a .fe.hot').count(), 2, 'y has two arrows');
     await page.hover('#c-a .fn[data-n="0"]');
     assert.equal(await page.locator('#c-a .fe.hot').count(), 1);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('files: an image opens full size in the page, an excerpt opens in place, a zoomed-out desk zooms first', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  fs.mkdirSync(path.join(cwd, 'shots'));
+  fs.writeFileSync(path.join(cwd, 'shots', 'wide.png'), png(1200, 2400));
+  fs.writeFileSync(path.join(cwd, 'notes.txt'), Array.from({ length: 30 }, (_, k) => `note ${k + 1}`).join('\n') + '\n');
+  fs.writeFileSync(ref.file, '#+title: F\n\n** A card shows a screenshot\n:PROPERTIES:\n:CUSTOM_ID: a\n:END:\nGist.\n\n#+caption: The wide shot\n[[file:../../shots/wide.png]]\n\n#+include: "../../notes.txt" :lines "2-30"\n');
+  assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await toRack(page);
+    const img = page.locator('#c-a .fig-zoom img');
+    assert.deepEqual([await img.getAttribute('width'), await img.getAttribute('height')], ['1200', '2400'], 'the size is known before the image decodes');
+    assert.match(await page.textContent('#c-a figcaption'), /Fig\. 1\.1\s+The wide shot\s+wide\.png · 1200 × 2400/);
+    assert.ok(await page.evaluate(() => document.querySelector('#c-a').classList.contains('wide')), 'a wide image widens its card');
+    await page.keyboard.press('3');
+    await page.click('#c-a .fig-zoom');
+    const dlg = page.locator('dialog.lightbox[open]');
+    await dlg.waitFor();
+    const fit = await dlg.locator('img').boundingBox();
+    assert.ok(fit.height < 800 && fit.width < 1200, 'a tall image opens fitted to the window');
+    await dlg.locator('img').click();
+    assert.ok(await dlg.evaluate((d) => d.classList.contains('actual')));
+    assert.equal(Math.round((await dlg.locator('img').boundingBox()).width), 1200, 'a second click shows the real pixels');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog.lightbox', { state: 'detached' });
+    assert.ok(await page.evaluate(() => document.activeElement.matches('#c-a .fig-zoom')), 'focus goes back to the image');
+    await page.keyboard.press('Enter');
+    await page.locator('dialog.lightbox[open]').waitFor();
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog.lightbox', { state: 'detached' });
+    // The excerpt: lines 2 to 29; 12 show, the rest open in place.
+    assert.match(await page.textContent('#c-a .excerpt figcaption'), /notes\.txt\s+lines 2–29/);
+    assert.equal(await page.locator('#c-a .excerpt > pre .ln').count(), 12);
+    await page.click('#c-a .excerpt-more summary');
+    assert.equal(await page.locator('#c-a .excerpt .ln').count(), 28);
+    // The desk at a small zoom: a click on the image zooms to the card, as anywhere on a card.
+    const settle = (v) => page.waitForFunction((want) => {
+      const p = document.querySelector('.plane');
+      return Math.abs(100 * p.getBoundingClientRect().width / p.offsetWidth - want) < 0.05;
+    }, v);
+    await page.keyboard.press('d');
+    await page.waitForSelector('.board.view-desk');
+    await page.keyboard.press('3');
+    await page.click('[data-zoom="0.5"]');
+    await settle(50);
+    await page.click('#c-a .fig-zoom');
+    await settle(100);
+    assert.equal(await page.locator('dialog.lightbox').count(), 0, 'the first click reads the card, it does not open the image');
+    await page.click('#c-a .fig-zoom');
+    await page.locator('dialog.lightbox[open]').waitFor();
   } finally {
     await browser.close();
   }

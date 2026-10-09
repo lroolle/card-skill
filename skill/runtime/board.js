@@ -13,26 +13,40 @@
   var ID = B.board.id;
   var NS = 'cards:' + B.board.path + ':' + ID + ':';
 
-  var ASK_LABEL = { choose: 'Choose', approve: 'Approve', answer: 'Answer' };
-  var BASIS = { fact: 'Fact', inference: 'Inference', guess: 'Guess' };
+  // t(key, vars) -> a chrome string in the board's language, the same lookup as
+  // lib/i18n.mjs. It reads B on each call: a live update replaces B and its table.
+  // The result is plain text: esc() it on the way into innerHTML.
+  function t(key, vars) {
+    vars = vars || {};
+    var table = B.strings || {};
+    var k = vars.n === 1 && table[key + '_one'] !== undefined ? key + '_one' : key;
+    var s = table[k] == null ? key : table[k];
+    return s.replace(/\{(\w+)\}/g, function (m, name) { return name in vars ? String(vars[name]) : m; });
+  }
+  // The same string as HTML, for markup inside a sentence: the text escaped,
+  // then each {name} in html filled with ready markup.
+  function tHtml(key, html) {
+    return esc(t(key)).replace(/\{(\w+)\}/g, function (m, name) { return name in html ? html[name] : m; });
+  }
+
+  // Label tables hold string keys; t() turns them into words at render time.
+  var ASK_LABEL = { choose: 'ask_choose', approve: 'ask_approve', answer: 'ask_answer' };
+  var BASIS = { fact: 'basis_fact', inference: 'basis_inference', guess: 'basis_guess' };
   var MARKS = ['keep', 'drop', 'more'];
-  var MARK_LABEL = { keep: 'Keep', drop: 'Drop', more: 'More' };
-  var MARK_STAMP = { keep: 'Kept', drop: 'Dropped', more: 'More asked' };
-  var ASK_DONE = { choose: 'Chosen', approve: 'Approved', reject: 'Rejected', answer: 'Answered' };
-  // One relation vocabulary for both views: [type, label in the focused card's list, label on the lit card].
+  var MARK_LABEL = { keep: 'mark_keep', drop: 'mark_drop', more: 'mark_more' };
+  var MARK_STAMP = { keep: 'mark_kept', drop: 'mark_dropped', more: 'mark_more_asked' };
+  var ASK_DONE = { choose: 'ask_chosen', approve: 'ask_approved', reject: 'ask_rejected', answer: 'ask_answered' };
+  // One relation vocabulary for both views: [type, label in the focused card's list,
+  // label on the lit card ({card} is the focused card's numeral)].
   var REL = [
-    ['option', 'Options', 'Option of'], ['decides', 'Decided in', 'Decides'],
-    ['needs', 'Needs', 'Blocks'], ['blocks', 'Blocks', 'Needs'],
-    ['from', 'Sources', 'Source of'], ['followup', 'Follow-ups', 'Follow-up of'],
-    ['mentions', 'Mentions', 'Mentioned by'], ['mentioned', 'Mentioned by', 'Mentions'],
+    ['option', 'rel_option', 'rel_lit_option'], ['decides', 'rel_decides', 'rel_lit_decides'],
+    ['needs', 'rel_needs', 'rel_lit_needs'], ['blocks', 'rel_blocks', 'rel_lit_blocks'],
+    ['from', 'rel_from', 'rel_lit_from'], ['followup', 'rel_followup', 'rel_lit_followup'],
+    ['mentions', 'rel_mentions', 'rel_lit_mentions'], ['mentioned', 'rel_mentioned', 'rel_lit_mentioned'],
   ];
   var REL_LIT = {};
   REL.forEach(function (r) { REL_LIT[r[0]] = r[2]; });
-  var MARK_TITLE = {
-    keep: 'Keep: this is right and it matters (=)',
-    drop: 'Drop: wrong or not needed (-)',
-    more: 'More: go deeper on this (m)',
-  };
+  var MARK_TITLE = { keep: 'mark_keep_title', drop: 'mark_drop_title', more: 'mark_more_title' };
   var ICON = {
     grip: '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><g fill="currentColor"><circle cx="4" cy="2.5" r="1.1"/><circle cx="8" cy="2.5" r="1.1"/><circle cx="4" cy="6" r="1.1"/><circle cx="8" cy="6" r="1.1"/><circle cx="4" cy="9.5" r="1.1"/><circle cx="8" cy="9.5" r="1.1"/></g></svg>',
     search: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></g></svg>',
@@ -181,7 +195,7 @@
   }
   function tabLabel(c) {
     var a = answerOf(c);
-    return a ? ASK_DONE[a] : ASK_LABEL[c.ask];
+    return t(a ? ASK_DONE[a] : ASK_LABEL[c.ask]);
   }
 
   // ---------- responses ----------
@@ -221,26 +235,26 @@
     var all = cards();
     var waiting = waitingCount();
     var drafted = D.sentRev ? 0 : buildItems(false).length;
-    if (waiting) return { k: 'you', text: 'Your turn · ' + waiting + ' waiting on you' };
-    if (drafted) return { k: 'ready', text: 'Ready to send · ' + drafted + ' response' + (drafted > 1 ? 's' : '') };
-    if (D.sentRev) return { k: 'agent', text: 'Agent’s turn · reply copied' };
+    if (waiting) return { k: 'you', text: t('turn_you', { n: waiting }) };
+    if (drafted) return { k: 'ready', text: t('turn_ready', { n: drafted }) };
+    if (D.sentRev) return { k: 'agent', text: t('turn_copied') };
     var last = B.sends[B.sends.length - 1];
     if (last && last.rev === B.board.rev) {
-      return { k: 'agent', text: 'Agent’s turn · round ' + last.round + (last.round <= B.read ? ' read' : ' sent') };
+      return { k: 'agent', text: t(last.round <= B.read ? 'turn_read' : 'turn_sent', { round: last.round }) };
     }
     var doing = all.filter(function (c) { return c.status === 'doing'; }).length;
-    if (doing) return { k: 'agent', text: 'Agent working · ' + doing + ' in progress' };
-    return { k: 'idle', text: 'Nothing waiting on you' };
+    if (doing) return { k: 'agent', text: t('turn_working', { n: doing }) };
+    return { k: 'idle', text: t('turn_idle') };
   }
 
   function describe(it, c) {
     switch (it.kind) {
-      case 'choose': return 'Chose ' + it.value.map(function (v) {
+      case 'choose': return t('thread_chose', { options: it.value.map(function (v) {
         var o = c.options.filter(function (p) { return p.value === v; })[0];
         return o && o.ref && B.cards[o.ref] ? B.cards[o.ref].title_text : v;
-      }).join(', ');
-      case 'approve': return it.value === 'approve' ? 'Approved' : 'Rejected';
-      case 'mark': return MARK_LABEL[it.value] || it.value;
+      }).join(t('list_sep')) });
+      case 'approve': return t(it.value === 'approve' ? 'ask_approved' : 'ask_rejected');
+      case 'mark': return MARK_LABEL[it.value] ? t(MARK_LABEL[it.value]) : it.value;
       default: return it.text || '';
     }
   }
@@ -250,18 +264,20 @@
   function render() {
     ANS = answeredSet();
     var n = Object.keys(B.cards).length;
-    var t = turn();
+    var now = turn();
+    var stat = [t('stat_rev', { rev: B.board.rev }), t('stat_cards', { n: n })];
+    if (B.live) stat.push(t('stat_live'));
     var html = [];
     html.push('<div class="page board view-' + S.view + ' alt-' + S.alt + '">');
     html.push('<header><div class="andon">' +
-      '<span class="lamp" data-turn="' + t.k + '" role="status"><i></i><span>' + esc(t.text) + '</span></span>' +
-      '<span class="stat">rev ' + B.board.rev + ' · ' + n + ' card' + (n === 1 ? '' : 's') + (B.live ? ' · live' : '') + '</span>' +
+      '<span class="lamp" data-turn="' + now.k + '" role="status"><i></i><span>' + esc(now.text) + '</span></span>' +
+      '<span class="stat">' + esc(stat.join(' · ')) + '</span>' +
       '<span class="path">' + esc(B.board.path) + '</span></div>' +
       '<div class="notice" id="notice" hidden></div>' +
       '<h1 class="title">' + esc(B.board.title) + '</h1>' +
       (B.board.lede_html ? '<div class="lede">' + B.board.lede_html + '</div>' : '') +
-      '<nav class="rail" aria-label="Asks on this board"></nav></header>');
-    if (!n) html.push('<p class="empty">No cards yet. The agent writes them into ' + esc(B.board.path) + '.</p>');
+      '<nav class="rail" aria-label="' + esc(t('rail_label')) + '"></nav></header>');
+    if (!n) html.push('<p class="empty">' + esc(t('empty_board', { path: B.board.path })) + '</p>');
     if (S.view === 'desk' && n) html.push(deskBarHtml());
     // The desk is a view (.shelves) onto a plane that zooms; .sizer gives the zoomed plane its scroll size.
     html.push('<div class="shelves"><div class="sizer"><div class="plane"><svg class="wires" aria-hidden="true"></svg>');
@@ -313,27 +329,27 @@
     if (c.ask === 'choose') {
       var chosen = d.choice || [];
       var type = c.multi ? 'checkbox' : 'radio';
-      return '<div class="ask" role="group" aria-label="' + (c.multi ? 'Choose any' : 'Choose one') + '">' + c.options.map(function (o) {
+      return '<div class="ask" role="group" aria-label="' + esc(t(c.multi ? 'ask_choose_any' : 'ask_choose_one')) + '">' + c.options.map(function (o) {
         var on = chosen.indexOf(o.value) >= 0;
-        var hint = o.default ? (on ? 'Suggested · chosen' : 'Suggested') : '';
+        var hint = o.default ? esc(t(on ? 'ask_suggested_chosen' : 'ask_suggested')) : '';
         return '<label class="opt' + (on ? ' on' : '') + (o.default ? ' suggested' : '') + '"' + (c.multi ? ' data-multi' : '') + '>' +
           '<input type="' + type + '" name="o-' + esc(c.id) + '" value="' + esc(o.value) + '" data-opt' + (on ? ' checked' : '') + '>' +
           '<span class="dot"></span><span class="lbl">' + o.label_html + '</span><span class="hint">' + hint + '</span></label>';
       }).join('') + '</div>';
     }
     if (c.ask === 'approve') {
-      return '<div class="ask gate" role="group" aria-label="Approve or reject">' +
-        '<button class="btn" data-approve="approve" aria-pressed="' + (d.approve === 'approve') + '">Approve</button>' +
-        '<button class="btn reject" data-approve="reject" aria-pressed="' + (d.approve === 'reject') + '">Reject</button></div>';
+      return '<div class="ask gate" role="group" aria-label="' + esc(t('ask_approve_or_reject')) + '">' +
+        '<button class="btn" data-approve="approve" aria-pressed="' + (d.approve === 'approve') + '">' + esc(t('ask_approve')) + '</button>' +
+        '<button class="btn reject" data-approve="reject" aria-pressed="' + (d.approve === 'reject') + '">' + esc(t('ask_reject')) + '</button></div>';
     }
-    return '<div class="ask"><textarea data-field="answer" rows="2" placeholder="Your answer" aria-label="Answer card ' + c.n + '">' + esc(d.answer || '') + '</textarea></div>';
+    return '<div class="ask"><textarea data-field="answer" rows="2" placeholder="' + esc(t('ask_answer_placeholder')) + '" aria-label="' + esc(t('ask_answer_label', { card: c.n })) + '">' + esc(d.answer || '') + '</textarea></div>';
   }
 
   function threadHtml(c) {
     var out = [];
     B.sends.forEach(function (b) {
       b.items.forEach(function (it) {
-        if (it.card === c.id && it.state !== 'untouched') out.push('<div class="said"><b>You · r' + b.round + '</b><span>' + esc(describe(it, c)) + '</span></div>');
+        if (it.card === c.id && it.state !== 'untouched') out.push('<div class="said"><b>' + esc(t('thread_you', { round: b.round })) + '</b><span>' + esc(describe(it, c)) + '</span></div>');
       });
     });
     return out.length ? '<div class="thread">' + out.join('') + '</div>' : '';
@@ -342,58 +358,58 @@
   function cardHtml(c, keys) {
     var d = D.cards[c.id] || {};
     var meta = [];
-    if (c.status === 'doing') meta.push('<span class="st-doing">In progress</span>');
-    if (c.status === 'blocked') meta.push('<span class="st-blocked">Blocked</span>');
-    if (c.status === 'done') meta.push('<span>Done</span>');
-    if (c.basis) meta.push('<span title="How the agent knows this">' + BASIS[c.basis] + '</span>');
-    if (c.v > 1) meta.push('<span title="Revised ' + (c.v - 1) + ' time' + (c.v > 2 ? 's' : '') + '">v' + c.v + '</span>');
-    if (changed.has(c.id)) meta.push('<span class="chg">' + (c.v > 1 ? 'Changed' : 'New') + '</span>');
-    if (c.tags.length) meta.push('<span class="tags">' + c.tags.map(function (t) { return '#' + esc(t); }).join(' ') + '</span>');
+    if (c.status === 'doing') meta.push('<span class="st-doing">' + esc(t('status_doing')) + '</span>');
+    if (c.status === 'blocked') meta.push('<span class="st-blocked">' + esc(t('status_blocked')) + '</span>');
+    if (c.status === 'done') meta.push('<span>' + esc(t('status_done')) + '</span>');
+    if (c.basis) meta.push('<span title="' + esc(t('basis_title')) + '">' + esc(t(BASIS[c.basis])) + '</span>');
+    if (c.v > 1) meta.push('<span title="' + esc(t('card_revised', { n: c.v - 1 })) + '">' + esc(t('card_v', { v: c.v })) + '</span>');
+    if (changed.has(c.id)) meta.push('<span class="chg">' + esc(t(c.v > 1 ? 'card_changed' : 'card_new')) + '</span>');
+    if (c.tags.length) meta.push('<span class="tags">' + c.tags.map(function (tag) { return '#' + esc(tag); }).join(' ') + '</span>');
     var pct = c.progress ? Math.round(100 * c.progress.done / c.progress.total) : 0;
     var hist = c.history.length
-      ? '<details class="history"><summary>Earlier versions (' + c.history.length + ')</summary><ol>' + c.history.map(function (h) {
-        return '<li><span>v' + h.v + ' · rev ' + h.rev + '</span><div><del>' + h.title_html + '</del></div>' +
+      ? '<details class="history"><summary>' + esc(t('card_history', { n: c.history.length })) + '</summary><ol>' + c.history.map(function (h) {
+        return '<li><span>' + esc(t('card_history_item', { v: h.v, rev: h.rev })) + '</span><div><del>' + h.title_html + '</del></div>' +
           (h.gist_html ? '<div class="past-gist">' + h.gist_html + '</div>' : '') + '</li>';
       }).join('') + '</ol></details>'
       : '';
     var replyShown = !!(d.reply) || S.replyOpen.has(c.id);
     return '<article class="card' + (c.wide ? ' wide' : '') + '" id="c-' + esc(c.id) + '" data-id="' + esc(c.id) + '" data-status="' + c.status + '"' +
       (c.ask ? ' data-ask="' + c.ask + '"' : '') + ' tabindex="0" aria-labelledby="t-' + esc(c.id) + '">' +
-      (isOpenAsk(c) ? '<div class="tab">' + tabLabel(c) + '</div>' : '') +
-      '<div class="addr"><span class="n ref-n" title="Card ' + c.n + '">' + c.n + '</span><span class="rel"></span>' +
-      '<span class="stamp">' + (d.mark ? MARK_STAMP[d.mark] : '') + '</span>' + meta.join('') + '</div>' +
+      (isOpenAsk(c) ? '<div class="tab">' + esc(tabLabel(c)) + '</div>' : '') +
+      '<div class="addr"><span class="n ref-n" title="' + esc(t('card_n', { card: c.n })) + '">' + c.n + '</span><span class="rel"></span>' +
+      '<span class="stamp">' + (d.mark ? esc(t(MARK_STAMP[d.mark])) : '') + '</span>' + meta.join('') + '</div>' +
       '<h3 class="claim" id="t-' + esc(c.id) + '">' + c.title_html + '</h3>' +
-      (c.progress ? '<div class="meter" role="img" aria-label="' + c.progress.done + ' of ' + c.progress.total + ' done"><i style="width:' + pct + '%"></i></div>' : '') +
+      (c.progress ? '<div class="meter" role="img" aria-label="' + esc(t('card_progress', { done: c.progress.done, total: c.progress.total })) + '"><i style="width:' + pct + '%"></i></div>' : '') +
       (c.gist_html ? '<div class="gist">' + c.gist_html + '</div>' : '') +
       (c.figure_html || '') +
       factsHtml(c, keys) + askHtml(c, d) +
       (c.depth_html ? '<div class="depth">' + c.depth_html + '</div>' : '') +
       '<div class="context"></div>' + hist + threadHtml(c) +
       '<div class="acts">' + MARKS.map(function (m) {
-        return '<button class="act" data-mark="' + m + '" aria-pressed="' + (d.mark === m) + '" title="' + MARK_TITLE[m] + '">' + MARK_LABEL[m] + '</button>';
-      }).join('') + '<button class="act reply-btn" data-act="reply" aria-pressed="' + replyShown + '" title="Reply to this card (r)">Reply</button>' +
-      '<button class="grip" data-act="grip" aria-label="Move card ' + c.n + ' (Alt+Arrow keys)" title="Drag to reorder">' + ICON.grip + '</button></div>' +
-      '<div class="reply"' + (replyShown ? '' : ' hidden') + '><textarea data-field="reply" rows="2" placeholder="Reply to card ' + c.n + '" aria-label="Reply to card ' + c.n + '">' + esc(d.reply || '') + '</textarea></div>' +
+        return '<button class="act" data-mark="' + m + '" aria-pressed="' + (d.mark === m) + '" title="' + esc(t(MARK_TITLE[m])) + '">' + esc(t(MARK_LABEL[m])) + '</button>';
+      }).join('') + '<button class="act reply-btn" data-act="reply" aria-pressed="' + replyShown + '" title="' + esc(t('reply_title')) + '">' + esc(t('reply')) + '</button>' +
+      '<button class="grip" data-act="grip" aria-label="' + esc(t('grip_label', { card: c.n })) + '" title="' + esc(t('grip_title')) + '">' + ICON.grip + '</button></div>' +
+      '<div class="reply"' + (replyShown ? '' : ' hidden') + '><textarea data-field="reply" rows="2" placeholder="' + esc(t('reply_label', { card: c.n })) + '" aria-label="' + esc(t('reply_label', { card: c.n })) + '">' + esc(d.reply || '') + '</textarea></div>' +
       '</article>';
   }
 
   function toolbar() {
-    return '<nav class="bar" aria-label="Board tools"><div class="tools">' +
-      '<div class="seg seg-filter" role="group" aria-label="Filter">' +
-      '<button data-filter="all">All</button>' +
-      '<button data-filter="yours" title="Asks waiting on you (n jumps to the next)">Yours<span class="c" data-count="yours"></span></button>' +
-      '<button data-filter="changed" title="New or revised since your last visit">Changed<span class="c" data-count="changed"></span></button></div>' +
+    return '<nav class="bar" aria-label="' + esc(t('bar_label')) + '"><div class="tools">' +
+      '<div class="seg seg-filter" role="group" aria-label="' + esc(t('filter_label')) + '">' +
+      '<button data-filter="all">' + esc(t('filter_all')) + '</button>' +
+      '<button data-filter="yours" title="' + esc(t('filter_yours_title')) + '">' + esc(t('filter_yours')) + '<span class="c" data-count="yours"></span></button>' +
+      '<button data-filter="changed" title="' + esc(t('filter_changed_title')) + '">' + esc(t('filter_changed')) + '<span class="c" data-count="changed"></span></button></div>' +
       '<span class="sep"></span>' +
-      '<div class="seg seg-alt" role="group" aria-label="Detail">' +
-      '<button data-alt="claim" title="Claims only (1)">Claim</button>' +
-      '<button data-alt="gist" title="Claim and gist (2)">Gist</button>' +
-      '<button data-alt="full" title="Everything (3)">Full</button></div>' +
-      '<div class="seg seg-view"><button data-act="desk" title="Lay the cards out on a desk, with lines between related cards (d)">Desk</button></div>' +
+      '<div class="seg seg-alt" role="group" aria-label="' + esc(t('alt_label')) + '">' +
+      '<button data-alt="claim" title="' + esc(t('alt_claim_title')) + '">' + esc(t('alt_claim')) + '</button>' +
+      '<button data-alt="gist" title="' + esc(t('alt_gist_title')) + '">' + esc(t('alt_gist')) + '</button>' +
+      '<button data-alt="full" title="' + esc(t('alt_full_title')) + '">' + esc(t('alt_full')) + '</button></div>' +
+      '<div class="seg seg-view"><button data-act="desk" title="' + esc(t('desk_title')) + '">' + esc(t('desk')) + '</button></div>' +
       '<span class="sep"></span>' +
-      '<select data-sort aria-label="Order"><option value="board">Board order</option><option value="waiting">Waiting first</option><option value="recent">Recent first</option></select>' +
-      '<label class="search"><span class="icon-btn" aria-hidden="true">' + ICON.search + '</span><input type="search" data-search placeholder="Find" aria-label="Find cards (/)" value="' + esc(S.q) + '"></label>' +
-      '<button class="icon-btn" data-act="help" aria-label="Keyboard shortcuts" title="Keys (?)">?</button></div>' +
-      '<button class="send" data-act="send" title="Send your responses to the agent (Ctrl+Enter)">Send</button></nav>';
+      '<select data-sort aria-label="' + esc(t('sort_label')) + '"><option value="board">' + esc(t('sort_board')) + '</option><option value="waiting">' + esc(t('sort_waiting')) + '</option><option value="recent">' + esc(t('sort_recent')) + '</option></select>' +
+      '<label class="search"><span class="icon-btn" aria-hidden="true">' + ICON.search + '</span><input type="search" data-search placeholder="' + esc(t('find')) + '" aria-label="' + esc(t('find_label')) + '" value="' + esc(S.q) + '"></label>' +
+      '<button class="icon-btn" data-act="help" aria-label="' + esc(t('help_label')) + '" title="' + esc(t('help_title')) + '">?</button></div>' +
+      '<button class="send" data-act="send" title="' + esc(t('send_title')) + '">' + esc(t('send')) + '</button></nav>';
   }
 
   // The andon rail: one real tab per open ask, in board order. It puts the
@@ -407,7 +423,7 @@
     var html = asks.map(function (c) {
       var done = sentAnswer(c) || hasDraftAnswer(c);
       return '<button class="rail-tab" data-goto="' + esc(c.id) + '" data-open' + (done ? ' data-answered' : '') +
-        ' title="' + esc(c.title_text) + '"><span class="ref-n">' + c.n + '</span>' + tabLabel(c) + '</button>';
+        ' title="' + esc(c.title_text) + '"><span class="ref-n">' + c.n + '</span>' + esc(tabLabel(c)) + '</button>';
     }).join('');
     if (rail.innerHTML !== html) rail.innerHTML = html;
   }
@@ -423,10 +439,10 @@
       return [r[1], list];
     }).filter(function (g) { return g[1].length; });
     el.innerHTML = groups.length ? groups.map(function (g) {
-      return '<span>' + g[0] + ' ' + g[1].filter(function (x) { return B.cards[x]; }).map(function (x) {
+      return '<span>' + esc(t(g[0])) + ' ' + g[1].filter(function (x) { return B.cards[x]; }).map(function (x) {
         return '<button data-goto="' + esc(x) + '" title="' + esc(B.cards[x].title_text) + '"><span class="ref-n">' + B.cards[x].n + '</span></button>';
       }).join(' ') + '</span>';
-    }).join('') : '<span>No links to other cards</span>';
+    }).join('') : '<span>' + esc(t('rel_none')) + '</span>';
   }
 
   function applyView() {
@@ -465,7 +481,7 @@
       el.classList.toggle('focused', c.id === S.focus);
       el.classList.toggle('lit', rel.has(c.id));
       el.classList.toggle('open', S.open.has(c.id));
-      el.querySelector('.rel').textContent = rel.has(c.id) ? REL_LIT[rel.get(c.id)] + ' ' + fn : '';
+      el.querySelector('.rel').textContent = rel.has(c.id) ? t(REL_LIT[rel.get(c.id)], { card: fn }) : '';
       var answered = sentAnswer(c) || hasDraftAnswer(c);
       if (answered) el.setAttribute('data-answered', ''); else el.removeAttribute('data-answered');
       var tab = el.querySelector('.tab');
@@ -474,19 +490,19 @@
     $$('.shelf').forEach(function (sh) { sh.hidden = !sh.querySelector('.card:not([hidden])'); });
     var none = $('#no-match');
     none.hidden = shown > 0 || !Object.keys(B.cards).length;
-    none.textContent = S.filter === 'yours' && !q ? 'Nothing is waiting on you.' : S.filter === 'changed' && !q ? 'Nothing changed since your last visit.' : 'No card matches.';
+    none.textContent = t(S.filter === 'yours' && !q ? 'empty_yours' : S.filter === 'changed' && !q ? 'empty_changed' : 'empty_search');
     if (S.focus) contextStrip(S.focus);
 
     var items = buildItems(false).length;
     var send = $('[data-act="send"]');
     send.disabled = !items || !!D.sentRev || !!pendingSend;
-    send.textContent = pendingSend ? 'Sending\u2026' : D.sentRev ? 'Copied' : items ? 'Send ' + items : 'Send';
-    var t = turn();
+    send.textContent = pendingSend ? t('send_sending') : D.sentRev ? t('send_copied') : items ? t('send_n', { n: items }) : t('send');
+    var now = turn();
     var lamp = $('.lamp');
-    lamp.dataset.turn = t.k;
-    if (lamp.lastChild.textContent !== t.text) lamp.lastChild.textContent = t.text;
+    lamp.dataset.turn = now.k;
+    if (lamp.lastChild.textContent !== now.text) lamp.lastChild.textContent = now.text;
     renderRail();
-    $$('.grip').forEach(function (g) { g.disabled = S.sort !== 'board'; g.title = S.sort === 'board' ? 'Drag to reorder' : 'Switch to board order to reorder'; });
+    $$('.grip').forEach(function (g) { g.disabled = S.sort !== 'board'; g.title = t(S.sort === 'board' ? 'grip_title' : 'grip_title_sorted'); });
     alignCompare();
     layoutDesk();
   }
@@ -527,7 +543,7 @@
   var GRID = 24;    // the dot grid; a moved card snaps to it
   var TAB_H = 20;
   var TIP_INSET = { from: 0, needs: 7, option: 12, mentions: 3 };
-  var LEGEND = [['from', 'Source'], ['needs', 'Needs'], ['option', 'Option'], ['mentions', 'Mention']];
+  var LEGEND = [['from', 'desk_line_from'], ['needs', 'desk_line_needs'], ['option', 'desk_line_option'], ['mentions', 'desk_line_mentions']];
   var PLACE = load('place', null); // your layout: { cards: { id: [x, y, w] }, labels: { section: [x, y, w] } }
 
   function savePlace() { save('place', PLACE); }
@@ -802,7 +818,7 @@
     PLACE = null;
     savePlace();
     layoutDesk();
-    toast('Cards are back in their sections.', 'Undo', function () { PLACE = before; savePlace(); layoutDesk(); }, 8000);
+    toast(t('desk_arranged'), t('undo'), function () { PLACE = before; savePlace(); layoutDesk(); }, 8000);
   }
 
   // ---- zoom ----
@@ -932,15 +948,15 @@
       var s = -1;
       var x = 30;
       return '<span class="lg"><svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true"><g class="wire w-' + l[0] + '">' +
-        '<path class="ln" d="M2,6 L' + (x + TIP_INSET[l[0]] * s) + ',6"/><path class="tip" d="' + tipD(l[0], x, 6, s) + '"/></g></svg>' + l[1] + '</span>';
+        '<path class="ln" d="M2,6 L' + (x + TIP_INSET[l[0]] * s) + ',6"/><path class="tip" d="' + tipD(l[0], x, 6, s) + '"/></g></svg>' + esc(t(l[1])) + '</span>';
     }).join('');
   }
   function deskBarHtml() {
-    return '<div class="desk-bar"><div class="legend" role="note" aria-label="What the lines mean">' + legendHtml() + '</div>' +
+    return '<div class="desk-bar"><div class="legend" role="note" aria-label="' + esc(t('desk_legend_label')) + '">' + legendHtml() + '</div>' +
       '<div class="desk-tools"><span class="zoom-now"></span>' +
-      '<div class="seg seg-zoom" role="group" aria-label="Zoom">' +
-      '<button data-zoom="fit" title="The whole board (z cycles)">Fit</button><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button></div>' +
-      '<button class="btn" data-act="arrange">Arrange</button></div></div>';
+      '<div class="seg seg-zoom" role="group" aria-label="' + esc(t('desk_zoom_label')) + '">' +
+      '<button data-zoom="fit" title="' + esc(t('desk_fit_title')) + '">' + esc(t('desk_fit')) + '</button><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button></div>' +
+      '<button class="btn" data-act="arrange">' + esc(t('desk_arrange')) + '</button></div></div>';
   }
   function updateDeskBar() {
     var now = $('.zoom-now');
@@ -956,7 +972,7 @@
     });
     var ar = $('[data-act="arrange"]');
     ar.disabled = !PLACE;
-    ar.title = PLACE ? 'Put every card back in its section' : 'Cards sit in their sections. Drag a card by its top strip to place it yourself.';
+    ar.title = t(PLACE ? 'desk_arrange_title' : 'desk_arrange_off_title');
   }
 
   // Lay the desk out: your places or the rule, then the scale, then the lines.
@@ -1031,48 +1047,57 @@
   function agentUnread() {
     return (B.chat || []).filter(function (m) { return m.who === 'agent' && m.at > chatSeen; }).length;
   }
+  // A date or time in the board's language; an invalid tag falls back to the browser's.
+  function localized(d, method, opts) {
+    try { return d[method](B.board.lang || [], opts); } catch (e) { return d[method]([], opts); }
+  }
   function clock(at) {
     var d = new Date(at);
     if (isNaN(d)) return '';
-    var t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + t;
+    var time = localized(d, 'toLocaleTimeString', { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === new Date().toDateString() ? time : localized(d, 'toLocaleDateString', { month: 'short', day: 'numeric' }) + ' ' + time;
   }
   function chatThreadHtml() {
     var items = (B.chat || []).map(function (m) {
       if (m.who === 'board') {
-        var span = m.to && m.to !== m.from ? 'revs ' + m.from + ' to ' + m.to : 'rev ' + (m.to || m.rev);
-        return '<li class="sys">The agent published ' + span + (m.cards ? ' · ' + m.cards + ' card change' + (m.cards > 1 ? 's' : '') : '') + ' · ' + esc(clock(m.at)) + '</li>';
+        var sys = [m.to && m.to !== m.from ? t('chat_published_span', { from: m.from, to: m.to }) : t('chat_published', { rev: m.to || m.rev })];
+        if (m.cards) sys.push(t('chat_card_changes', { n: m.cards }));
+        sys.push(clock(m.at));
+        return '<li class="sys">' + esc(sys.join(' · ')) + '</li>';
       }
-      if (m.who === 'agent') return '<li class="msg agent"><p>' + esc(m.text) + '</p><span class="meta">The agent · ' + esc(clock(m.at)) + '</span></li>';
-      var meta = 'Round ' + m.round + (m.responses ? ' · ' + m.responses + ' card response' + (m.responses > 1 ? 's' : '') : '') + ' · ' + (m.read ? 'read' : 'sent') + ' · ' + esc(clock(m.at));
+      if (m.who === 'agent') return '<li class="msg agent"><p>' + esc(m.text) + '</p><span class="meta">' + esc(t('chat_agent') + ' · ' + clock(m.at)) + '</span></li>';
+      // A round with a message shows it; a round of card answers alone is one line.
+      var meta = [t(m.text ? 'chat_round' : 'chat_you_sent_round', { round: m.round })];
+      if (m.responses) meta.push(t('chat_responses', { n: m.responses }));
+      meta.push(t(m.read ? 'chat_read' : 'chat_sent'), clock(m.at));
       return m.text
-        ? '<li class="msg you"><p>' + esc(m.text) + '</p><span class="meta">' + meta + '</span></li>'
-        : '<li class="sys">You sent ' + meta.charAt(0).toLowerCase() + meta.slice(1) + '</li>';
+        ? '<li class="msg you"><p>' + esc(m.text) + '</p><span class="meta">' + esc(meta.join(' · ')) + '</span></li>'
+        : '<li class="sys">' + esc(meta.join(' · ')) + '</li>';
     });
     (D.chatCopied || []).forEach(function (m) {
-      items.push('<li class="msg you"><p>' + esc(m.text) + '</p><span class="meta">Copied · paste it into your agent · ' + esc(clock(m.at)) + '</span></li>');
+      items.push('<li class="msg you"><p>' + esc(m.text) + '</p><span class="meta">' + esc(t('chat_copied') + ' · ' + clock(m.at)) + '</span></li>');
     });
     if (pendingChat) {
-      items.push('<li class="msg you"><p>' + esc(pendingChat.text) + '</p><span class="meta">Sending… <button class="link" data-act="chat-undo">Undo</button></span></li>');
+      items.push('<li class="msg you"><p>' + esc(pendingChat.text) + '</p><span class="meta">' + esc(t('send_sending')) + ' <button class="link" data-act="chat-undo">' + esc(t('undo')) + '</button></span></li>');
     }
     if (!items.length) {
-      items.push('<li class="sys">No messages yet. Write to the agent about the whole board. Card answers go with Send in the toolbar.</li>');
+      items.push('<li class="sys">' + esc(t('chat_empty')) + '</li>');
     }
     return items.join('');
   }
   function chatHtml() {
     if (!S.chatOpen) {
       var n = agentUnread();
-      return '<aside class="chat" aria-label="Chat with the agent"><button class="chat-pill" data-act="chat" aria-expanded="false" title="Message the agent (c)">' +
-        'Message the agent' + (n ? '<i class="dot" title="' + n + ' new from the agent"></i>' : '') + '</button></aside>';
+      return '<aside class="chat" aria-label="' + esc(t('chat_label')) + '"><button class="chat-pill" data-act="chat" aria-expanded="false" title="' + esc(t('chat_message_title')) + '">' +
+        esc(t('chat_message')) + (n ? '<i class="dot" title="' + esc(t('chat_unread', { n: n })) + '"></i>' : '') + '</button></aside>';
     }
-    var t = turn();
-    return '<aside class="chat open" aria-label="Chat with the agent"><section class="chat-panel">' +
-      '<div class="chat-head"><b>The agent</b><span>' + esc(t.text) + '</span><button class="btn" data-act="chat" title="Close (Esc). Your draft is kept.">Close</button></div>' +
+    var now = turn();
+    return '<aside class="chat open" aria-label="' + esc(t('chat_label')) + '"><section class="chat-panel">' +
+      '<div class="chat-head"><b>' + esc(t('chat_agent')) + '</b><span>' + esc(now.text) + '</span><button class="btn" data-act="chat" title="' + esc(t('chat_close_title')) + '">' + esc(t('close')) + '</button></div>' +
       '<ol class="chat-thread" aria-live="polite">' + chatThreadHtml() + '</ol>' +
-      '<div class="chat-compose"><textarea data-field="note" rows="2" placeholder="Message the agent" aria-label="Message the agent">' + esc(D.note || '') + '</textarea>' +
-      '<button class="send" data-act="chat-send" title="Send now (Enter). Shift + Enter makes a new line.">Send</button></div>' +
-      '<p class="chat-hint">' + (B.live ? 'Enter sends now, apart from your card answers.' : 'No server is running: Send copies the message for you to paste.') + '</p>' +
+      '<div class="chat-compose"><textarea data-field="note" rows="2" placeholder="' + esc(t('chat_message')) + '" aria-label="' + esc(t('chat_message')) + '">' + esc(D.note || '') + '</textarea>' +
+      '<button class="send" data-act="chat-send" title="' + esc(t('chat_send_title')) + '">' + esc(t('send')) + '</button></div>' +
+      '<p class="chat-hint">' + esc(t(B.live ? 'chat_hint_live' : 'chat_hint_static')) + '</p>' +
       '</section></aside>';
   }
   function scrollThread() { var th = $('.chat-thread'); if (th) th.scrollTop = th.scrollHeight; }
@@ -1105,7 +1130,7 @@
         saveDrafts();
         toggleChat(true);
         toast(msg);
-      }, 'Copy your message');
+      }, t('chat_copy_title'));
       return;
     }
     // Undo over confirmation, as with Send: the message leaves after a short hold.
@@ -1144,7 +1169,7 @@
       D.note = p.text + (D.note ? '\n' + D.note : '');
       saveDrafts();
       renderChat();
-      toast('Not sent: ' + e.message + '. Your message is back in the box.');
+      toast(t('chat_not_sent', { error: e.message }));
     });
   }
 
@@ -1195,7 +1220,7 @@
   }
   function nextWaiting() {
     var list = $$('.card').filter(function (el) { return unsent(B.cards[el.dataset.id]) && !hasDraftAnswer(B.cards[el.dataset.id]); });
-    if (!list.length) { toast('Nothing is waiting on you.'); return; }
+    if (!list.length) { toast(t('empty_yours')); return; }
     var k = list.findIndex(function (el) { return el.dataset.id === S.focus; });
     focusCard(list[(k + 1) % list.length].dataset.id, { open: true });
   }
@@ -1207,7 +1232,7 @@
     d.mark = d.mark === m ? undefined : m;
     touchDrafts();
     $$('[data-mark]', cardEl(id)).forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.mark === d.mark)); });
-    cardEl(id).querySelector('.stamp').textContent = d.mark ? MARK_STAMP[d.mark] : '';
+    cardEl(id).querySelector('.stamp').textContent = d.mark ? t(MARK_STAMP[d.mark]) : '';
     applyView();
   }
   function toggleReply(id, force) {
@@ -1220,7 +1245,7 @@
     if (open) box.querySelector('textarea').focus();
   }
   function moveCard(id, dir) {
-    if (S.sort !== 'board') { toast('Switch to board order to move cards.'); return; }
+    if (S.sort !== 'board') { toast(t('move_needs_board_order')); return; }
     var el = cardEl(id);
     var sib = dir < 0 ? el.previousElementSibling : el.nextElementSibling;
     if (!sib) return;
@@ -1253,8 +1278,8 @@
     var back = document.activeElement;
     pendingSend = setTimeout(function () { post(); restoreFocus(back); }, UNDO_MS);
     $('[data-act="send"]').disabled = true;
-    $('[data-act="send"]').textContent = 'Sending\u2026';
-    toast('Sending round ' + (B.sends.length + 1) + '.', 'Undo', function () { undoSend(); restoreFocus(back); }, UNDO_MS);
+    $('[data-act="send"]').textContent = t('send_sending');
+    toast(t('send_round', { round: B.sends.length + 1 }), t('undo'), function () { undoSend(); restoreFocus(back); }, UNDO_MS);
     var u = $('.toast button');
     if (u) u.focus();
   }
@@ -1263,7 +1288,7 @@
     if (!pendingSend) return;
     clearTimeout(pendingSend);
     pendingSend = null;
-    toast('Not sent. Your responses are kept.');
+    toast(t('send_undone'));
     applyView();
   }
   function restoreFocus(el) {
@@ -1283,19 +1308,19 @@
       D = emptyDrafts();
       saveDrafts();
       S.replyOpen.clear();
-      toast('Sent round ' + j.round + '. The agent reads it on its next step.');
+      toast(t('send_sent', { round: j.round }));
       return refresh();
     }).catch(function (e) {
-      toast('Not sent: ' + e.message + '. Your responses are kept.');
+      toast(t('send_failed', { error: e.message }));
       applyView();
     });
   }
 
   function openCopy(text, after, title) {
     var dlg = document.createElement('dialog');
-    dlg.innerHTML = '<h2>' + esc(title || 'Copy your reply') + '</h2><p>No board server is running, so the reply goes through the clipboard. Paste it into your agent. With <code>cards serve</code>, Send writes it to disk instead.</p>' +
-      '<textarea readonly aria-label="Reply text">' + esc(text) + '</textarea>' +
-      '<div class="row"><button class="btn" data-close>Close</button><button class="send" data-copy>Copy</button></div>';
+    dlg.innerHTML = '<h2>' + esc(title || t('send_copy_title')) + '</h2><p>' + tHtml('send_copy_body', { cmd: '<code>cards serve</code>' }) + '</p>' +
+      '<textarea readonly aria-label="' + esc(t('send_copy_label')) + '">' + esc(text) + '</textarea>' +
+      '<div class="row"><button class="btn" data-close>' + esc(t('close')) + '</button><button class="send" data-copy>' + esc(t('copy')) + '</button></div>';
     document.body.appendChild(dlg);
     var ta = dlg.querySelector('textarea');
     function done(msg) {
@@ -1307,8 +1332,8 @@
       toast(msg);
     }
     function copy() {
-      var fallback = function () { ta.select(); try { document.execCommand('copy'); done('Copied. Paste it into your agent.'); } catch (e) { toast('Select the text and copy it.'); } };
-      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { done('Copied. Paste it into your agent.'); }, fallback);
+      var fallback = function () { ta.select(); try { document.execCommand('copy'); done(t('send_copy_done')); } catch (e) { toast(t('send_copy_failed')); } };
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { done(t('send_copy_done')); }, fallback);
       else fallback();
     }
     dlg.querySelector('[data-copy]').addEventListener('click', copy);
@@ -1319,12 +1344,13 @@
   }
 
   function openHelp() {
-    var keys = [['j / k', 'Next / previous card'], ['Enter', 'Open or close the card'], ['Esc', 'Clear focus'], ['n', 'Next card waiting on you'],
-      ['1 2 3', 'Claim / Gist / Full'], ['d', 'Desk or rack'], ['z', 'Desk zoom: Fit, 50%, 100%'], ['c', 'Message the agent'], ['=  -  m', 'Keep / Drop / More'], ['r', 'Reply to the card'], ['Alt + arrows', 'Move the card'],
-      ['/', 'Find'], ['f', 'Next filter'], ['s', 'Next order'], ['Ctrl + Enter', 'Send'], ['Esc', 'Undo a send in its first 5 seconds']];
+    // [the key, as typed; what it does]. Key names stay literal; 'Alt + arrows' names keys in words, so it translates.
+    var keys = [['j / k', t('keys_step')], ['Enter', t('keys_open')], ['Esc', t('keys_clear')], ['n', t('keys_next_waiting')],
+      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['z', t('keys_zoom')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
+      ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')], ['Ctrl + Enter', t('send')], ['Esc', t('keys_undo_send')]];
     var dlg = document.createElement('dialog');
-    dlg.innerHTML = '<h2>Keys</h2><dl class="keys">' + keys.map(function (k) { return '<dt>' + k[0] + '</dt><dd>' + k[1] + '</dd>'; }).join('') + '</dl>' +
-      '<div class="row"><button class="btn" data-close>Close</button></div>';
+    dlg.innerHTML = '<h2>' + esc(t('keys_title')) + '</h2><dl class="keys">' + keys.map(function (k) { return '<dt>' + esc(k[0]) + '</dt><dd>' + esc(k[1]) + '</dd>'; }).join('') + '</dl>' +
+      '<div class="row"><button class="btn" data-close>' + esc(t('close')) + '</button></div>';
     document.body.appendChild(dlg);
     dlg.querySelector('[data-close]').addEventListener('click', function () { dlg.close(); });
     dlg.addEventListener('close', function () { dlg.remove(); });
@@ -1358,7 +1384,7 @@
   function refresh() {
     return fetch('/api/' + encodeURIComponent(ID) + '/data', { cache: 'no-store' }).then(function (r) {
       return r.json().then(function (j) {
-        if (r.status === 409) { notice('The board source has an error at line ' + j.errors[0].line + ': ' + j.errors[0].msg + '. Showing rev ' + B.board.rev + '.'); return; }
+        if (r.status === 409) { notice(t('notice_error', { line: j.errors[0].line, msg: j.errors[0].msg, rev: B.board.rev })); return; }
         if (!r.ok) throw new Error(r.status);
         var same = j.board.rev === B.board.rev && j.sends.length === B.sends.length && j.read === B.read;
         var chatMoved = (j.chat || []).length !== (B.chat || []).length;
@@ -1368,7 +1394,7 @@
         // data no longer has. The chat box is safe: its draft lives in D.note.
         var act = document.activeElement;
         var typing = act && act.tagName === 'TEXTAREA' && !act.closest('.chat');
-        if (typing) { pendingData = j; notice('The agent updated the board. It refreshes when you leave the text box.'); return; }
+        if (typing) { pendingData = j; notice(t('notice_pending')); return; }
         applyData(j);
       });
     }).catch(function () { /* the server went away; the page keeps working as a static board */ });
@@ -1376,6 +1402,7 @@
   function applyData(next) {
     var before = B;
     B = next;
+    document.documentElement.lang = B.board.lang || 'en';
     pendingData = null;
     var moved = [];
     Object.keys(B.cards).forEach(function (id) {
@@ -1413,6 +1440,49 @@
   function typingTarget(t) { return t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT' || t.tagName === 'SELECT'); }
   var INTERACTIVE = 'a, button, input, textarea, select, label, summary, details';
 
+  // ---- an image at full size: a dialog in the page ----
+  // The image fits the window; a click on it shows its real pixels and the
+  // view scrolls; a click beside it, Close or Esc goes back to the card.
+  function openImage(btn) {
+    var img = btn.querySelector('img');
+    var fig = btn.closest('figure');
+    if (!img) return;
+    var dlg = document.createElement('dialog');
+    dlg.className = 'lightbox';
+    dlg.setAttribute('aria-label', img.alt);
+    dlg.innerHTML = '<div class="lightbox-frame"><div class="lightbox-view"></div>' +
+      '<div class="lightbox-bar"><span class="lightbox-cap"></span>' +
+      '<button type="button" data-close>' + esc(t('lightbox_close')) + '</button></div></div>';
+    var big = document.createElement('img');
+    big.src = img.src;
+    big.alt = img.alt;
+    big.title = t('lightbox_actual');
+    // Real pixels are CSS pixels: an @2x image shows at the size its card gives it, unscaled.
+    var cssW = img.getAttribute('width');
+    var cardId = btn.closest('.card') ? btn.closest('.card').dataset.id : null;
+    $('.lightbox-view', dlg).appendChild(big);
+    var cap = fig && fig.querySelector('figcaption');
+    if (cap) $('.lightbox-cap', dlg).innerHTML = cap.innerHTML;
+    dlg.addEventListener('click', function (e) {
+      if (e.target === big) {
+        var actual = dlg.classList.toggle('actual');
+        big.style.width = actual && cssW ? cssW + 'px' : '';
+        big.title = t(actual ? 'lightbox_fit' : 'lightbox_actual');
+        return;
+      }
+      if (e.target.closest('[data-close]') || e.target.classList.contains('lightbox-view')) dlg.close();
+    });
+    dlg.addEventListener('close', function () {
+      dlg.remove();
+      // A live update may have redrawn the card while the image was open.
+      var back = document.contains(btn) ? btn : cardId && cardEl(cardId);
+      if (back) back.focus({ preventScroll: true });
+    });
+    document.body.appendChild(dlg);
+    dlg.showModal();
+    $('[data-close]', dlg).focus();
+  }
+
   app.addEventListener('click', function (e) {
     var t = e.target;
     if (swallow) { swallow = false; return; }
@@ -1420,6 +1490,14 @@
     if (lede && !t.closest('a')) { lede.classList.toggle('full'); scheduleWires(); return; }
     var zb = t.closest('[data-zoom]');
     if (zb) { setZoom(zb.dataset.zoom === 'fit' ? 'fit' : +zb.dataset.zoom); return; }
+    var fz = t.closest('.fig-zoom');
+    if (fz) {
+      // On a desk zoomed out below reading size, a click reads the card first, as anywhere on a card.
+      var fc = fz.closest('.card');
+      if (fc && deskOn() && S.scale < 0.75) { focusCard(fc.dataset.id, { open: true, scroll: false }); return; }
+      openImage(fz);
+      return;
+    }
     var go = t.closest('[data-goto]');
     if (go) { focusCard(go.dataset.goto, { open: go.hasAttribute('data-open') }); return; }
     var ref = t.closest('a.ref[data-ref]');
@@ -1651,28 +1729,28 @@
   }, { passive: false });
 
   document.addEventListener('keydown', function (e) {
-    var t = e.target;
+    var target = e.target;
     // In the chat box, Enter sends the message; Shift + Enter makes a new line.
-    if (t.matches && t.matches('.chat textarea') && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); return; }
+    if (target.matches && target.matches('.chat textarea') && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); return; }
     if (e.key === 'Escape') {
       if (document.querySelector('dialog[open]')) return;
       if (pendingSend) { e.preventDefault(); undoSend(); return; }
       if (pendingChat) { e.preventDefault(); chatUndo(); return; }
-      if (t.closest && t.closest('.chat')) { toggleChat(false); return; }
-      if (typingTarget(t)) { t.blur(); if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true }); return; }
+      if (target.closest && target.closest('.chat')) { toggleChat(false); return; }
+      if (typingTarget(target)) { target.blur(); if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true }); return; }
       if (S.focus) { S.open.delete(S.focus); clearFocus(); }
       return;
     }
-    if (typingTarget(t) || e.metaKey || e.ctrlKey || document.querySelector('dialog[open]')) return;
-    var tc = t.closest && t.closest('.card');
+    if (typingTarget(target) || e.metaKey || e.ctrlKey || document.querySelector('dialog[open]')) return;
+    var tc = target.closest && target.closest('.card');
     var id = tc ? tc.dataset.id : S.focus;
     if (e.altKey && id && /^Arrow/.test(e.key)) {
       e.preventDefault();
       // On a desk you arranged, Alt + arrows move the card one grid step. On the
       // rule layout, Up and Down reorder it in its section; Left and Right do nothing.
       if (S.view === 'desk' && PLACE) { nudge(id, e.key); return; }
-      if (S.view === 'desk' && /Left|Right/.test(e.key)) { toast('Alt + Up / Down moves a card in its section. Drag its top strip to place it anywhere.'); return; }
+      if (S.view === 'desk' && /Left|Right/.test(e.key)) { toast(t('desk_alt_left_right')); return; }
       moveCard(id, e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1);
       return;
     }
@@ -1681,7 +1759,9 @@
       case 'j': case 'ArrowDown': e.preventDefault(); step(1); break;
       case 'k': case 'ArrowUp': e.preventDefault(); step(-1); break;
       case 'Enter': case 'o':
-        if (id && (t === cardEl(id) || t === document.body || tc)) {
+        // Enter on a button, a link or a summary inside a card is that control's own.
+        if (e.key === 'Enter' && target !== cardEl(id) && target.closest && target.closest(INTERACTIVE)) break;
+        if (id && (target === cardEl(id) || target === document.body || tc)) {
           e.preventDefault();
           if (S.open.has(id)) S.open.delete(id); else S.open.add(id);
           applyView();
@@ -1699,7 +1779,7 @@
       case 'z': if (deskOn()) cycleZoom(); break;
       case 'c': e.preventDefault(); toggleChat(true); break;
       case 'f': S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); break;
-      case 's': S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast('Order: ' + $('[data-sort] option[value="' + S.sort + '"]').textContent); break;
+      case 's': S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast(t('sort_toast', { order: $('[data-sort] option[value="' + S.sort + '"]').textContent })); break;
       case '/': e.preventDefault(); $('[data-search]').focus(); break;
       case '?': openHelp(); break;
     }

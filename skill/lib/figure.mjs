@@ -16,8 +16,14 @@
 //   direction: right                           left to right (default: down)
 
 import { esc, inline } from './md.mjs';
+import { en } from './i18n.mjs';
 
 export const FIGURE_LANGS = ['sketch', 'flow'];
+// An image file shown in a card is a figure too: numbered, captioned, under the gist.
+export const IMAGE_EXT = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml' };
+export const extOf = (p) => (String(p).match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
+export const isImage = (p) => extOf(p) in IMAGE_EXT;
+export const isFigure = (b) => (b.type === 'code' && FIGURE_LANGS.includes(b.lang)) || (b.type === 'file' && isImage(b.path));
 export const LIMITS = { sketchCols: 72, flowBoxes: 12 };
 
 const CH = 7.2;     // advance of one column of 12px monospace
@@ -35,10 +41,10 @@ export function cols(s) {
   return n;
 }
 
-function frame(kind, body, caption, label, ctx, extra = '') {
+export function frame(kind, body, caption, label, ctx, extra = '') {
   const cap = caption ? ' ' + (ctx.inline || inline)(caption, ctx) : '';
   return `<figure class="fig" data-kind="${kind}"${extra}><div class="fig-body">${body}</div>` +
-    `<figcaption><b>Fig. ${esc(label)}</b>${cap}</figcaption></figure>`;
+    `<figcaption>${label ? `<b>${esc((ctx.t || en)('fig'))} ${esc(label)}</b>` : ''}${cap}</figcaption></figure>`;
 }
 
 // ---------- sketch ----------
@@ -56,7 +62,10 @@ export function sketchLines(text) {
 export function sketch(text, caption, label, ctx = {}) {
   const lines = sketchLines(text);
   const w = Math.max(0, ...lines.map(cols));
-  const aria = esc('Sketch' + (caption ? ': ' + caption : ''));
+  const T = ctx.t || en;
+  // A screen reader says the caption's words, not its Org marks.
+  const said = caption && (ctx.plain ? ctx.plain(caption) : caption);
+  const aria = esc(said ? T('fig_sketch_named', { caption: said }) : T('fig_sketch'));
   const body = `<pre class="sketch" role="img" aria-label="${aria}">${esc(lines.join('\n'))}</pre>`;
   return { html: frame('sketch', body, caption, label, ctx), width: Math.ceil(w * CH) + 2 * FIG_PAD, cols: w };
 }
@@ -442,8 +451,14 @@ export function flow(text, caption, label, ctx = {}) {
   const g = parseFlow(text);
   const L = layoutFlow(g);
   const name = (k) => g.nodes[k].label;
-  const said = g.edges.map((e) => `${name(e.a)} to ${name(e.b)}${e.label ? ' (' + e.label + ')' : ''}`).join('; ');
-  const aria = esc(`Diagram${caption ? ': ' + caption : ''}. ${said || g.nodes.map((nd) => nd.label).join(', ')}`);
+  const T = ctx.t || en;
+  const edge = (e) => (e.label
+    ? T('fig_edge_label', { a: name(e.a), b: name(e.b), label: e.label })
+    : T('fig_edge', { a: name(e.a), b: name(e.b) }));
+  const said = g.edges.map(edge).join(T('fig_list_sep'));
+  const cap = caption && (ctx.plain ? ctx.plain(caption) : caption);
+  const head = cap ? T('fig_flow_named', { caption: cap }) : T('fig_flow');
+  const aria = esc(`${head}. ${said || g.nodes.map((nd) => nd.label).join(', ')}`);
   const parts = [];
   for (const e of L.edges) {
     parts.push(`<g class="fe${e.dashed ? ' dash' : ''}${e.back ? ' back' : ''}" data-a="${e.a}" data-b="${e.b}"><path d="${e.d}"/>` +

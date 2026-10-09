@@ -14,6 +14,8 @@
 //   | a | b |  |---+---|         a table; the rule ends the head
 //   *bold* /em/ _underline_ +strike+ =verbatim= ~code~
 //   [[#id]] [[#id][text]]        a card reference; [[https://...][text]] a link
+//   [[file:shot.png]]            alone in a paragraph: a file the card shows
+//   #+include: "f.js" src js :lines "10-40"   an excerpt of a project file
 
 import { esc, link } from './md.mjs';
 
@@ -72,7 +74,12 @@ export function parseOrgBlocks(src, { top = true } = {}) {
     }
     m = line.match(KEYWORD_RE);
     if (m) {
-      if (m[1].toLowerCase() === 'caption') caption = m[2];
+      const key = m[1].toLowerCase();
+      if (key === 'caption') caption = m[2];
+      if (key === 'include') {
+        blocks.push({ type: 'include', ...parseInclude(m[2]), info: caption, line: start });
+        caption = '';
+      }
       i++;
       continue;
     }
@@ -114,10 +121,42 @@ export function parseOrgBlocks(src, { top = true } = {}) {
     const para = [line.trim()];
     i++;
     while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) para.push(lines[i++].trim());
-    blocks.push({ type: 'paragraph', text: para.join(' '), line: start });
+    const file = fileTarget(para.join(' '));
+    blocks.push(file ? { type: 'file', path: file, info: caption, line: start } : { type: 'paragraph', text: para.join(' '), line: start });
     caption = '';
   }
   return blocks;
+}
+
+// A paragraph that is one bare link to a file is the file itself, as Org shows
+// an image link with no description inline. A card reference or a web link
+// stays text. The path keeps Org's meaning: relative to board.org.
+const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+function fileTarget(text) {
+  const m = text.match(/^\[\[([^\]]+)\]\]$/);
+  if (!m) return null;
+  const target = m[1].trim();
+  if (ORG_REF.test(target) && (target.startsWith('#') || !/[./:]/.test(target))) return null;
+  if (SCHEME_RE.test(target) && !/^file:/i.test(target)) return null;
+  return target.replace(/^file:/i, '').replace(/::.*$/, '') || null;
+}
+
+// #+include: "path" [src lang | example | quote] [:lines "a-b"]. As in Org,
+// :lines "10-40" is lines 10 to 39: the upper end is not included.
+export function parseInclude(arg) {
+  const m = String(arg).match(/^"([^"]*)"|^(\S+)/);
+  const file = m ? (m[1] ?? m[2]) : '';
+  let rest = m ? arg.slice(m[0].length) : '';
+  const lines = rest.match(/:lines\s+"(\d*)-(\d*)"/i);
+  rest = rest.replace(/:[\w-]+\s+("[^"]*"|\S+)/g, ' ');
+  const [kind = '', lang = ''] = rest.trim().split(/\s+/).filter(Boolean).map((w) => w.toLowerCase());
+  return {
+    path: file.replace(/^file:/i, ''),
+    kind,
+    lang: kind === 'src' ? lang : '',
+    from: lines && lines[1] ? +lines[1] : null,
+    to: lines && lines[2] ? +lines[2] : null,
+  };
 }
 
 // "- key :: value" is a description item; "- :: value" continues the row above with no key.
@@ -206,8 +245,9 @@ export function orgInline(src, ctx = {}) {
       if (ref && (target.startsWith('#') || !/[./:]/.test(target))) {
         return keep(ctx.ref ? ctx.ref(ref[1], label) : `<span class="ref">${label || esc(ref[1])}</span>`);
       }
-      const url = target.replace(/^file:/, '');
-      return keep(link(url, label || esc(target)));
+      // file:x.js::42 names a line; the browser can only open the file.
+      const url = /^file:/i.test(target) || !SCHEME_RE.test(target) ? target.replace(/^file:/i, '').replace(/::.*$/, '') : target;
+      return keep(link(url, label || esc(target.replace(/^file:/i, ''))));
     });
     s = s.replace(/(^|[\s(])(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])/g, (_, pre, u) => pre + keep(link(u, esc(u))));
     for (const [re, tag] of EMPH) s = s.replace(re, (_, pre, c) => pre + keep(`<${tag}>${run(c)}</${tag}>`));

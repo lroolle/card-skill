@@ -18,6 +18,21 @@ with its log and its rendered page. Round 2 is answered: the canvas and its
 five choices are approved (D17). One ask stays open: `ask-dogfood` (a real
 task; it was untouched in round 2, and untouched is not consent).
 
+Round 3 (the human's request on 2026-10-09: keep refining with burnish;
+the repo apart from the workspace; open-source name, license and site;
+i18n; previews of files):
+- The repo moved to `worktree/card-skill` inside the workspace, with its
+  history. The workspace keeps the vault, handoffs and reviews.
+- Cards show files (D19): images, excerpts with line numbers, chips.
+- The page chrome follows `#+language:` (D20): English and Simplified
+  Chinese. A section titled only in Chinese gets the id `section-<n>`.
+- CI: `.github/workflows/test.yml` runs every test with Chromium on each
+  push; a skipped browser test fails it. Unverified until the first push.
+- The first real board is `.cards/open-source/` (not in git: working
+  boards stay local). It asks four things: the repo name, the license, the
+  Pages site, and a fresh history. Nothing is published until they are
+  answered.
+
 The skill is installed as a real copy at `~/.claude/skills/card-skill`
 (2026-10-09). The copy does not follow the repo: after a change, copy it
 again (`rm -rf ~/.claude/skills/card-skill && cp -R skill ~/.claude/skills/card-skill`).
@@ -133,7 +148,10 @@ comment in `board.js`).
   (`playwright install-deps webkit`, an apt install) that are not in this
   container.
 - A real agent session over several turns with a human answering.
-- Boards past 30 cards, and Chinese boards.
+- Boards past 30 cards. Chinese boards are checked in Chromium only (chrome,
+  section ids, desk lines), not by a native reader on a real device.
+- The image viewer on a touch screen, and a chip's link on a served page
+  (it opens the file from disk only).
 
 ## Known limits
 
@@ -142,8 +160,11 @@ comment in `board.js`).
 - `cards render` and a running `cards serve` can both sync the log at the
   same moment; a card change could be recorded twice. No lock yet.
 - Unsent drafts are per browser (`localStorage`).
-- The markdown subset has no images, no HTML, no footnotes. Diagrams are the
-  two figure blocks only; there is no agent-written SVG (D13).
+- The markdown dialect has no images and no file excerpts; those are Org
+  only (D19). Diagrams are the two figure blocks only; there is no
+  agent-written SVG (D13).
+- Images make the page bigger: a board with three 2x screenshots is about
+  1.5 MB. Warnings start at 1 MB per image and 8 MB per board.
 - A sketch with CJK characters loses its columns (fonts differ in width).
 - On the desk, a long line may share a gap with other lines; with many long
   lines a gap gets crowded. Boards past 30 cards are not tested on the desk.
@@ -157,7 +178,9 @@ comment in `board.js`).
 
 ## Next, in order
 
-1. The first real board, on a task the human names (`ask-dogfood`).
+1. The answers on `.cards/open-source`: then the license file, the scrub of
+   private names and vault links, the rename (if chosen), the README proof
+   section, the Pages build, and a fresh public repo.
 2. The reply hook: a Claude Code `UserPromptSubmit` hook that runs
    `cards inbox --quiet`, so the agent sees unread rounds without asking.
    (The install step is done.)

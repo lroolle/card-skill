@@ -78,6 +78,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 :lang(zh), :lang(ja) { line-height: 1.75; }
+/* Chinese and Japanese have no italics; a browser slants the glyphs instead.
+   Emphasis is a dot under each character, as in print. */
+:lang(zh) pre, :lang(ja) pre { line-height: 1.5; }
+:lang(zh) em, :lang(ja) em { font-style: normal; text-emphasis: filled dot; text-emphasis-position: under right; }
 ::selection { background: var(--accent-soft); }
 a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -314,6 +318,69 @@ svg.flow { display: block; overflow: visible; }
 .flow .fe text { fill: var(--fg-2); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
 .flow .fe.hot path { stroke: var(--fg); stroke-width: 1.75; }
 .flow .fe.hot text { fill: var(--fg); }
+
+/* ---------- files: an image, an excerpt, a chip ---------- */
+
+/* An image is a figure: it fills its frame edge to edge, and opens full size
+   in the page. The file name and pixel size sit in the caption, as a source line. */
+.fig[data-kind="image"] .fig-body { padding: 0; overflow: hidden; background: var(--surface-2); }
+.fig-zoom { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.fig-zoom img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.fig-zoom:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.fig-file { margin-left: var(--s1); font-family: var(--mono); color: var(--fg-3); white-space: nowrap; }
+
+/* An excerpt is the file, not a retelling: its path, its range, its line numbers. */
+.excerpt { margin: 0 0 var(--s3); min-width: 0; }
+.excerpt figcaption { display: flex; flex-wrap: wrap; gap: 0 var(--s2); margin-bottom: var(--s1); font-size: var(--t-xs); color: var(--fg-2); }
+.excerpt-src { font-family: var(--mono); color: var(--fg); overflow-wrap: anywhere; }
+.excerpt-range { color: var(--fg-3); }
+.excerpt pre { margin: 0; font-size: var(--t-xs); }
+.excerpt pre .ln {
+  display: inline-block; min-width: var(--ln, 2ch); margin-right: var(--s3);
+  text-align: right; color: var(--fg-3); user-select: none;
+}
+.excerpt-more > pre { margin-top: calc(-1 * var(--s3) + 1px); border-top: 0; border-radius: 0 0 var(--r) var(--r); }
+.excerpt-more:not([open]) > summary { margin-top: var(--s1); }
+.excerpt-more[open] > summary { margin-bottom: var(--s3); }
+.excerpt-more > summary { font-size: var(--t-xs); color: var(--fg-2); cursor: pointer; }
+.excerpt-more > summary:hover { color: var(--fg); }
+.excerpt:has(.excerpt-more[open]) > pre { border-bottom: 0; border-radius: var(--r) var(--r) 0 0; }
+
+/* Any other file: what it is and how big, one click from disk. */
+.file { margin: 0 0 var(--s3); }
+.file-chip {
+  display: inline-flex; align-items: baseline; gap: var(--s2); max-width: 100%;
+  padding: var(--s1) var(--s2); border: 1px solid var(--line); border-radius: var(--r-in);
+  background: var(--surface-2); color: var(--fg); font-size: var(--t-xs); text-decoration: none;
+}
+a.file-chip:hover { border-color: var(--line-strong); }
+.file-ext { font-weight: var(--w-strong); letter-spacing: .04em; color: var(--fg-2); }
+.file-name { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.file-size { color: var(--fg-3); white-space: nowrap; }
+.file-chip.missing { color: var(--fg-3); border-style: dashed; }
+
+/* Full size, in the page: the image fits the window; a click shows its real
+   pixels, and the window scrolls. Esc or Close returns to the card. */
+dialog.lightbox {
+  width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 0;
+  border: 0; background: transparent; color: var(--fg);
+}
+dialog.lightbox::backdrop { background: var(--bg); }
+.lightbox-frame { display: flex; flex-direction: column; height: 100%; }
+.lightbox-view { flex: 1; min-height: 0; overflow: auto; display: flex; align-items: center; justify-content: center; padding: var(--s5); }
+/* A flex item of a definite height: max-height: 100% holds for a tall image too. */
+.lightbox-view img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; cursor: zoom-in; box-shadow: 0 1px 2px var(--shadow), 0 8px 24px var(--shadow); }
+.lightbox.actual .lightbox-view { align-items: flex-start; justify-content: flex-start; }
+.lightbox.actual .lightbox-view img { max-width: none; max-height: none; cursor: zoom-out; }
+.lightbox-bar {
+  display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s4);
+  border-top: 1px solid var(--line); background: var(--surface); font-size: var(--t-s);
+}
+.lightbox-bar .lightbox-cap { flex: 1; min-width: 0; color: var(--fg-2); }
+.lightbox-bar .lightbox-cap b { margin-right: var(--s1); color: var(--fg); font-weight: var(--w-strong); }
+.lightbox-bar button { min-height: 44px; padding: 0 var(--s4); border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); color: var(--fg); font: inherit; cursor: pointer; }
+.lightbox-bar button:hover { border-color: var(--line-strong); }
+.lightbox-bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* A card whose first figure is wide takes two columns on the rack, when two fit. */
 @media (min-width: 721px) {

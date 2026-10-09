@@ -283,3 +283,62 @@ Rejected: the agent replying by editing the board lede (it is not a
 conversation, and it would be a revision); a chat that also carries the card
 drafts (it would split the batch silently).
 Tests: `test/e2e.test.mjs` "chat", `test/review.test.mjs` "cards say".
+
+## D19. Cards show files: images, excerpts, and a chip for the rest
+
+2026-10-09. Proposed (the human asked: inspect content in the card, not
+elsewhere). On the open-source board, card `files`.
+Org's own syntax, nothing new: a paragraph that is one bare
+`[[file:x.png]]` is an image figure (numbered, captioned, the first one
+under the gist); `#+include: "f" src lang :lines "a-b"` is an excerpt with
+its path, its range and line numbers (Org's range: the upper end is not
+included); any other file alone on a line is a chip with type, name and
+size. Paths are relative to `board.org`, as in Org.
+The compiler reads every file at render and embeds it: an image as a data
+URI with its pixel size from the header (the desk measures cards before
+images decode), an excerpt as escaped text. A click opens an image in a
+dialog in the page; a second click shows its real pixels.
+Fences, as errors with a fix: a missing file, an absolute path, a file
+outside the project (the parent of `.cards`), a file that may hold secrets
+(`.env`, keys, `.git/`), a binary excerpt, a range outside the file.
+Warnings: an image over 1 MB, 8 MB of files on a board, an excerpt over
+120 lines, an image with no caption.
+Versions: `canonical()` keeps the path; the log keeps a hash of each file a
+card shows (`files` on the card event), so a changed image, or a changed
+line inside an excerpt, is a new version, and an edit elsewhere is not.
+Why: a retelling of a screenshot or a code path asks the human to trust
+the agent; the file itself lets them check. The page stays one file (D9).
+Cost: the page grows with every image; the warnings cap it in practice. A
+chip's link works when the board opens from disk, not on a served page.
+Rejected: fetching remote images (the page would leak the reader and break
+offline); previews of PDF and video (embedding them makes the page huge and
+the viewers differ per browser); paths relative to the project root (it
+breaks the board in Emacs and on GitHub, where Org paths are relative to
+the file); a markdown syntax for files (boards are Org, D16).
+Tests: `test/assets.test.mjs`.
+
+## D20. The page chrome speaks the board's language
+
+2026-10-09. Proposed (the human asked: i18n in the card board, without
+extra complexity). On the open-source board, card `i18n`.
+`#+language:` picks the string table for buttons, labels and help: one flat
+JSON file per language in `skill/runtime/lang/`; `en.json` holds every key,
+and a missing key or language falls back to English. `en` and `zh-Hans`
+ship; `zh`, `zh-CN` and `zh-Hans-CN` use `zh-Hans`. The compiler puts only
+the board's table into the page. Dates follow the board's language. On a
+Chinese or Japanese board, emphasis is a dot under each character, not a
+slanted glyph.
+Why: one board is written for one human in one language, so the board, not
+the browser, decides. A page with Chinese cards and English buttons reads
+as two products.
+Cost: every new string in the runtime needs a key in each file; a test
+checks that every language has every key and the same placeholders.
+Rejected: a language switch on the page (it doubles the writing and the
+versions, and two languages of one card can say different things);
+following the browser's language (the chrome would disagree with the
+cards); translating the reply to the agent (the agent reads English data,
+and the human's own words go through as written); an i18n library (a
+lookup and a placeholder fill are the whole need).
+Open: a Chinese font in the page (the CJK subset of round 1) needs a
+subsetter; today the page uses the system font.
+Tests: `test/i18n.test.mjs`.

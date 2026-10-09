@@ -1,4 +1,4 @@
-// compile.mjs -- board.md + log.jsonl -> page data -> one self-contained HTML file.
+// compile.mjs -- board.org + log.jsonl -> page data -> one self-contained HTML file.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -6,8 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { parseBoard, anatomy, syntaxOf, parseCard } from './board.mjs';
 import { lint } from './lint.mjs';
 import { esc, renderBlocks, parseFacts } from './md.mjs';
-import { FIGURE_LANGS, renderFigure, WIDE } from './figure.mjs';
+import { renderFigure, isFigure, WIDE } from './figure.mjs';
+import { resolveAssets, assetHtml, assetKey, imageFigure } from './assets.mjs';
 import { sync, fold, readLog } from './store.mjs';
+import { strings as uiStrings, t } from './i18n.mjs';
 import '../runtime/digest.js';
 
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
@@ -15,9 +17,13 @@ const HISTORY_KEEP = 4;
 
 // The render context of one board: its format's inline renderer, and card
 // references drawn as numeral + claim (or the link text the author gave).
-function refCtx(byId, nOf, sx) {
+function refCtx(byId, nOf, sx, table, assets = null) {
   const ctx = {
     inline: sx.inline,
+    plain: sx.plain,
+    t: (key, vars) => t(table, key, vars),
+    assets,
+    asset: (b) => assetHtml(b, assets, ctx),
     ref(id, label) {
       const c = byId.get(id);
       if (!c) return `<span class="ref missing">${label || esc(id)}</span>`;
@@ -28,6 +34,13 @@ function refCtx(byId, nOf, sx) {
   return ctx;
 }
 
+// A drawn figure (sketch, flow) or an image file, as { html, width }.
+function figureOf(b, label, ctx) {
+  if (b.type !== 'file') return renderFigure(b, label, ctx);
+  const a = ctx.assets && ctx.assets.map.get(assetKey(b));
+  return a && a.kind === 'image' ? imageFigure(a, b.info, label, ctx) : { html: assetHtml(b, ctx.assets, ctx), width: 0 };
+}
+
 // Figures are numbered per card, in source order: Fig. 12.1 is the first
 // figure on card 12, so a human can point at it in words.
 function cardView(card, ctx, n = '?') {
@@ -36,9 +49,9 @@ function cardView(card, ctx, n = '?') {
   let k = 0;
   const fctx = {
     ...ctx,
-    figure: (b) => (b.type === 'code' && FIGURE_LANGS.includes(b.lang) ? renderFigure(b, `${n}.${++k}`, ctx).html : null),
+    figure: (b) => (isFigure(b) ? figureOf(b, `${n}.${++k}`, ctx).html : null),
   };
-  const fig = a.figure ? renderFigure(a.figure, `${n}.${++k}`, ctx) : null;
+  const fig = a.figure ? figureOf(a.figure, `${n}.${++k}`, ctx) : null;
   return {
     title_html: inline(card.title, ctx),
     gist_html: a.gist ? `<p>${inline(a.gist.text, ctx)}</p>` : '',
@@ -63,7 +76,8 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
   const byId = new Map(board.cards.map((c) => [c.id, c]));
   const nOf = (id) => st.cards.get(id)?.n ?? '?';
   const sx = syntaxOf(board.fmt);
-  const ctx = refCtx(byId, nOf, sx);
+  const ui = uiStrings(board.lang);
+  const ctx = refCtx(byId, nOf, sx, ui.strings, board.assets || null);
   const cards = {};
   for (const c of board.cards) {
     const v = cardView(c, ctx, nOf(c.id));
@@ -123,6 +137,8 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       cards: s.cards,
     })),
     cards,
+    // The chrome speaks the board's language (lib/i18n.mjs).
+    strings: ui.strings,
     sends: st.sends.map((s) => ({ round: s.round, rev: s.rev, at: s.at, items: s.items })),
     chat: chatOf(st),
     read: st.read,
@@ -169,6 +185,7 @@ export function pageHtml(data) {
   const json = JSON.stringify(data).replace(/</g, '\\u003c')
     .split(String.fromCharCode(0x2028)).join('\\u2028').split(String.fromCharCode(0x2029)).join('\\u2029');
   const fill = { lang: esc(data.board.lang), title: esc(data.board.title), css: readRuntime('board.css'),
+    noscript: esc(t(data.strings, 'noscript')),
     digest: readRuntime('digest.js'), js: readRuntime('board.js'), data: json };
   // Replace with a function: the payloads contain `$` sequences that must stay literal.
   return readRuntime('board.html').replace(/\{\{(\w+)\}\}/g, (m, k) => (k in fill ? fill[k] : m));
@@ -182,6 +199,11 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
   const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file });
   const warnings = lint(board);
   if (board.errors.length) return { board, errors: board.errors, warnings };
+  // Files the board shows are read now, once: they travel inside the page.
+  board.assets = resolveAssets(board, ref.dir);
+  warnings.push(...board.assets.warnings);
+  warnings.sort((x, y) => x.line - y.line);
+  if (board.assets.errors.length) return { board, errors: board.assets.errors, warnings };
   const syncRes = sync(ref.dir, board);
   const st = fold(readLog(ref.dir));
   const data = pageData(board, st, ref, { live, token, cwd });

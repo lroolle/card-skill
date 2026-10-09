@@ -90,7 +90,7 @@ export function fold(events) {
       const entry = prev || { n: e.n, history: [] };
       const fmt = e.fmt || 'md';
       entry.history.push({ v: e.v, rev: e.rev, at: e.at, src: e.src, fmt });
-      Object.assign(entry, { v: e.v, hash: e.hash, src: e.src, fmt, rev: e.rev, at: e.at });
+      Object.assign(entry, { v: e.v, hash: e.hash, src: e.src, fmt, rev: e.rev, at: e.at, files: e.files || null });
       st.cards.set(e.id, entry);
       st.gone.delete(e.id);
       st.nextN = Math.max(st.nextN, e.n + 1);
@@ -119,16 +119,18 @@ export function sync(dir, board) {
   const nextRev = st.rev + 1;
   let nextN = st.nextN;
   for (const c of board.cards) {
-    const h = hash(c.src);
+    // A card that shows files is also a new version when a file changes.
+    const files = board.assets ? board.assets.files(c.id) : null;
+    const h = hash(c.src + (files ? JSON.stringify(files) : ''));
     const prev = st.cards.get(c.id);
-    if (prev && (prev.hash === h || sameMeaning(prev, c))) {
+    if (prev && (prev.hash === h || (sameMeaning(prev, c) && sameFiles(prev.files, files)))) {
       // Gone and back unchanged (a cut and paste mid-edit): same version, so answers stay valid.
       if (st.gone.has(c.id)) events.push({ t: 'back', id: c.id, rev: nextRev, at });
       continue;
     }
     const n = prev ? prev.n : nextN++;
     const v = prev ? prev.v + 1 : 1;
-    events.push({ t: 'card', id: c.id, n, v, rev: nextRev, at, hash: h, src: c.src, fmt: c.fmt || 'md' });
+    events.push({ t: 'card', id: c.id, n, v, rev: nextRev, at, hash: h, src: c.src, fmt: c.fmt || 'md', ...(files ? { files } : {}) });
     changed.push(c.id);
   }
   const live = new Set(board.cards.map((c) => c.id));
@@ -145,6 +147,8 @@ export function sync(dir, board) {
   append(dir, events);
   return { rev: nextRev, changed, removed };
 }
+
+const sameFiles = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);
 
 function sameMeaning(prev, card) {
   const before = parseCard(prev.src, prev.fmt);

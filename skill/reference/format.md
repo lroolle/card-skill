@@ -15,6 +15,12 @@ An older `board.md` (the markdown dialect) still renders; new boards are Org.
 #+language: en                                    optional; zh-Hans, ja, ... sets the page language
 ```
 
+`#+language:` names the language you write the board in, as a BCP 47 tag.
+The page chrome (buttons, labels, help) follows it: `en` and `zh-Hans`
+ship (`zh`, `zh-CN` and `zh-Hans-CN` use `zh-Hans`). Any other language
+gets English chrome. Your text is never translated; write it in the
+human's language. The reply that comes back to you stays English.
+
 Text between the keywords and the first heading is the lede: one or two
 sentences under the title.
 
@@ -29,7 +35,7 @@ sentences under the title.
 | no tag | grid: cards side by side, as many columns as fit |
 | `:compare:` | equal columns; claims, gists and facts rows line up across cards |
 | `:list:` | one column, for findings and steps read in order |
-| `:CUSTOM_ID:` in a drawer | section id; default is the title as a slug. Used for reorder replies. |
+| `:CUSTOM_ID:` in a drawer | section id; default is the title as a slug, or `section-` and a short hash of the title when it has no Latin letters or digits. Used for reorder replies. |
 
 Text between a section heading and its first card is the section note.
 Cards before any section go into an untitled section.
@@ -73,7 +79,7 @@ three levels.
 |---|---|---|
 | claim | the heading text | Claim, Gist, Full |
 | gist | the first paragraph | Gist, Full |
-| figure | the first `sketch` or `flow` block | Gist, Full |
+| figure | the first `sketch` or `flow` block, or image | Gist, Full |
 | facts | the first description list (`- key :: value`) | Gist, Full |
 | options | the first checkbox list, on `:ASK: choose` | Gist, Full |
 | depth | every other block | Full, or when the card is opened |
@@ -189,6 +195,49 @@ block names it.
 Neither block can carry colors, styles or markup. A sketch is escaped text;
 a flow becomes SVG that the compiler writes.
 
+## Files: images, excerpts, other files
+
+A card can show a file from the project, so the human checks the thing
+itself and does not leave the card. Paths are relative to `board.org`, as
+in Org: from `.cards/<board>/`, the project root is `../../`.
+
+```
+#+caption: The desk at Fit, rev 7
+[[file:../../shots/desk.png]]
+
+#+caption: The parser's list rule
+#+include: "../../skill/lib/org.mjs" src js :lines "120-150"
+
+[[file:../../out/report.pdf]]
+```
+
+| You write | The card shows |
+|---|---|
+| `[[file:x.png]]` alone in a paragraph (png, jpg, gif, webp, avif, svg) | the image as a figure: numbered, captioned, at the card's width. A click opens it full size in the page; a second click shows its real pixels. |
+| `#+include: "f" src lang :lines "a-b"` | an excerpt: the path, the range and line numbers. The first 12 lines show; the rest open in place. |
+| `#+include: "f" example` (or no kind) | the same, with no language |
+| `[[file:x.pdf]]` alone, any other file | a chip: type, name and size; a click opens the file from disk |
+| `[[file:x.js::42][x.js:42]]` in a sentence | a link to the file |
+
+- As in Org, `:lines "120-150"` is lines 120 to 149: the upper end is not
+  included. `:lines "120-"` runs to the end of the file. The card shows the
+  real range, so a wrong range is visible.
+- The compiler reads each file at render and puts it into `board.html`.
+  The page stays one file that works offline. The excerpt is a copy of the
+  file at that render, not a live view.
+- An image named `name@2x.png` shows at half its pixels, as on the web.
+- A changed file is a new version of the card, as a changed sentence is.
+  For an excerpt, only the lines it shows count.
+- An image or a file chip needs no `#+begin_src` and takes no styles.
+  Remote images (`[[https://...png]]`) stay links: the page fetches nothing.
+
+These are errors, with a fix: a file that does not exist, an absolute
+path, a file outside the project (the directory that holds `.cards`), a
+file that may hold secrets (`.env`, keys, `.git/`), an excerpt of a binary
+file, a range outside the file. These are warnings: an image over 1 MB,
+files over 8 MB on one board, an excerpt over 120 lines, an image with no
+caption.
+
 ## Inline markup
 
 `*bold*`, `/italic/`, `_underline_`, `+strike+`, `=verbatim=`, `~code~`,
@@ -208,9 +257,11 @@ A warning does not stop a render. Each one is a writing rule:
 - A choose card with no `[X]` recommendation.
 - An ask on a `DONE` card.
 - More than 7 cards in a section, more than 30 on a board, more than 5 open asks.
-- A figure with no caption; a sketch over 72 columns; a flow over 12 boxes;
+- A figure or an image with no caption; a sketch over 72 columns; a flow over 12 boxes;
   a flow line that points a box at itself; a figure in the lede or a note;
   a `:compare:` section where only some options have a figure.
+- An image over 1 MB; files over 8 MB on one board; an excerpt over 120
+  lines.
 - English boards only (see `writing.md`): a sentence over 25 words, a
   paragraph over 6 sentences, a word from the word list.
 
@@ -234,6 +285,7 @@ Log events:
 
 ```
 {"t":"card","id":"nats","n":3,"v":2,"rev":4,"at":"...","hash":"...","src":"** ...","fmt":"org"}
+{"t":"card",...,"files":{"file:../../shots/desk.png":"9f2c..."}}   a card that shows files: their hashes
 {"t":"gone","id":"sqs","rev":4,"at":"..."}
 {"t":"rev","rev":4,"at":"...","hash":"..."}
 {"t":"send","round":2,"rev":4,"at":"...","via":"board","items":[...]}
