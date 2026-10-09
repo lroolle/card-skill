@@ -1,6 +1,6 @@
 # Status
 
-Version 0.2.0 on main, 2026-10-09; the last tagged release is 0.1.0. What works, what nobody has checked yet, and
+Version 0.2.0, tagged and released on 2026-10-09. What works, what nobody has checked yet, and
 what is known to be missing. The reasons are in `docs/DECISIONS.md`; what
 comes next is the board `.cards/roadmap`.
 
