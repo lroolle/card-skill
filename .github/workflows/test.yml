@@ -8,6 +8,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # A package mirror that stalls must not hold a job for hours.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -24,7 +26,7 @@ jobs:
         with:
           node-version: 22
       # Emacs for org-lint; an open CJK font and fonttools for the font a Chinese board carries.
-      - run: sudo apt-get update && sudo apt-get install -y emacs-nox fonts-noto-cjk
+      - run: sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 -o Dpkg::Lock::Timeout=120 install -y --no-install-recommends emacs-nox fonts-noto-cjk
       - run: pipx install "fonttools[woff]"
       - run: npm install --no-save playwright@1.62.1
       - run: npx playwright install --with-deps ${{ matrix.browser }}
