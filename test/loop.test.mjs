@@ -98,6 +98,16 @@ test('format: do asks, :SUGGEST: none, option keys, and what Emacs writes into a
 
   const bad = parseBoard('#+title: T\n\n** Pick one\n:PROPERTIES:\n:CUSTOM_ID: p\n:ASK: choose\n:SUGGEST: none\n:END:\n- [X] a :: A\n- [ ] a :: B\n', { fmt: 'org' });
   assert.match(bad.errors.map((e) => e.msg).join('|'), /:SUGGEST: none with an option marked \[X\].*two options answer "a"/);
+
+  // :NEEDS: a=value names an answer of the ask a; a=* is any answer.
+  const when = (needs, extra = '') => parseBoard(`#+title: T\n\n** Which band?\n:PROPERTIES:\n:CUSTOM_ID: band\n:ASK: choose\n:END:\n- [X] sport :: Sport\n- [ ] link :: Link\n\n** Why?\n:PROPERTIES:\n:CUSTOM_ID: why\n:ASK: answer\n:END:\nSay why.\n\n** A plain card\n:PROPERTIES:\n:CUSTOM_ID: plain\n${extra}:END:\nGist.\n\n** Size?\n:PROPERTIES:\n:CUSTOM_ID: size\n:ASK: approve\n:NEEDS: ${needs}\n:END:\nGist.\n`, { fmt: 'org' });
+  assert.deepEqual(when('band=link why=*').errors, []);
+  assert.deepEqual([when('band=link why=*').cards[3].needs, when('band=link why=*').cards[3].when], [['band', 'why'], { band: 'link', why: '*' }]);
+  assert.match(when('band=leather').errors[0].msg, /"leather" is not an answer of band/);
+  assert.match(when('band=leather').errors[0].fix, /:NEEDS: band=sport {3}\(band can be: sport, link; \* is any answer\)/);
+  assert.match(when('why=yes').errors[0].msg, /why takes free text, so only \* \(any answer\) can be named/);
+  assert.match(when('plain=*').errors[0].msg, /an answer can be named only where an ask waits on an ask/);
+  assert.match(when('band', ':NEEDS: band=link\n').errors[0].msg, /an answer can be named only where an ask waits on an ask/);
 });
 
 test('lint: syntax that does nothing here is said, not swallowed', () => {
@@ -230,6 +240,13 @@ test('export: a copy to publish holds the board as it is now, and nothing of the
   assert.match(data.cards.engraving.depth_html, /class="file-chip" href="files\/order\.pdf"/);
   assert.equal(fs.readFileSync(path.join(out, 'files', 'order.pdf'), 'utf8'), '%PDF-1.4\n');
   assert.equal(fold(readLog(ref.dir)).rev, 2, 'an export records nothing');
+
+  // A board that was never rendered exports as its first render would show it.
+  const fresh = project(WATCH, 'fresh');
+  cards(fresh.cwd, ['export', 'fresh', '--out', path.join(fresh.cwd, 'out')]);
+  const first = JSON.parse(fs.readFileSync(path.join(fresh.cwd, 'out', 'index.html'), 'utf8').match(/<script type="application\/json" id="board-data">([\s\S]*?)<\/script>/)[1]);
+  assert.deepEqual([first.board.rev, first.cards['pick-band'].n, first.cards.engraving.n], [1, 1, 5]);
+  assert.ok(!fs.existsSync(path.join(fresh.ref.dir, 'log.jsonl')));
 });
 
 test('translations: sibling boards link to each other, and check says where one fell behind', () => {
@@ -283,4 +300,101 @@ test('outline: a card that carries a picture or a figure says so', () => {
   const { cwd, ref } = project(`#+title: T\n\n** The desk shows every card\n:PROPERTIES:\n:CUSTOM_ID: a\n:END:\nGist.\n\n#+caption: The loop\n#+begin_src flow\n  a -> b\n#+end_src\n`, 'fig');
   assert.match(cards(cwd, ['render', 'fig']), /#1 {3}a\s+The desk shows every card {2}\[figure\]/);
   assert.ok(fs.existsSync(path.join(ref.dir, 'board.html')));
+});
+
+test('review fixes: asks that wait on each other are an error, not a page that never opens', () => {
+  const two = (a, b) => `** A?\n:PROPERTIES:\n:CUSTOM_ID: a\n:ASK: approve\n:NEEDS: ${a}\n:END:\nGist.\n\n** B?\n:PROPERTIES:\n:CUSTOM_ID: b\n:ASK: approve\n:NEEDS: ${b}\n:END:\nGist.\n\n** C?\n:PROPERTIES:\n:CUSTOM_ID: c\n:ASK: approve\n:END:\nGist.\n`;
+  const loop = parseBoard(`#+title: T\n\n${two('b', 'a')}`, { fmt: 'org' });
+  assert.equal(loop.errors.length, 1);
+  assert.match(loop.errors[0].msg, /asks wait on each other: a -> b -> a/);
+  assert.match(loop.errors[0].fix, /remove one :NEEDS:/);
+  assert.deepEqual(parseBoard(`#+title: T\n\n${two('c', 'c')}`, { fmt: 'org' }).errors, [], 'two asks may wait on the same ask');
+});
+
+test('review fixes: a reply is never guessed; its state is worked out, not trusted', () => {
+  const { cwd, ref } = project();
+  cards(cwd, ['render', 'watch', '--quiet']);
+  const head = 'cards: reply from the board "Pick the band" (watch)\n.cards/watch/board.org · rev 1 · 2026-10-09 04:00\n\n';
+  const items = () => fold(readLog(ref.dir)).sends.at(-1).items;
+
+  // A chat or a mail collapsed the two spaces: the suggestion in brackets is not an answer.
+  cards(cwd, ['ingest', 'watch'], `${head}  #1 pick-band   choose   changed: link (you suggested sport)\n`);
+  assert.deepEqual([items()[0].value, items()[0].state], [['link'], 'changed']);
+
+  // A sentence that happens to hold a key names no option.
+  assert.match(fails(cwd, ['ingest', 'watch'], `${head}  #1 pick-band   choose   confirmed: I will not pick sport, ask me later\n`), /names no option of the card \(sport, link\)/);
+  // Two options on a single choice.
+  assert.match(fails(cwd, ['ingest', 'watch'], `${head}  #1 pick-band   choose   changed: sport, link\n`), /2 options on a single choice/);
+  // The word "confirmed" on a value that is not the suggestion is recorded as what it is.
+  cards(cwd, ['ingest', 'watch'], `${head}  #1 pick-band   choose   confirmed: link\n  #2 pick-size   choose   untouched (no answer)\n`);
+  assert.deepEqual([items()[0].state, items()[1]], ['changed', { card: 'pick-size', v: 1, kind: 'choose', state: 'untouched', default: [] }]);
+  // A reply with no key is still one round, however often it is pasted.
+  const n = fold(readLog(ref.dir)).sends.length;
+  assert.match(cards(cwd, ['ingest', 'watch'], `${head}  #1 pick-band   choose   confirmed: link\n  #2 pick-size   choose   untouched (no answer)\n`), /already recorded as round/);
+  assert.equal(fold(readLog(ref.dir)).sends.length, n);
+  // A section named "board" comes back as itself; the untitled section is the bare sign.
+  const text = globalThis.cardsDigest({ board: { id: 'x', title: 'X' }, items: [{ section: 'board', kind: 'order', value: ['a', 'b'] }, { section: '', kind: 'order', value: ['c'] }] }, {});
+  assert.match(text, /§board\s+order\s+a, b\n\s+§\s+order\s+c/);
+  assert.deepEqual(parseReply(text).lines.map((l) => l.who), ['§board', '§']);
+});
+
+test('review fixes: ingest leaves an earlier unread round unread; settle closes only what stands at this version', () => {
+  const { cwd, ref } = project();
+  cards(cwd, ['render', 'watch', '--quiet']);
+  addSend(ref.dir, { rev: 1, items: [{ card: 'engraving', v: 1, kind: 'answer', text: 'sent from the served page' }] });
+  const out = cards(cwd, ['ingest', 'watch'], 'cards: reply from the board "Pick the band" (watch)\nrev 1 · reply 0000aaaa\n\n  #4 verify   do   done\n');
+  assert.match(out, /recorded round 2[\s\S]*1 earlier round is unread\. Read it first: cards inbox watch/);
+  assert.match(cards(cwd, ['inbox', 'watch']), /sent from the served page[\s\S]*#4 verify\s+do\s+done/, 'the inbox still shows the round nobody read');
+
+  // The agent revises a card that has an answer: the answer is to the old version, and settle leaves the card open.
+  fs.writeFileSync(ref.file, fs.readFileSync(ref.file, 'utf8').replace('One line, 20 characters at most.', 'One line, 12 characters at most.'));
+  cards(cwd, ['render', 'watch', '--quiet']);
+  assert.match(cards(cwd, ['settle', 'watch']), /DONE: verify\./);
+  assert.match(fs.readFileSync(ref.file, 'utf8'), /^\*\* What should the engraving say\?$/m);
+
+  // A stray carriage return above a card does not move the edit to another line, and line endings stay.
+  const crlf = project(WATCH.replace('* Decisions\n', '* Decisions\nloading 50%\rloading 100%\n').replace(/\n/g, '\r\n'), 'crlf');
+  cards(crlf.cwd, ['render', 'crlf', '--quiet']);
+  assert.match(cards(crlf.cwd, ['settle', 'crlf', 'bag']), /DONE: bag/);
+  const after = fs.readFileSync(crlf.ref.file, 'utf8');
+  assert.match(after, /\r\n\*\* DONE Put the watch in the bag\r\n/);
+  assert.equal(after.replace('** DONE Put', '** Put'), fs.readFileSync(crlf.ref.file, 'utf8').replace('** DONE Put', '** Put'));
+  assert.equal(after.split('\r\n').length, WATCH.split('\n').length + 1, 'every line ending is as it was');
+});
+
+test('review fixes: a published copy names a file, not where it lies; a link never names another machine', async () => {
+  const { cwd, ref } = project(WATCH + '\n[[file:../../clients/acme-secret-client/report.pdf]]\n\n#+caption: The desk\n[[file:../../clients/acme-secret-client/desk.png]]\n\n#+include: "../../clients/acme-secret-client/app.js" src js :lines "1-3"\n');
+  const dir = path.join(cwd, 'clients', 'acme-secret-client');
+  fs.mkdirSync(dir, { recursive: true });
+  const { png } = await import('./png.mjs');
+  fs.writeFileSync(path.join(dir, 'report.pdf'), '%PDF-1.4\n');
+  fs.writeFileSync(path.join(dir, 'desk.png'), png(8, 8));
+  fs.writeFileSync(path.join(dir, 'app.js'), 'const a = 1;\nconst b = 2;\nconst c = 3;\n');
+  cards(cwd, ['render', 'watch', '--quiet']);
+  assert.match(fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8'), /clients\/acme-secret-client\/app\.js/, 'the local page says where the file is');
+  cards(cwd, ['export', 'watch', '--out', path.join(cwd, 'out')]);
+  const html = fs.readFileSync(path.join(cwd, 'out', 'index.html'), 'utf8');
+  assert.ok(!html.includes('acme-secret-client'), 'no folder name of the project is in the copy');
+  const depth = JSON.parse(html.match(/<script type="application\/json" id="board-data">([\s\S]*?)<\/script>/)[1]).cards.engraving.depth_html;
+  assert.match(depth, /excerpt-src[^>]*>app\.js</);
+  assert.match(depth, /href="files\/report\.pdf"/);
+
+  const { link } = await import('../skill/lib/md.mjs');
+  const { orgInline } = await import('../skill/lib/org.mjs');
+  for (const bad of ['//evil.com/x', '\\\\evil.com\\x', '/\\evil.com', 'a\\b']) assert.equal(link(bad, 'x'), 'x', `${bad} is not a link`);
+  assert.ok(!orgInline('[[file://evil.com/x][x]]').includes('href'));
+  assert.match(link('../roadmap/board.html', 'x'), /^<a href="\.\.\/roadmap\/board\.html">x<\/a>$/);
+  assert.match(link('https://a.b/c', 'x'), /target="_blank" rel="noopener noreferrer"/);
+});
+
+test('review fixes: every command that writes the page says a new build once; a broken sibling stops nothing', () => {
+  const { cwd, ref } = project();
+  fs.writeFileSync(path.join(ref.dir, 'log.jsonl'), JSON.stringify({ t: 'rev', rev: 1, at: '2026-10-01T00:00:00.000Z', hash: 'x' }) + '\n');
+  assert.match(cards(cwd, ['say', 'watch', 'hello']), /note: watch was last rendered by an older build of cards/);
+  assert.ok(!/note:/.test(cards(cwd, ['render', 'watch', '--quiet'])), 'said once, by the command that recorded it');
+
+  // A folder named board.org next to the board, and a sibling that is not a board at all.
+  fs.mkdirSync(path.join(cwd, '.cards', 'odd', 'board.org'), { recursive: true });
+  fs.mkdirSync(path.join(cwd, '.cards', 'empty'));
+  assert.match(cards(cwd, ['render', 'watch', '--quiet']), /^rev \d+/m);
 });

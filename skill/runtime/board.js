@@ -163,46 +163,62 @@
 
   function defaultsOf(c) { return c.options.filter(function (o) { return o.default; }).map(function (o) { return o.value; }); }
   function sameSet(a, b) { return a.length === b.length && a.every(function (v) { return b.indexOf(v) >= 0; }); }
-  function sentItem(c) {
+  // The last thing the human said on this ask. A later round that holds the
+  // ask takes an earlier answer back: the answer was for a premise that changed.
+  function sentItem(c, anyVersion) {
     for (var i = B.sends.length - 1; i >= 0; i--) {
-      var it = B.sends[i].items.filter(function (x) { return x.card === c.id && x.v === c.v && x.kind === c.ask && x.state !== 'untouched' && x.state !== 'held'; })[0];
-      if (it) return it;
+      var it = B.sends[i].items.filter(function (x) { return x.card === c.id && (anyVersion || x.v === c.v) && x.kind === c.ask && x.state !== 'untouched'; })[0];
+      if (it) return it.state === 'held' ? null : it;
     }
     return null;
   }
-  // How an ask stands for the asks that need it: 'open' (no answer), 'ok' (as suggested), 'changed'.
-  function standing(c, seen) {
-    if (gate(c, seen) && !overridden(c)) return 'open';
-    var d = D.cards[c.id] || {};
-    if (hasDraftAnswer(c)) {
-      if (c.ask === 'choose') { var def = defaultsOf(c); return def.length && !sameSet(d.choice, def) ? 'changed' : 'ok'; }
-      if (c.ask === 'approve') return d.approve === 'approve' ? 'ok' : 'changed';
-      if (c.ask === 'do') return d.done === 'done' ? 'ok' : 'changed';
-      return 'ok';
+  // The answer an ask has now, as a list of values, or null when it has none
+  // that counts: no answer, or an answer that is itself held.
+  function answerValues(c, seen) {
+    if (!isOpenAsk(c)) {
+      // A closed ask: what the human last said, at any version of the card.
+      var past = sentItem(c, true);
+      return past ? (past.value === undefined ? ['*'] : [].concat(past.value)) : ['*'];
     }
+    var d = D.cards[c.id] || {};
+    // Its own gate, with the same `seen`: a fresh walk here would never end on a cycle.
+    var g = gate(c, seen);
+    if (g && !(g.why === 'changed' && d.anyway)) return null;
+    if (hasDraftAnswer(c)) return c.ask === 'choose' ? d.choice : c.ask === 'approve' ? [d.approve] : c.ask === 'do' ? [d.done] : ['*'];
     var it = sentItem(c);
-    if (!it) return 'open';
-    if (c.ask === 'choose') return it.state === 'changed' ? 'changed' : 'ok';
-    if (c.ask === 'approve') return it.value === 'approve' ? 'ok' : 'changed';
-    if (c.ask === 'do') return it.value === 'done' ? 'ok' : 'changed';
-    return 'ok';
+    return it ? (it.value === undefined ? ['*'] : [].concat(it.value)) : null;
   }
-  // gate(c) -> null, or { why: 'open' | 'changed', needs: [ids] }
+  function asSuggested(c, values) {
+    if (c.ask === 'choose') { var def = defaultsOf(c); return !def.length || sameSet(values, def); }
+    if (c.ask === 'approve') return values[0] === 'approve';
+    if (c.ask === 'do') return values[0] === 'done';
+    return true;
+  }
+  // gate(c) -> null, or { why, needs: [ids] }:
+  //   open     an ask it needs has no answer yet
+  //   skip     it is written for one answer (:NEEDS: a=link) and the human gave another
+  //   changed  it is written for the agent's suggestion and the human chose otherwise
   function gate(c, seen) {
     if (!isOpenAsk(c) || !c.needs.length) return null;
     seen = seen || {};
     if (seen[c.id]) return null; // two asks that need each other: neither waits
     seen[c.id] = true;
     var open = [];
+    var skip = [];
     var moved = [];
     c.needs.forEach(function (id) {
       var u = B.cards[id];
-      if (!u || !isOpenAsk(u)) return;
-      var st = standing(u, seen);
-      if (st === 'open') open.push(id); else if (st === 'changed') moved.push(id);
+      if (!u || !u.ask) return;
+      var want = (c.when || {})[id];
+      if (!isOpenAsk(u) && !want) return;
+      var vals = answerValues(u, seen);
+      if (!vals) open.push(id);
+      else if (want === '*' || vals[0] === '*' && !isOpenAsk(u)) return;
+      else if (want) { if (vals.indexOf(want) < 0) skip.push(id); }
+      else if (!asSuggested(u, vals)) moved.push(id);
     });
     seen[c.id] = false;
-    return open.length ? { why: 'open', needs: open } : moved.length ? { why: 'changed', needs: moved } : null;
+    return open.length ? { why: 'open', needs: open } : skip.length ? { why: 'skip', needs: skip } : moved.length ? { why: 'changed', needs: moved } : null;
   }
   function overridden(c) { var g = gate(c); return !!g && g.why === 'changed' && !!(D.cards[c.id] || {}).anyway; }
   // Held: the ask cannot be answered now, or its answer does not go out as one.
@@ -266,7 +282,10 @@
     return null;
   }
   function tabLabel(c) {
-    if (held(c)) return t('ask_held', { card: nums(gate(c).needs) });
+    if (held(c)) {
+      var g = gate(c);
+      return g.why === 'skip' ? t('ask_skip') : g.why === 'changed' ? t('ask_on_hold') : t('ask_held', { card: nums(g.needs) });
+    }
     var a = answerOf(c);
     return t(a ? ASK_DONE[a] : ASK_LABEL[c.ask]);
   }
@@ -300,9 +319,12 @@
     });
     if (withUntouched && items.length) {
       cards().forEach(function (c) {
-        if (!unsent(c)) return;
+        if (!isOpenAsk(c)) return;
+        // Held goes out for every held ask, also one answered in an earlier
+        // round: that answer no longer stands, and the agent must learn it.
         var g = held(c) ? gate(c) : null;
         if (g) items.push({ card: c.id, v: c.v, kind: c.ask, state: 'held', needs: g.needs, why: g.why });
+        else if (!unsent(c)) return;
         else if (!hasDraftAnswer(c)) items.push(Object.assign({ card: c.id, v: c.v, kind: c.ask, state: 'untouched' }, c.ask === 'choose' && !defaultsOf(c).length ? { default: [] } : {}));
       });
     }
@@ -436,6 +458,14 @@
     }).join(' ');
     var say = function (key) { return esc(t(key)).replace(/\{card\}/g, who); };
     if (g.why === 'open') return '<p class="gate-note">' + say('gate_open') + '</p>';
+    if (g.why === 'skip') {
+      // The answer this ask is written for, in the words of the option.
+      var up = B.cards[g.needs[0]];
+      var want = c.when[up.id];
+      var opt = up.options.filter(function (o) { return o.value === want; })[0];
+      var word = opt ? opt.label_text : { approve: t('ask_approve'), reject: t('ask_reject'), done: t('ask_do_done'), cannot: t('ask_do_cannot') }[want] || want;
+      return '<p class="gate-note">' + say('gate_skip').replace(/\{value\}/g, esc(word)) + '</p>';
+    }
     return overridden(c)
       ? '<p class="gate-note">' + say('gate_after') + ' <button class="link" data-act="hold">' + esc(t('gate_hold')) + '</button></p>'
       : '<p class="gate-note">' + say('gate_changed') + ' <button class="link" data-act="anyway">' + esc(t('gate_anyway')) + '</button></p>';
@@ -1351,18 +1381,21 @@
     var keys = s && s.layout === 'compare' ? factKeys(s.cards) : null;
     var wasFocus = document.activeElement === el;
     el.outerHTML = cardHtml(B.cards[id], keys);
-    // An answer here opens, locks or holds the asks that need this one.
-    if (B.cards[id].ask && !refreshing) {
-      refreshing = true;
-      cards().forEach(function (c) { if (c.id !== id && isOpenAsk(c) && c.needs.length && cardEl(c.id) && document.activeElement !== cardEl(c.id).querySelector('textarea')) refreshCard(c.id); });
-      refreshing = false;
-    }
-    if (refreshing) return;
+    if (B.cards[id].ask) refreshGated(id);
     applyView();
     watchSizes();
     if (wasFocus) cardEl(id).focus({ preventScroll: true });
   }
-  var refreshing = false;
+  // An answer on one ask opens, locks or holds the asks that need it: draw
+  // those again. A card you are typing in is left alone.
+  function refreshGated(except) {
+    cards().forEach(function (c) {
+      var el = cardEl(c.id);
+      if (c.id === except || !isOpenAsk(c) || !c.needs.length || !el || el.contains(document.activeElement) && typingTarget(document.activeElement)) return;
+      var s = B.sections.filter(function (x) { return x.id === c.section; })[0];
+      el.outerHTML = cardHtml(c, s && s.layout === 'compare' ? factKeys(s.cards) : null);
+    });
+  }
 
   // ---------- focus ----------
 
@@ -1776,8 +1809,12 @@
     if (field === 'note') D.note = t.value;
     else {
       var cardNode = t.closest('.card');
-      if (!B.cards[cardNode.dataset.id]) return;
-      draft(cardNode.dataset.id)[field] = t.value;
+      var cc = B.cards[cardNode.dataset.id];
+      if (!cc) return;
+      var had = hasDraftAnswer(cc);
+      draft(cc.id)[field] = t.value;
+      // The first character of a text answer is an answer: the asks that wait for it open.
+      if (field === 'answer' && had !== hasDraftAnswer(cc)) refreshGated(cc.id);
     }
     if (D.sentRev) D.sentRev = 0;
     clearTimeout(saveTimer);

@@ -1,8 +1,17 @@
 # local instructions and generated or session data
 CLAUDE.local.md
 node_modules/
-# Boards are working files and stay local. The design-review board is the
-# built-in example: it is kept whole (source, log, page), so the repo opens
-# as a working board.
+_site/
+# Boards are working files and stay local, except the ones the project shows:
+# the design review (kept whole: source, log and page, so the repo opens as a
+# working board), the roadmap, and the sample in two languages. For those
+# three the page is built by `cards render`; the source and the log are kept.
 .cards/*
 !.cards/design-review/
+!.cards/roadmap/
+!.cards/demo/
+!.cards/demo-zh/
+.cards/roadmap/board.html
+.cards/demo/board.html
+.cards/demo-zh/board.html
+.cards/*/shot.png

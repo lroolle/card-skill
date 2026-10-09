@@ -52,13 +52,15 @@
     if (!items.length) lines.push('  (no responses)');
     items.forEach(function (it) {
       var c = it.card ? cards[it.card] : null;
-      var who = it.card ? (c ? '#' + c.n + ' ' : '') + it.card : it.section !== undefined ? '§' + (it.section || 'board') : 'board';
+      var who = it.card ? (c ? '#' + c.n + ' ' : '') + it.card : it.section !== undefined ? '§' + it.section : 'board';
       var what;
       if (it.state === 'held') {
         // An ask that depends on another ask. It was not answered, or its answer was
         // made for a premise the human then changed: it is not an answer.
         var up = (it.needs || []).map(num).join(', ');
-        what = it.why === 'changed' ? 'held: ' + up + ' changed from your suggestion; this ask was written for the suggestion. Ask again.' : 'held: waits for ' + up;
+        what = it.why === 'changed' ? 'held: ' + up + ' changed from your suggestion; this ask was written for the suggestion. Ask again.'
+          : it.why === 'skip' ? 'held: not needed; it applies to another answer of ' + up
+          : 'held: waits for ' + up;
       } else switch (it.kind) {
         case 'choose':
           if (it.state === 'untouched') what = it.default && it.default.length === 0 ? 'untouched (no answer)' : 'untouched (suggestion kept; not consent)';
@@ -104,12 +106,14 @@
     return lines.join('\n');
   }
 
-  // cardsAnswered(sends) -> Set of "id@v" whose ask got a real answer.
+  // cardsAnswered(sends) -> Set of "id@v" whose ask has an answer that stands.
+  // A later round that holds the ask takes the answer back.
   function cardsAnswered(sends) {
     var out = new Set();
     (sends || []).forEach(function (b) {
       b.items.forEach(function (it) {
-        if (it.card && it.state !== 'untouched' && it.state !== 'held' && ['choose', 'approve', 'answer', 'do'].indexOf(it.kind) >= 0) out.add(it.card + '@' + it.v);
+        if (!it.card || ['choose', 'approve', 'answer', 'do'].indexOf(it.kind) < 0 || it.state === 'untouched') return;
+        if (it.state === 'held') out.delete(it.card + '@' + it.v); else out.add(it.card + '@' + it.v);
       });
     });
     return out;

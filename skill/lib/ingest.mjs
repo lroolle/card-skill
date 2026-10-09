@@ -45,19 +45,25 @@ function unquote(s) {
   return s.replace(/^"/, '').replace(/"$/, '');
 }
 
-// Option values named in `text`, in the card's own order. Keys are slugs, so a
-// split on ", " is exact; an option without a key is its whole sentence, which
-// may itself hold a comma, so those are found whole first.
+// The option values that `text` names: exactly those, joined by ", ". A key is
+// a slug, so a split is exact. An option with no key is its whole sentence,
+// which may hold a comma, so the text is read from the left, longest value
+// first. Text that is not a list of options names none: a reply is never
+// guessed from a word it happens to hold.
 function valuesIn(text, options) {
   const known = options.map((o) => o.value);
   const parts = text.split(', ').map((p) => p.trim()).filter(Boolean);
   if (parts.length && parts.every((p) => known.includes(p))) return parts;
-  let rest = text;
+  const byLength = [...known].sort((x, y) => y.length - x.length);
   const found = [];
-  for (const v of [...known].sort((a, b) => b.length - a.length)) {
-    if (rest.includes(v)) { found.push(v); rest = rest.replace(v, ''); }
+  let rest = text.trim();
+  while (rest) {
+    const v = byLength.find((k) => rest === k || rest.startsWith(k + ', '));
+    if (!v) return [];
+    found.push(v);
+    rest = rest.slice(v.length).replace(/^,\s+/, '');
   }
-  return known.filter((v) => found.includes(v));
+  return found;
 }
 
 export function replyItems(reply, board, st) {
@@ -76,7 +82,7 @@ export function replyItems(reply, board, st) {
 
   for (const l of reply.lines) {
     if (l.kind === 'note') { items.push({ kind: 'note', text: unquote(l.what) }); continue; }
-    if (l.kind === 'order') { items.push({ section: l.who.replace(/^§/, '').replace(/^board$/, ''), kind: 'order', value: l.what.split(',').map((x) => x.trim()).filter(Boolean) }); continue; }
+    if (l.kind === 'order') { items.push({ section: l.who.replace(/^§/, ''), kind: 'order', value: l.what.split(',').map((x) => x.trim()).filter(Boolean) }); continue; }
     const card = byId.get(l.who);
     if (!card && !st.cards.has(l.who)) { problems.push(`${l.who}: no such card on ${board.id}`); continue; }
     let what = l.what;
@@ -89,17 +95,22 @@ export function replyItems(reply, board, st) {
 
     if (l.kind === 'mark') { items.push({ kind: 'mark', value: what.split(/\s/)[0], ...base }); continue; }
     if (l.kind === 'reply') { items.push({ kind: 'reply', text: unquote(what), ...base }); continue; }
-    if (/^untouched\b/.test(what)) { items.push({ ...base, kind: l.kind, state: 'untouched' }); continue; }
+    const defaults = card && l.kind === 'choose' ? card.anatomy.options.filter((o) => o.default).map((o) => o.value) : [];
+    if (/^untouched\b/.test(what)) { items.push({ ...base, kind: l.kind, state: 'untouched', ...(l.kind === 'choose' && !defaults.length ? { default: [] } : {}) }); continue; }
     if (/^held:/.test(what)) {
-      items.push({ ...base, kind: l.kind, state: 'held', needs: refs(what), why: /changed/.test(what) ? 'changed' : 'open' });
+      items.push({ ...base, kind: l.kind, state: 'held', needs: refs(what), why: /changed from your suggestion/.test(what) ? 'changed' : /not needed/.test(what) ? 'skip' : 'open' });
       continue;
     }
     if (l.kind === 'choose') {
-      const m = what.match(/^(confirmed|changed|chosen):\s*(.*?)(?:\s{2}\(you suggested (.*)\))?$/);
+      // The word before the colon is not trusted: the state is worked out again
+      // from the values, so a reply cannot claim to confirm what it changes.
+      const m = what.match(/^(?:confirmed|changed|chosen):\s*(.*?)(?:\s+\(you suggested .*\))?$/);
       const options = card ? card.anatomy.options : [];
-      const value = m ? valuesIn(m[2], options) : [];
+      const value = m ? valuesIn(m[1], options) : [];
       if (!m || !value.length) { problems.push(`${l.who}: "${what}" names no option of the card (${options.map((o) => o.value).join(', ')})`); continue; }
-      items.push({ kind: 'choose', value, default: options.filter((o) => o.default).map((o) => o.value), state: m[1], ...base, ...extra });
+      if (value.length > 1 && !card.multi) { problems.push(`${l.who}: ${value.length} options on a single choice (${value.join(', ')})`); continue; }
+      const same = value.length === defaults.length && value.every((v) => defaults.includes(v));
+      items.push({ kind: 'choose', value, default: defaults, state: !defaults.length ? 'chosen' : same ? 'confirmed' : 'changed', ...base, ...extra });
     } else if (l.kind === 'approve') {
       if (!/^(approved|rejected)$/.test(what)) { problems.push(`${l.who}: approve is approved or rejected, not "${what}"`); continue; }
       items.push({ kind: 'approve', value: what === 'approved' ? 'approve' : 'reject', ...base, ...extra });

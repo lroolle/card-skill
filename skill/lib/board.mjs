@@ -212,6 +212,7 @@ function parseMdBoard(src, id) {
       basis: kv.basis || null,
       from: list(kv.from),
       needs: list(kv.needs),
+      when: {},
       tags: attrs.tags,
       multi,
       suggest: null,
@@ -251,6 +252,19 @@ const ORG_SETTINGS = ['todo', 'seq_todo', 'typ_todo', 'startup', 'options', 'fil
 const ORG_OWNED = /^(ID|VISIBILITY|ORDERED|NOBLOCKING|COOKIE_DATA|LOGGING|CATEGORY|ARCHIVE|DIR|ATTACH_DIR|EFFORT|STYLE|LAST_REPEAT|CREATED|ARCHIVE_\w+|EXPORT_\w+|\w+_ALL)$/;
 const PLANNING_RE = /^\s*(CLOSED|SCHEDULED|DEADLINE):\s/;
 const orgList = (v) => (v ? v.split(/[\s,]+/).map((x) => x.replace(/^#/, '')).filter(Boolean) : []);
+// :NEEDS: a b=link c=*  ->  the cards this one waits on, and for an ask that
+// waits on an ask, which answer it is written for: none named (the one the
+// agent suggested), a value (that answer only), or * (any answer).
+function orgNeeds(v) {
+  const when = {};
+  const ids = orgList(v).map((x) => {
+    const k = x.indexOf('=');
+    if (k < 0) return x;
+    when[x.slice(0, k)] = x.slice(k + 1);
+    return x.slice(0, k);
+  });
+  return { ids, when };
+}
 
 // A heading line: * or ** stars, then [TODO] [#A] Title [3/7] :tag:tag:
 function orgHead(text) {
@@ -406,6 +420,7 @@ function parseOrgBoard(src, id) {
       if (!ID_RE.test(t)) err(c.line, `tag ":${t}:" must be lowercase letters, digits and dashes`, ':perf:security:');
     }
 
+    const needs = orgNeeds(p.NEEDS);
     const card = {
       id: cid || slug(h.title),
       title: h.title,
@@ -415,7 +430,8 @@ function parseOrgBoard(src, id) {
       status: h.todo ? TODO[h.todo] : 'open',
       basis: basis || null,
       from: orgList(p.FROM),
-      needs: orgList(p.NEEDS),
+      needs: needs.ids,
+      when: needs.when,
       tags: h.tags,
       multi,
       suggest: suggest === 'none' ? 'none' : null,
@@ -471,6 +487,7 @@ export function canonical(card) {
     sx.inline(card.title, ctx), card.ask, card.status, card.basis, card.from, card.needs, card.tags, card.multi, card.progress,
     renderBlocks(sx.blocks(card.body), ctx).replace(/\s+/g, ' '),
     ...(card.suggest ? [card.suggest] : []),
+    ...(card.when && Object.keys(card.when).length ? [card.when] : []),
   ]);
 }
 
@@ -507,7 +524,33 @@ function crossChecks(board) {
     for (const ref of card.anatomy.refs) {
       if (!ids.has(ref)) err(card.line - 1, `${refText(ref)} names no card`, known());
     }
+    // a=value and a=* say which answer of the ask `a` this ask is written for.
+    for (const [ref, want] of Object.entries(card.when || {})) {
+      const up = board.cards.find((c) => c.id === ref);
+      if (!up) continue;
+      const fix = (allowed) => `:NEEDS: ${ref}=${allowed[0]}   (${ref} can be: ${allowed.join(', ')}; * is any answer)`;
+      if (!card.ask || !up.ask) { err(card.line - 1, `:NEEDS: ${ref}=${want}: an answer can be named only where an ask waits on an ask`, `:NEEDS: ${ref}`); continue; }
+      if (want === '*') continue;
+      const allowed = up.ask === 'choose' ? up.anatomy.options.map((o) => o.value) : up.ask === 'approve' ? ['approve', 'reject'] : up.ask === 'do' ? ['done', 'cannot'] : [];
+      if (!allowed.length) err(card.line - 1, `:NEEDS: ${ref}=${want}: ${ref} takes free text, so only * (any answer) can be named`, `:NEEDS: ${ref}=*`);
+      else if (!allowed.includes(want)) err(card.line - 1, `:NEEDS: ${ref}=${want}: "${want}" is not an answer of ${ref}`, fix(allowed));
+    }
   }
+  // Asks that wait on each other would wait forever.
+  const asks = new Map(board.cards.filter((c) => c.ask).map((c) => [c.id, c]));
+  const state = new Map();
+  const walk = (c, trail) => {
+    if (state.get(c.id) === 2) return;
+    if (state.get(c.id) === 1) {
+      const loop = [...trail.slice(trail.indexOf(c.id)), c.id];
+      err(c.line - 1, `asks wait on each other: ${loop.join(' -> ')}`, `remove one :NEEDS: so that one of them can be answered first`);
+      return;
+    }
+    state.set(c.id, 1);
+    for (const ref of c.needs) if (asks.has(ref) && ref !== c.id) walk(asks.get(ref), [...trail, c.id]);
+    state.set(c.id, 2);
+  };
+  for (const c of asks.values()) walk(c, []);
   for (const ref of refsIn(sx.blocks(board.lede), sx.refs)) {
     if (!ids.has(ref)) err(0, `${refText(ref)} in the lede names no card`, known());
   }

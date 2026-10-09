@@ -86,7 +86,7 @@ The gist: one paragraph, under 60 words.
 | `:SUGGEST:` | `none` | with `choose`: only the human knows; you recommend no option |
 | `:BASIS:` | `fact`, `inference`, `guess` | how you know the claim |
 | `:FROM:` | ids, space-separated | this card exists because of those cards |
-| `:NEEDS:` | ids, space-separated | this card waits on those cards |
+| `:NEEDS:` | ids, space-separated; on an ask also `id=value` or `id=*` | this card waits on those cards (see Asks for the forms with `=`) |
 
 The drawer comes right after the heading, with no blank line between: that
 is where Org reads it. A planning line that Emacs writes (`CLOSED:`,
@@ -164,6 +164,17 @@ for a premise that no longer holds: the page holds it back, and the reply
 says `held: #1 changed from your suggestion`. The human may press "Answer
 anyway"; the answer then comes with `[answered after #1 changed]`. A held
 ask is not an answer. Rewrite it for the new answer and ask again.
+
+Two more forms say which answer the ask is written for:
+
+- `:NEEDS: pick-band=link`: this ask applies only when `pick-band` is
+  answered `link` (an option value; `approve` or `reject`; `done` or
+  `cannot`). Write one ask for each answer that needs one. The page opens
+  the one that fits and marks the others "Not needed"; the reply says
+  `held: not needed`.
+- `:NEEDS: pick-band=*`: this ask waits for `pick-band` and takes any
+  answer. Use it for a gate at the end ("approve the order") that does not
+  depend on which option won.
 
 `DONE` on an ask card closes the ask. The card keeps its ask and options as
 the record, and shows what the human answered. `cards settle <board>` sets

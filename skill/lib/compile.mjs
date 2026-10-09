@@ -19,13 +19,14 @@ const HISTORY_KEEP = 4;
 
 // The render context of one board: its format's inline renderer, and card
 // references drawn as numeral + claim (or the link text the author gave).
-function refCtx(byId, nOf, sx, table, assets = null, chipHref = null) {
+function refCtx(byId, nOf, sx, table, assets = null, chipHref = null, publish = false) {
   const ctx = {
     inline: sx.inline,
     plain: sx.plain,
     t: (key, vars) => t(table, key, vars),
     assets,
     chipHref,
+    publish,
     asset: (b) => assetHtml(b, assets, ctx),
     ref(id, label) {
       const c = byId.get(id);
@@ -83,7 +84,12 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
   const nOf = (id) => st.cards.get(id)?.n ?? '?';
   const sx = syntaxOf(board.fmt);
   const ui = uiStrings(board.lang);
-  const ctx = refCtx(byId, nOf, sx, ui.strings, board.assets || null, chipHref);
+  const ctx = refCtx(byId, nOf, sx, ui.strings, board.assets || null, chipHref, publish);
+  // What Find searches: the words of the card. A file shows as its name, not
+  // as the path the agent wrote, which is syntax and says where things lie.
+  const words = (c) => sx.plain(`${c.title} ${String(c.body)
+    .replace(/^\s*#\+include:\s*"?([^"\s]+)"?.*$/gim, (m, f) => path.basename(f))
+    .replace(/\[\[(?:file:)?((?:\.{1,2}\/)[^\]]*)\]\]/g, (m, f) => path.basename(f.replace(/::.*$/, '')))}`).slice(0, 2000);
   const hrefOf = (id) => (publish ? `../${id}/` : live ? `/b/${id}` : `../${id}/board.html`);
   const cards = {};
   for (const c of board.cards) {
@@ -98,7 +104,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       section: c.section,
       title_html: v.title_html,
       title_text: sx.plain(c.title),
-      text: sx.plain(`${c.title} ${c.body}`).slice(0, 2000),
+      text: words(c),
       gist_html: v.gist_html,
       figure_html: v.figure_html,
       wide: v.wide,
@@ -119,6 +125,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       basis: c.basis,
       from: c.from,
       needs: c.needs,
+      when: c.when || {},
       refs: c.anatomy.refs,
       tags: c.tags,
       multi: c.multi,
@@ -247,10 +254,14 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
   warnings.push(...tr.warnings);
   warnings.sort((x, y) => x.line - y.line);
   if (tr.errors.length) return { board, errors: tr.errors, warnings };
-  // A page that leaves the machine is a copy: it records nothing.
-  const syncRes = publish ? { rev: fold(readLog(ref.dir)).rev, changed: [], removed: [] } : sync(ref.dir, board);
-  const built = write && !publish ? markBuild(ref.dir, VERSION) : null;
-  const st = fold(readLog(ref.dir));
+  // A page that leaves the machine is a copy: it records nothing. It still shows
+  // board.org as it is now, so it is numbered as the next render would number it.
+  const before = fold(readLog(ref.dir));
+  const syncRes = sync(ref.dir, board, { write: !publish });
+  // Which build renders this board now; said by the caller when it was another one.
+  const marked = write && !publish ? markBuild(ref.dir, VERSION) : null;
+  const built = marked && before.rev > 0 ? { from: before.build } : null;
+  const st = fold(publish ? [...readLog(ref.dir), ...syncRes.events] : readLog(ref.dir));
   const data = pageData(board, st, ref, { live, token, cwd, publish, chipHref });
   const html = pageHtml(data);
   if (write && !publish) fs.writeFileSync(path.join(ref.dir, 'board.html'), html);

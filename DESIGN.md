@@ -2,10 +2,12 @@
 
 Read this before touching `skill/runtime/`. `TASTE.md` holds prior rulings;
 this file holds the material. The one-line test for any UI change: **a change
-that makes the surface prettier and the task harder must fail.** Run the
-design-skill `kit/check.sh --tokens skill/runtime/board.css skill/runtime`
-after every edit, and `kit/render-check.mjs` on a rendered board before a
-release.
+that makes the surface prettier and the task harder must fail.** After every
+edit, check two things: every color, size and radius in `board.css` is a
+token from its first block, and the runtime holds no raw color
+([design-skill](https://github.com/lroolle/design-skill) does it:
+`kit/check.sh --tokens skill/runtime/board.css skill/runtime`). Before a
+release, look at a rendered board at 390, 768 and 1440 px, in both themes.
 
 ## Direction
 

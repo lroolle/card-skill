@@ -17,8 +17,8 @@ export const LIMITS = {
   paragraphSentences: 6, // ASD-STE100
 };
 
-// Words to replace, near ASD-STE100. The first group is from the STE sheet
-// (vault/assets/x/2105819303471976479-ste100-sheet.png); the rest is ours: words
+// Words to replace, near ASD-STE100. The first group is from the STE summary
+// sheet in https://x.com/karpathy/status/2105819303471976479; the rest is ours: words
 // that make agent prose longer or vaguer. Full list and reasons: reference/writing.md.
 export const WORDS = [
   ['utilize', 'use'], ['utilise', 'use'], ['in order to', 'to'], ['prior to', 'before'],
@@ -47,13 +47,15 @@ let plain = syntaxOf('md').plain;
 function prose(text) {
   const noCode = String(text).replace(/(`+)[\s\S]*?\1/g, 'code')
     .replace(/(^|[\s\-('"{])([=~])(\S|\S[\s\S]*?\S)\2(?=$|[\s\-.,;:!?'")}\[])/g, '$1code');
-  return plain(noCode.replace(/https?:\/\/\S+/g, 'link'));
+  // A link is one word; the full stop or bracket after it is not part of it.
+  return plain(noCode.replace(/https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"]/g, 'link'));
 }
 const unquoted = (t) => t.replace(/"[^"]*"|“[^”]*”/g, ' ');
 // Split into sentences. "e.g." and "i.e." do not end one; a decimal point does not either.
 export function sentences(text) {
   const t = prose(text).replace(/\b(e\.g|i\.e|vs|etc)\./gi, '$1\u0001');
-  return t.split(/(?<=[.!?])["”)]?\s+(?=["“(]?[A-Z0-9`])/).map((x) => x.replace(/\u0001/g, '.').trim()).filter(Boolean);
+  // A sentence may start with code (prose() writes it as the word "code").
+  return t.split(/(?<=[.!?])["”)]?\s+(?=["“(]?(?:[A-Z0-9`]|code\b))/).map((x) => x.replace(/\u0001/g, '.').trim()).filter(Boolean);
 }
 
 const words = (s) => plain(s).split(/\s+/).filter(Boolean).length;

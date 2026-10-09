@@ -327,7 +327,7 @@ Karpathy suggests ASD-STE100 to make model output easier to read. We take the ru
 - words :: the STE sheet list, and words that agents overuse
 - checked by :: cards check, as warnings
 
-The rules come from the ASD-STE100 sheet on Karpathy's post (=vault/assets/x/2105819303471976479-ste100-sheet.png=). The full profile is in =skill/reference/writing.md=.
+The rules come from the ASD-STE100 sheet on Karpathy's post (https://x.com/karpathy/status/2105819303471976479). The full profile is in =skill/reference/writing.md=.
 
 ** The checker warns on long sentences and on listed words
 :PROPERTIES:
@@ -412,7 +412,7 @@ These rules are decided (D1 to D4, D6, D7, D9 and D10 in =docs/DECISIONS.md=). T
 :END:
 Agents now write more than people can read. You can judge a wall of prose only as a whole. You can keep, drop, answer or question one card. Its numeral lets you point in words: "card 12 is wrong".
 
-Karpathy names the job: "a lot more of our work will rise up the abstractions into oversight and understanding" (=vault/sources/x/karpathy-2026-10-02-understand-outputs.md=). In May 2026 he asked to "point and gesture at the screen" (=karpathy-2026-05-11-html-mind-meld.md=).
+Karpathy names the job: "a lot more of our work will rise up the abstractions into oversight and understanding" (https://x.com/karpathy/status/2105819303471976479). In May 2026 he asked to "point and gesture at the screen" (https://x.com/karpathy/status/2053872850101285137).
 
 ** Each card asks for one thing at most, and the top line says whose turn it is
 :PROPERTIES:
@@ -465,7 +465,7 @@ The heading is the claim. The first paragraph is the gist. The rest is depth. Cl
                                └─────────┘
 #+end_src
 
-More on a card asks the agent to go deeper on that card. The interactive page can still "explain at the wrong level of abstraction" (@eliebakouch, in =karpathy-2026-10-02-understand-outputs.md=).
+More on a card asks the agent to go deeper on that card. The interactive page can still "explain at the wrong level of abstraction" (@eliebakouch, in https://x.com/karpathy/status/2105819303471976479).
 
 ** Same question, edit the card; new question, new card
 :PROPERTIES:

@@ -9,7 +9,8 @@ Evidence keys: `amwh` = `docs/research/answer-me-with-html.md`,
 `od` = `docs/research/open-design.md`, `canvas` =
 `docs/research/connected-cards-prior-art.md`, `luhmann` =
 `docs/research/luhmann-zettelkasten.md`, `proto` =
-`docs/research/agent-ui-protocols.md`, `vault` = `vault/`.
+`docs/research/agent-ui-protocols.md`, `karpathy` = Karpathy's posts on
+agent output and the human loop, by date: `docs/research/karpathy-posts.md`.
 
 ## D1. A card is the unit of judgment, and cards are earned
 
@@ -17,7 +18,7 @@ Evidence keys: `amwh` = `docs/research/answer-me-with-html.md`,
 A card holds one claim and at most one ask, so the human can judge it alone.
 Use a board only for three or more separate judgments, a decision only the
 human can make, or work across turns. Otherwise answer in prose.
-Why: generation is cheap and judging is the bottleneck (vault 2025-06-04,
+Why: generation is cheap and judging is the bottleneck (karpathy 2025-06-04,
 2026-10-02). Prose can be judged only as a whole.
 Rejected: "use it proactively and liberally" (amwh). It turns every answer
 into a page and teaches people to ignore pages.
@@ -48,7 +49,7 @@ Rejected: per-card styles, colors, templates as visual variants.
 2026-10-08. Accepted.
 The heading is the claim, the first paragraph is the gist, the rest is depth.
 Claim / Gist / Full in the toolbar. More on a card asks the agent to go deeper.
-Why: the sharpest failure in the vault is the right medium at the wrong
+Why: the sharpest failure in those posts is the right medium at the wrong
 altitude (@eliebakouch). Pixel zoom is a canvas habit and does not help reading.
 
 ## D5. Connected cards: sections, numerals and focus light; no canvas, no edges
@@ -145,7 +146,7 @@ A card that talks about a shape shows it. Two fenced blocks do this:
 `sketch` (text characters, shown as written) and `flow` (arrows written as
 text; the compiler places the boxes with a small layered layout). The first
 figure shows at the Gist level. Figures are numbered per card: Fig. 12.1.
-Why: Karpathy's list puts a diagram above prose (vault 2026-10-02). Nobody can
+Why: Karpathy's list puts a diagram above prose (karpathy 2026-10-02). Nobody can
 judge a decision about a view from a paragraph. A sketch costs an agent little,
 and it reads the same in a terminal, a diff and the page. A flow keeps the
 agent out of placement, as the board does.
@@ -163,7 +164,7 @@ over 25 words, a paragraph over 6 sentences, and words from a list: the
 examples on the STE sheet and words that agents overuse. Active voice, simple
 tenses, short noun groups and one meaning for each word stay rules for the
 writer.
-Why: Karpathy suggests STE for model output, "80% of the way" (vault
+Why: Karpathy suggests STE for model output, "80% of the way" (karpathy
 2026-10-02). A rule with no check drifts. The old board was near STE in
 sentence length, but not in its other rules.
 Rejected for now: a new writing standard for agents (later, if STE-80 falls
@@ -255,7 +256,7 @@ agent's and waited on ask card `ask-canvas`. The human approved them (round 2).
   size. On your own layout, lines lie above the cards, faint where they
   cross one.
 Why: the human asked for each of these. Evidence for the defaults: the Mac
-review (`.claude/review/`, not in git) and the design reviews in STATUS.
+review of the page in a browser on a Mac, and the design reviews.
 Rejected: free placement that the agent sees or that edits `board.org`; a
 force layout (it moves on every change); pixel zoom without semantic zoom
 (Claim, Gist and Full still change what a card shows).
@@ -342,3 +343,170 @@ lookup and a placeholder fill are the whole need).
 Open: a Chinese font in the page (the CJK subset of round 1) needs a
 subsetter; today the page uses the system font.
 Tests: `test/i18n.test.mjs`.
+
+## D21. An ask that depends on an ask waits for it
+
+2026-10-09. Built, after the first field report (a human changed a band,
+kept a size whose range was quoted for the other band, and approved the
+order in the same reply).
+`:NEEDS:` between two open asks is a gate, in three forms. `:NEEDS: a`: the
+ask is written for the option the agent suggested in `a`. `:NEEDS: a=link`:
+it applies only when `a` is answered `link`. `:NEEDS: a=*`: it takes any
+answer of `a`. The page shows a waiting ask with its controls off and the
+reason in words. When the human answers `a` otherwise than the ask was
+written for, the ask is held (form 1) or marked "Not needed" (form 2); the
+reply says `held` and why. In form 1 the human can press "Answer anyway";
+the reply then carries `[answered after #n changed]`.
+Why: a human answers a board in one batch. An approval that rests on an
+answer they just changed is the worst kind of yes: it looks like consent
+and is not.
+Cost: one more state for an ask (`held`), on the page, in the reply and in
+the server's checks.
+Rejected: a line with no gate (the old behavior: it draws the dependency
+and enforces nothing); hiding the dependent ask (disabled, not hidden: the
+human sees what will be asked); opening on any answer by default (the
+unsafe default: the premise changes in silence; the agent must opt in with
+`=*`); a rule that the agent asks dependent questions in separate rounds
+only (right, but a board must be safe when the agent does not follow it).
+Tests: `test/e2e.test.mjs` "asks that depend on asks", "asks written for
+one answer"; `test/loop.test.mjs`.
+
+## D22. The reply is a wire format; a pasted reply is recorded
+
+2026-10-09. Built (field report: in a container and on a published page
+the reply is copy and paste, and the log never learned of the round).
+The digest is one text for three uses: the human reads it, the agent reads
+it, and `cards ingest` parses it back into the items a served page would
+have posted. So a line is `who  kind  what`, the human's words are JSON
+strings, an option comes back as its key, and a copied reply carries a
+short key. `cards ingest` records the round once and marks it read.
+`DONE` on an ask card closes the ask and keeps the ask and its options as
+the record; `cards settle` sets the keyword on every answered ask.
+Why: without a record the board still showed answered asks as open, and
+the agent rewrote each card by hand, once per language.
+Cost: the digest is now a format with a parser and a round-trip test; a
+change to its words can break `ingest`.
+Rejected: a base64 blob at the end of the copied text (exact, but noise in
+a chat and opaque to the human who pastes it); a set of commands that edit
+`board.org` for each kind of revision (one keyword covers the common case;
+the rest is the agent's own editing); removing `:ASK:` from a closed card
+(the question is the context of the answer).
+Tests: `test/loop.test.mjs` "ingest"; `test/e2e.test.mjs` "a pasted reply".
+
+## D23. A copy to publish is its own artifact
+
+2026-10-09. Built (field report: a hand-made publish folder, stale copies,
+and a page that carried past replies and an absolute path).
+`cards export <board> --out <dir>` writes `index.html`: the board as it is
+now. No replies, no chat, no past versions of cards, no path on the disk.
+A file shown as a chip is copied beside the page. The export records
+nothing. Every page, local or published, now has a description, link
+preview tags, `#+author:`, an icon, and a mark that links to the project.
+The icon and the browser tab's title show when an ask waits.
+Why: `board.html` is a working file between one human and one agent. A
+page for other people is a different thing with a different promise, and
+"I grepped for private strings" is not a promise.
+Cost: a second output mode in the compiler, with a test that reads the
+file for each thing it must not hold.
+Rejected: a `--public` flag on `render` (the same file name for two
+different promises); a reply endpoint for published pages (a server, an
+account or a third party; a reader copies the reply and sends it);
+`#+icon:` and `#+keywords:` (no reader is served by them); a preview image
+(a board has no public URL of its own to name one).
+Tests: `test/loop.test.mjs` "export"; `test/e2e.test.mjs` "published copies".
+
+## D24. The first view shows the most that fits; Claim is the map
+
+2026-10-09. Built (field report: the first view hid the pictures, and Fit
+at Gist was 20%). Refines D15 and D17.
+A picture shows at every level on the desk: at Claim it is a thumbnail on
+the tile. With no level picked yet, the desk opens at Gist when every
+section fits the window's width and the board is at most two windows tall;
+else at Claim. Claim is the map: Fit there shows every card, however
+small. Gist and Full are for reading: Fit there never goes below 50%; a
+tall board fits the width and scrolls down. Fit leaves about 30% of the
+table empty around the cards.
+Why: a rule, not a knob. A board made to look and pick must open on what
+there is to see, and "Fit" must never be a view that nobody can read.
+Cost: Fit means two things by level, said in one comment in `board.js`.
+Rejected: opening on the rack when a compare section has pictures (the
+desk is the first view, D15); a keyword that sets the first view
+(`#+startup:` in Org names fold states that do not match our levels, and a
+knob per board is how first views go wrong); semantic zoom, where the zoom
+picks the level (a card's height changes with its level, so the layout
+would move under the pointer).
+Tests: `test/e2e.test.mjs` "first view".
+
+## D25. An update is never silent
+
+2026-10-09. Built (field report: the installed skill was replaced under a
+running session; boards written for the old build passed `check` and would
+have rendered photos as code).
+One version number (`skill/lib/version.mjs`, `package.json`, `SKILL.md`,
+`CHANGES.md`; a test keeps them equal). `cards --version`. `CHANGES.md`
+inside the skill, written for the agent. The log records which build
+rendered a board last, and `check` and `render` say once when it was
+another. `render` ends with the build's version, because a session keeps
+the `SKILL.md` it loaded at its start. `check` warns about syntax that
+does nothing in this build: an unknown `#+keyword:`, an unknown block
+type, a `#+begin_src` language that names a drawing we do not draw.
+Why: a format that degrades in silence teaches the agent the wrong thing
+is fine.
+Cost: a short list of words (`image`, `mermaid`, `chart`, ...) that mean
+"the writer wanted a drawing"; it will miss some.
+Rejected: an error for unknown keywords (a valid Org file carries many we
+do not read); a warning for every Org setting such as `#+startup:` (noise
+that punishes valid Org).
+
+## D26. One board in two languages is two linked boards
+
+2026-10-09. Built (field report: a second language was needed within a
+day; every revision was two edits, and the reply landed in one board
+only). Refines D20, which rejected a language switch.
+A translation is a second board that says `#+translation_of: <board>` and
+keeps the card ids and option keys of its source. Each page links to the
+other, in the same tab. `cards check` on the translation lists what fell
+behind: a missing card, an extra card, a different ask, different option
+keys, a card the source changed later. `cards inbox <source>` prints the
+replies sent from a translation as well.
+Why: D20's reason stands (two languages of one card can say different
+things), so the tool finds the difference instead of hiding it.
+Cost: the writing is still double. Each board keeps its own log.
+Rejected: two languages in one `board.org` (Org has no construct for it,
+and every card would double in the file the agent reads); one shared log
+(card versions differ per language); machine translation in the compiler.
+Tests: `test/loop.test.mjs` "translations".
+
+## D27. We adopt the text Org leaves in the file, not what Emacs does
+
+2026-10-09. Built, from a reading of 20 Org features against the manual.
+A board declares its states (`#+todo: TODO DOING BLOCKED | DONE`), because
+Org knows only `TODO` and `DONE` by default. A planning line (`CLOSED:`,
+`SCHEDULED:`, `DEADLINE:`) may stand between a heading and its drawer. The
+properties Emacs writes on its own, and a `:LOGBOOK:` drawer, are ignored,
+not errors. A comment block is not shown. `check` warns about a blank
+line before a drawer and about `DOING` with no `#+todo:` line.
+Why: "plain Org" was a claim nobody had tested against Org. Three of our
+own constructs were not Org to Emacs or to GitHub.
+Rule for what comes next (the roadmap board): a feature of Org is in scope
+when its state lives in the file as text (keywords, drawers, cookies,
+`#+RESULTS:`, footnotes), and out of scope when it is behavior of the
+editor (column view, agenda commands, capture, macros).
+Open: no test runs a board through Emacs; `org-lint` in CI is on the
+roadmap.
+
+## D28. Three small additions to an ask
+
+2026-10-09. Built (field report).
+`:ASK: do`: an action only the human can take outside the board; the
+answer is Done or I cannot. `:SUGGEST: none` on a choose card: only the
+human knows, so no `[X]`, no warning, and the reply says `chosen`. Option
+keys, `- [ ] small :: S/M, 140 to 180 mm`: the reply names the key, so an
+answer survives a rewording and a translation.
+Why: each was a thing an agent could not say honestly: "I am blocked on
+you, outside this page", "I have no recommendation", "this option, in any
+language".
+Rejected: custom button labels on `approve` (a `do` is not a judgment of
+the agent's work, and the reply should say which it was); card ids made
+from the claim (field report 3.1: an id holds the card's history, answers
+and links, and a claim is rewritten often).

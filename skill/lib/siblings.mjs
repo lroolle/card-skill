@@ -11,7 +11,9 @@ import path from 'node:path';
 import { SOURCES, sourceIn, fold, readLog } from './store.mjs';
 import { parseBoard } from './board.mjs';
 
+const isFile = (p) => { try { return fs.statSync(p).isFile(); } catch { return false; } };
 const head = (file) => {
+  if (!isFile(file)) return { of: '', lang: 'en', title: '' };
   const src = fs.readFileSync(file, 'utf8').split(/^\*+\s/m)[0];
   const get = (k) => src.match(new RegExp(`^#\\+${k}:\\s*(.*?)\\s*$`, 'im'))?.[1] || '';
   return { of: get('translation_of'), lang: get('language') || get('lang') || 'en', title: get('title') };
@@ -25,7 +27,7 @@ export function family(ref, board) {
   if (!fs.existsSync(root)) return [];
   const out = [];
   for (const d of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!d.isDirectory() || !SOURCES.some((f) => fs.existsSync(path.join(root, d.name, f)))) continue;
+    if (!d.isDirectory() || !SOURCES.some((f) => isFile(path.join(root, d.name, f)))) continue;
     const dir = path.join(root, d.name);
     const file = sourceIn(dir);
     const h = d.name === ref.id ? { of: board.translationOf, lang: board.lang, title: board.title } : head(file);
@@ -43,7 +45,7 @@ export function translationChecks(ref, board) {
   if (!board.translationOf || !ref || !ref.dir) return { errors, warnings };
   const dir = path.join(path.dirname(ref.dir), board.translationOf);
   const file = sourceIn(dir);
-  if (board.translationOf === ref.id || !fs.existsSync(file)) {
+  if (board.translationOf === ref.id || !isFile(file)) {
     errors.push({ line: 1, msg: `#+translation_of: ${board.translationOf} names no other board next to this one`, fix: `put the source board at ${path.join(path.dirname(ref.dir), board.translationOf, 'board.org')}` });
     return { errors, warnings };
   }

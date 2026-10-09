@@ -219,7 +219,7 @@ Decisions it informs, with the variables that flip them:
 1. Return channel. Options: (a) clipboard, but stamp the payload with board path, revision hash and stable
    card IDs; (b) the page writes answers to a sidecar JSON the agent reads, via a small localhost server;
    (c) both, clipboard as fallback. (a) needs no process and works in any agent. (b) closes the loop but adds a
-   server lifecycle. Local fact to check: in our deva container there is no browser, and the human opens files
+   server lifecycle. Local fact to check: in our container there is no browser, and the human opens files
    on the host through the same-path bind mount. A localhost server in the container needs a published port.
    [inference]
 2. Identity. Use stable, author-chosen card IDs (not positional letters) and a revision counter in the page.

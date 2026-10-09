@@ -1,0 +1,267 @@
+#+title: Where cards go next: what Org mode already knows
+#+todo: TODO DOING BLOCKED | DONE
+#+language: en
+#+author: Claude
+#+description: Eleven directions for cards, each one a feature Org mode already has syntax for. One ask: which come first.
+
+A board is an Org file. Org is 20 years older than this project and has
+syntax for most of what a review loop needs. These are the parts worth
+adopting, checked against the Org manual. One ask waits at the end.
+
+* The ground rule
+
+** We can adopt the text Org leaves in the file, not what Emacs does
+:PROPERTIES:
+:CUSTOM_ID: text-not-behavior
+:BASIS: fact
+:END:
+Org is two things: a file syntax, and an editor that acts on it. Our parser
+reads the syntax and does not run Emacs. So a direction is in scope when its
+state lives in the file as plain text.
+
+- in scope :: keywords, drawers, properties, cookies, planning lines, =#+RESULTS:=, footnotes, links
+- out of scope :: column view overlays, agenda commands, capture, refile, macros (they expand only on export)
+
+Source: the Org manual and the syntax spec at https://orgmode.org/worg/org-syntax.html, read on 2026-10-09.
+
+** Three places where a board was not valid Org are fixed in 0.1
+:PROPERTIES:
+:CUSTOM_ID: valid-org
+:BASIS: fact
+:END:
+The same reading of the manual found three faults in our own format. All
+three are fixed, and =cards check= now warns about the first one.
+
+- keywords :: =DOING= and =BLOCKED= were plain words to Emacs and GitHub. A board now says =#+todo: TODO DOING BLOCKED | DONE=.
+- planning :: a =CLOSED:= line that Emacs writes under a heading broke the card. It is skipped now.
+- properties :: a property that Emacs writes on its own (=:VISIBILITY:=, =:ARCHIVE_TIME:=) was an error. It is ignored now.
+
+* Trust: the board proves and remembers
+
+** A claim carries the command that proves it, and what the command printed
+:PROPERTIES:
+:CUSTOM_ID: proof
+:BASIS: inference
+:END:
+Today "91 tests pass" is a sentence the agent typed. With Org's source
+blocks it is a command and its output, and =cards verify= runs the command
+again. A result that changed makes a new version of the card.
+
+#+caption: A claim with its proof, in Org's own syntax
+#+begin_src sketch
+  ,#+name: tests
+  ,#+begin_src sh :results output
+  npm test 2>&1 | tail -2
+  ,#+end_src
+
+  ,#+RESULTS[a2a72cd6]: tests
+  : pass 91
+  : fail 0
+#+end_src
+
+- Org feature :: Babel: =#+begin_src=, =#+RESULTS[hash]:=, =:cache yes=
+- what is new :: =cards verify <board>= runs each block and compares
+- risk :: a board that runs commands needs the human's consent, once per board
+
+Org itself does not prove that a result came from the block: an agent can
+type a =#+RESULTS:= block by hand. So the tool must run the block and write
+the hash; the agent must not.
+
+** The card remembers its own answers, in Org's log format
+:PROPERTIES:
+:CUSTOM_ID: record
+:BASIS: inference
+:END:
+Today your answers live in =log.jsonl=, which only this tool reads. Org has
+a format for exactly this record. =cards settle= would write it into the
+card, and the file alone would tell the story in Emacs and on GitHub.
+
+#+caption: An answered ask, as Org logs a state change
+#+begin_src sketch
+  ** DONE Which band goes with the watch?
+  CLOSED: [2026-10-09 Fri 10:00]
+  :PROPERTIES:
+  :CUSTOM_ID: pick-band
+  :ASK: choose
+  :END:
+  :LOGBOOK:
+  - State "DONE"  from "TODO"  [2026-10-09 Fri 10:00] \\
+    chose link (you suggested sport), round 2
+  :END:
+#+end_src
+
+- Org feature :: =CLOSED:= planning line, =:LOGBOOK:= drawer, state-change notes
+- what is new :: =cards settle= writes both; the page reads them back
+- risk :: the tool then writes to the file the agent edits; today it never does
+
+** A fact names its source as a footnote, and a fact without one is flagged
+:PROPERTIES:
+:CUSTOM_ID: sources
+:BASIS: inference
+:END:
+=:BASIS: fact= says the agent checked a source, and nothing says which one.
+Org footnotes give each fact a numbered source. The card would list its
+sources, and =cards check= would warn when a fact has none.
+
+- Org feature :: footnotes =[fn:1]=, citations =[cite:@key]=
+- what is new :: a "Sources" list on the card; one lint rule
+- risk :: low; a footnote is one line
+
+* Scale: many boards, long work
+
+** One page lists every ask that waits on you, across all boards
+:PROPERTIES:
+:CUSTOM_ID: agenda
+:BASIS: inference
+:END:
+With five boards open in three projects, nobody knows which one waits. Org
+calls this view the agenda. =cards agenda= would print it and render it as a
+page: each open ask, its board, its age, and its deadline when it has one.
+
+- Org feature :: agenda, match strings such as =+ASK="choose"-TODO="DONE"=, =DEADLINE:=
+- what is new :: =cards agenda=; a =DEADLINE:= line on an ask
+- risk :: low; it only reads boards
+
+** Settled cards leave the board, and the board stays small
+:PROPERTIES:
+:CUSTOM_ID: archive
+:BASIS: inference
+:END:
+A board that runs for weeks fills with =DONE= cards. Org moves a finished
+subtree to =board.org_archive= and keeps the file short. =cards archive=
+would do the same; an archived card keeps its numeral and its history.
+
+- Org feature :: =org-archive-subtree=, the =:ARCHIVE:= tag, =ARCHIVE_TIME=
+- what is new :: =cards archive <board>=; an "Archived" count that opens the list
+- risk :: links to an archived card must still resolve
+
+** A finding carries its severity, and the board sorts by it
+:PROPERTIES:
+:CUSTOM_ID: priority
+:BASIS: inference
+:END:
+A review board orders findings by hand, worst first. Org has a priority
+cookie for this. The page would show the cookie as P0, P1 or P2, and sort or
+filter by it.
+
+#+caption: Two findings with their priority cookies
+#+begin_src sketch
+  ** TODO [#A] The retry loop never backs off
+  ** TODO [#B] The timeout is read once at start
+#+end_src
+
+- Org feature :: priority cookies =[#A]=, =#+PRIORITIES:=
+- what is new :: a severity chip; "sort by severity"
+- risk :: low; the parser already skips the cookie
+
+** A card links to a card on another board, and boards share one setup file
+:PROPERTIES:
+:CUSTOM_ID: cross-board
+:BASIS: inference
+:END:
+A decision on one board is often the source of a plan on another. Org links
+reach into other files, and one setup file can hold what every board of a
+project shares.
+
+- Org feature :: =[[file:../plan/board.org::#step-3]]=, =#+SETUPFILE:=, =#+LINK:=
+- what is new :: a link that opens the other board at that card; a project index
+- risk :: a published copy must drop or rewrite these links
+
+* Fit: closer to Org, closer to the work
+
+** Approve, then apply: an approved card writes its file
+:PROPERTIES:
+:CUSTOM_ID: apply
+:BASIS: guess
+:END:
+Today you approve a change on the board and the agent makes it afterwards,
+from memory. Org can write a source block to a file. An approved card would
+write exactly the text you saw.
+
+- Org feature :: =:tangle path=, =org-babel-tangle=
+- what is new :: =cards apply <board>= writes the blocks of approved cards only
+- risk :: high; it writes project files. It needs the same consent as [[#proof]]
+
+** A board declares its own states and the values a property may take
+:PROPERTIES:
+:CUSTOM_ID: states
+:BASIS: inference
+:END:
+Four states are built in. A team may need =WAIT= or =CANCELED=. Org lets a
+file declare its states and which ones count as done. The same works for a
+property: =#+PROPERTY: BASIS_ALL fact inference guess=.
+
+- Org feature :: =#+todo:= sequences with =|=, =Xyz_ALL= properties
+- what is new :: the page reads the declared states and shows them
+- risk :: every new state needs a look on the page
+
+** Emacs is a second client, and org-lint proves the file is valid
+:PROPERTIES:
+:CUSTOM_ID: emacs
+:BASIS: guess
+:END:
+A board is an outline that Emacs already folds, searches and edits. A small
+package could answer an ask there: tick the option, add a note, send. And
+=org-lint= in CI would turn "valid Org" from a claim into a test.
+
+- Org feature :: checkboxes, =C-c C-c=, =M-x org-lint=
+- what is new :: a =cards.el= of about 100 lines; one CI step
+- risk :: a second client to keep in step with the page
+
+** A draft card stays in the file and off the page
+:PROPERTIES:
+:CUSTOM_ID: drafts
+:BASIS: inference
+:END:
+An agent often has a card it is not ready to show. Org marks a subtree as
+not for export in two ways. Either would keep the card in =board.org= and
+leave it out of the page.
+
+- Org feature :: the =COMMENT= keyword, the =:noexport:= tag
+- what is new :: the parser skips such a card; =cards check= counts them
+- risk :: low
+
+* Left out on purpose
+
+** Clocking, effort estimates and habits stay out
+:PROPERTIES:
+:CUSTOM_ID: no-time
+:BASIS: inference
+:END:
+Org can clock work and sum effort. An agent's estimate of time is a guess
+that reads like a fact, so cards will not show one. A =DEADLINE:= that the
+human sets is different: it is their fact, and it belongs to [[#agenda]].
+
+** Macros, dynamic blocks and capture are Emacs behavior, not file syntax
+:PROPERTIES:
+:CUSTOM_ID: no-emacs
+:BASIS: fact
+:FROM: text-not-behavior
+:END:
+A macro expands only when Emacs exports. A dynamic block is filled by a
+Lisp function. A capture template lives in the editor's own settings. None
+of them leaves state in the file that another tool can read.
+
+* Your call
+
+** Which directions come first after 0.1?
+:PROPERTIES:
+:CUSTOM_ID: pick-directions
+:ASK: choose
+:MULTI: t
+:END:
+I would take the two trust directions first. They change what a card is
+worth: a claim you can run again, and a file that holds its own record.
+The agenda is third because it is cheap and only reads.
+
+- [X] [[#proof]]
+- [X] [[#record]]
+- [X] [[#agenda]]
+- [ ] [[#sources]]
+- [ ] [[#priority]]
+- [ ] [[#archive]]
+- [ ] [[#cross-board]]
+- [ ] [[#apply]]
+- [ ] [[#states]]
+- [ ] [[#emacs]]
+- [ ] [[#drafts]]

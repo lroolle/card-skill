@@ -1,0 +1,99 @@
+#+title: 给接入服务选一个消息队列
+#+todo: TODO DOING BLOCKED | DONE
+#+language: zh-Hans
+#+translation_of: demo
+#+author: 一个 Agent（示例）
+#+description: 一个示例看板：两条需求，三个选项，一个决定。作答后点“发送”，看 Agent 读到什么。
+
+这是 Agent 给出的一份示例回答，数字是编的。选一个选项，再点“发送”。弹出的文字就是 Agent 读到的内容。
+
+* 队列必须做到什么
+
+** 峰值每秒 8 万条消息，平时每秒 5 千条
+:PROPERTIES:
+:CUSTOM_ID: need-peak
+:BASIS: fact
+:END:
+数据来自十月的线上流量回放。
+
+** Broker 重启不能丢消息
+:PROPERTIES:
+:CUSTOM_ID: need-durable
+:BASIS: fact
+:END:
+丢一批消息，就要手工给客户重新出账。
+
+* 选项  :compare:
+
+** NATS JetStream 用一个二进制文件就能扛住峰值
+:PROPERTIES:
+:CUSTOM_ID: nats
+:BASIS: inference
+:FROM: need-peak need-durable
+:END:
+三节点集群就能满足两条需求，运维负担也最小。
+
+- 峰值 :: 3 个节点，每秒 12 万条
+- 回放 :: 7 天
+- 运维 :: 一个二进制文件
+- 费用 :: 每月约 40 美元
+
+#+begin_src tradeoffs
+  + 三者之中运维面最小
+  + 团队 2025 年在通知服务上用过
+  - 回放窗口比 Kafka 短
+#+end_src
+
+** 只有需要按月回放时，Kafka 才划算
+:PROPERTIES:
+:CUSTOM_ID: kafka
+:BASIS: inference
+:END:
+余量最大，回放最久，代价是要运维一个集群。
+
+- 峰值 :: 3 个 Broker，每秒 100 万条
+- 回放 :: 磁盘够用就一直保留
+- 运维 :: Broker 加控制器仲裁
+- 费用 :: 每月约 400 美元
+
+** SQS 运维最省，但这个峰值下必须分片
+:PROPERTIES:
+:CUSTOM_ID: sqs
+:BASIS: guess
+:END:
+不用运维服务器。但单个队列不做批量、不拆多个队列，就接不住每秒 8 万条。
+
+- 峰值 :: 需要拆成多个队列
+- 回放 :: 删除后无法回放
+- 运维 :: 无
+- 费用 :: 按请求计费，这里每月约 90 美元
+
+* 决定
+
+** 选 NATS JetStream，除非需要 7 天以上的回放
+:PROPERTIES:
+:CUSTOM_ID: pick-queue
+:ASK: choose
+:END:
+NATS 以最低的运维成本满足两条需求。只有长时间回放是硬性要求时，Kafka 才胜出。
+
+- [X] [[#nats]]
+- [ ] [[#kafka]]
+- [ ] [[#sqs]]
+
+** 迁移到 NATS：先双写一周，再切换
+:PROPERTIES:
+:CUSTOM_ID: cutover
+:ASK: approve
+:NEEDS: pick-queue
+:END:
+这个方案是按 NATS 写的。如果你在上面选了别的队列，看板会把这一项留住，由 Agent 重新写方案。
+
+#+caption: 切换过程：两个队列同时接收全部消息，持续一周
+#+begin_src flow
+  生产者 -> 旧队列
+  生产者 -> NATS: 双写
+  旧队列 -> 消费者
+  NATS -> 比对: 持续一周
+  比对 -> 切换: 一致后
+#+end_src

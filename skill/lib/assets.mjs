@@ -228,7 +228,7 @@ export function imageFigure(a, caption, label, ctx = {}) {
   const open = esc(T(ctx, 'img_open'));
   const named = esc(T(ctx, 'img_open_named', { alt }));
   const body = `<button type="button" class="fig-zoom" aria-label="${named}" title="${open}">${img}</button>`;
-  const src = `<span class="fig-file" title="${esc(a.rel)}">${esc(a.name)}${a.w ? ` · ${a.w} × ${a.h}` : ''}</span>`;
+  const src = `<span class="fig-file"${ctx.publish ? '' : ` title="${esc(a.rel)}"`}>${esc(a.name)}${a.w ? ` · ${a.w} × ${a.h}` : ''}</span>`;
   const html = frame('image', body, caption, label, ctx).replace('</figcaption>', ` ${src}</figcaption>`);
   return { html, width: w ? Math.min(w, 2 * WIDE) : WIDE };
 }
@@ -239,7 +239,9 @@ export function excerptHtml(a, b, ctx = {}) {
   const range = a.from === a.to ? T(ctx, 'excerpt_line', { a: a.from }) : T(ctx, 'excerpt_lines', { a: a.from, b: a.to });
   const whole = a.from === 1 && a.to === a.total;
   const cap = b.info ? ` <span class="excerpt-cap">${(ctx.inline || esc)(b.info, ctx)}</span>` : '';
-  const head = `<figcaption><span class="excerpt-src" title="${esc(a.rel)}">${esc(a.rel)}</span>${whole ? '' : ` <span class="excerpt-range">${esc(range)}</span>`}${cap}</figcaption>`;
+  // A published page names the file, not where it lies in the project.
+  const where = ctx.publish ? a.name : a.rel;
+  const head = `<figcaption><span class="excerpt-src" title="${esc(where)}">${esc(where)}</span>${whole ? '' : ` <span class="excerpt-range">${esc(range)}</span>`}${cap}</figcaption>`;
   const rows = a.text.split('\n').map((l, k) => `<span class="ln">${a.from + k}</span>${esc(l)}`);
   const lang = b.lang ? ` data-lang="${esc(b.lang)}"` : '';
   const digits = String(a.to).length;

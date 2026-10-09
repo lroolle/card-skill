@@ -112,7 +112,8 @@ function boardShape(board) {
 }
 
 // sync(dir, board) -> { rev, changed: [ids], removed: [ids] }. Appends to the log.
-export function sync(dir, board) {
+// With write: false nothing is written, and `events` is what a render would record.
+export function sync(dir, board, { write = true } = {}) {
   const st = fold(readLog(dir));
   const at = now();
   const events = [];
@@ -143,10 +144,10 @@ export function sync(dir, board) {
     }
   }
   const shape = hash(boardShape(board));
-  if (!events.length && shape === st.boardHash) return { rev: st.rev, changed, removed };
+  if (!events.length && shape === st.boardHash) return { rev: st.rev, changed, removed, ...(write ? {} : { events: [] }) };
   events.push({ t: 'rev', rev: nextRev, at, hash: shape });
-  append(dir, events);
-  return { rev: nextRev, changed, removed };
+  if (write) append(dir, events);
+  return { rev: nextRev, changed, removed, ...(write ? {} : { events }) };
 }
 
 const sameFiles = (a, b) => JSON.stringify(a || null) === JSON.stringify(b || null);

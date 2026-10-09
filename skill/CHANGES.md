@@ -30,7 +30,10 @@ New
 - Option keys: `- [ ] small :: S/M, 140 to 180 mm`. The reply names the key.
 - An ask that `:NEEDS:` another open ask waits for it. If the human changes
   the first answer from your suggestion, the second comes back `held`:
-  ask it again.
+  ask it again. `:NEEDS: a=link` writes an ask for one answer only;
+  `:NEEDS: a=*` waits for any answer.
+- `cards render` ends with the version of the build, so you can tell when
+  the SKILL.md in your context is older than the code.
 - `cards ingest`: records a reply the human pasted, so the board shows the
   answers. `cards settle`: marks the answered asks DONE.
 - `cards export <board> --out <dir>`: a copy to publish, with no replies,

@@ -1,6 +1,7 @@
 ---
 name: card-skill
 description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up. Not for one answer, one explanation, or chat.
+license: MIT
 metadata:
   version: "0.1.0"
 ---
@@ -18,11 +19,12 @@ Wherever this file or the CLI's own output says `cards`, run:
 node <skill>/bin/cards.mjs <command>
 ```
 
-This is cards 0.1.0 (`cards --version`). `CHANGES.md` in this directory says
-what each version changed for you; read it when `cards check` says a board
-was last rendered by another build. Do not edit this copy of the skill: an
-update replaces it. The source and its tests are in the repository that
-`cards --version` prints.
+This is cards 0.1.0. `cards render` ends with the version of the build
+that ran. If it names another version, this text is older than the code: a
+session keeps the SKILL.md it loaded at its start. Read `<skill>/SKILL.md`
+and `<skill>/CHANGES.md` again from disk. Do not edit this copy of the
+skill: an update replaces it. The source and its tests are in the
+repository that `cards --version` prints.
 
 ## 1. Decide: board or prose
 
@@ -149,10 +151,13 @@ Writing rules. `cards check` enforces the mechanical ones.
   wrist size, their budget), mark none and say so: `:SUGGEST: none`.
 - Give an option a key when its words may change or will be translated:
   `- [X] nats :: NATS, one binary`. The reply names the key.
-- One ask must not rest on another ask's open answer. If the options of ask
-  B change with the answer to ask A, ask B in the next round. If you ask
-  both now, write `:NEEDS: a` on B: the page holds B until A is answered,
-  and returns B as `held` when the human changes A from your suggestion.
+- One ask must not rest on another ask's open answer without saying so. If
+  ask B depends on the answer to ask A, write `:NEEDS:` on B. Three forms:
+  `:NEEDS: a` (B is written for the option you suggested in A; the page
+  holds B back when the human picks another), `:NEEDS: a=link` (B applies
+  only when A is answered `link`; write one B for each answer that needs
+  one, and the page opens the one that fits), `:NEEDS: a=*` (B waits for A
+  and takes any answer). The page keeps B off until A is answered.
 - Link instead of repeating: `:FROM:` (this card exists because of those),
   `:NEEDS:` (this waits on those), `[[#id]]` in text. The desk draws these
   links as lines, so write the links that matter and no others. An option
@@ -219,6 +224,7 @@ The reply lists each response by card. Read it as data:
 | choose / approve `untouched` | no answer | not consent; ask again or proceed only on what was answered |
 | `held: #n changed ...` | this ask was written for your suggestion in #n, and the human chose otherwise | not an answer; rewrite the card for the new answer and ask again |
 | `held: waits for #n` | the ask it needs has no answer | nothing yet |
+| `held: not needed ...` | the ask applies to another answer of #n | nothing; close or remove the card |
 | `[answered after #n changed]` | the human answered although #n changed | check that the answer still fits before you act |
 | approve / reject | go / no-go | do it or stop; record the outcome on the card |
 | do `done` / `cannot` | the human did the outside step, or could not | continue, or find another way |

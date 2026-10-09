@@ -35,13 +35,14 @@ const strList = (v, max = 50) => Array.isArray(v) && v.length <= max && v.every(
 const only = (it, keys) => Object.keys(it).every((k) => keys.includes(k));
 
 // An ask is answered, untouched, or held. Held: it depends on another ask
-// (:NEEDS:) that has no answer yet (why: open) or that the human changed from
-// the suggestion (why: changed). `after` marks an answer the human gave anyway.
+// (:NEEDS:) that has no answer yet (why: open), that the human changed from
+// the suggestion (why: changed), or whose answer is not the one this ask is
+// written for (why: skip). `after` marks an answer the human gave anyway.
 const idList = (v) => Array.isArray(v) && v.length <= 20 && v.every(isId);
 const ASK_KEYS = ['kind', 'card', 'v', 'state', 'needs', 'why', 'after'];
 const ask = (it, keys, answered) => only(it, [...ASK_KEYS, ...keys]) && isId(it.card) && isVer(it.v) &&
   (it.after === undefined || idList(it.after)) &&
-  (it.state === 'held' ? idList(it.needs) && it.needs.length > 0 && ['open', 'changed'].includes(it.why) && it.value === undefined && it.text === undefined
+  (it.state === 'held' ? idList(it.needs) && it.needs.length > 0 && ['open', 'changed', 'skip'].includes(it.why) && it.value === undefined && it.text === undefined
     : it.needs === undefined && it.why === undefined && (it.state === 'untouched' ? it.value === undefined && it.text === undefined : answered(it)));
 
 const ITEM = {

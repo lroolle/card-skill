@@ -81,11 +81,14 @@ function boardTitle(ref) {
 
 // Said once per board, on the first check or render by a build other than the
 // one that rendered it last: an update of the skill is never silent.
+const noteText = (id, from) => `note: ${id} was last rendered by ${from ? `cards ${from}` : 'an older build of cards'}; this is cards ${VERSION}. What changed: ${path.join(SKILL, 'CHANGES.md')}`;
+// For `check`, which records nothing: the note stays until a render.
 function buildNote(ref) {
   const st = fold(readLog(ref.dir));
-  if (!st.rev || st.build === VERSION) return '';
-  return `note: ${ref.id} was last rendered by ${st.build ? `cards ${st.build}` : 'an older build of cards'}; this is cards ${VERSION}. What changed: ${path.join(SKILL, 'CHANGES.md')}`;
+  return !st.rev || st.build === VERSION ? '' : noteText(ref.id, st.build);
 }
+// For every command that writes the page: the render records the build, so this is said once.
+const saidOnce = (ref, r) => { if (r.built) console.log(noteText(ref.id, r.built.from) + '\n'); };
 
 async function stdin() {
   if (process.stdin.isTTY) return '';
@@ -145,9 +148,8 @@ const commands = {
 
   render(a) {
     const ref = resolveBoard(a._[0]);
-    const note = fs.existsSync(ref.file) ? buildNote(ref) : '';
     const r = buildBoard(ref);
-    if (note) console.log(note + '\n');
+    saidOnce(ref, r);
     if (r.errors.length) {
       console.log(formatErrors(r.errors, rel(ref.file)));
       if (r.warnings.length) console.log(formatWarnings(r.warnings, rel(ref.file)));
@@ -159,6 +161,8 @@ const commands = {
     const revised = r.sync.changed.length - added;
     const changed = [added && `${added} new`, revised && `${revised} revised`, r.sync.removed.length && `${r.sync.removed.length} removed`].filter(Boolean).join(', ');
     console.log(`rev ${r.data.board.rev}${changed ? ` (${changed})` : ''}. open: ${pathToFileURL(path.join(ref.dir, 'board.html')).href}`);
+    // The build that ran, so an agent whose loaded SKILL.md names another one knows its text is stale.
+    console.log(`cards ${VERSION}`);
   },
 
   show(a) {
@@ -242,18 +246,22 @@ const commands = {
     if (a._[0] && reply.id && reply.id !== ref.id) die(`the reply is from the board "${reply.id}", not ${ref.id}; run: cards ingest ${reply.id}`, 1);
     const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file });
     const st = fold(readLog(ref.dir));
-    const dup = reply.key && st.sends.find((x) => x.key === reply.key);
-    if (dup) return console.log(`already recorded as round ${dup.round} of ${ref.id}; nothing to do.`);
     const { items, problems } = replyItems(reply, board, st);
+    // One paste is one round: by its key, or for a reply with no key, by what it says.
+    const dup = st.sends.find((x) => (reply.key ? x.key === reply.key : x.via === 'paste' && JSON.stringify(x.items) === JSON.stringify(items)));
+    if (dup) return console.log(`already recorded as round ${dup.round} of ${ref.id}; nothing to do.`);
     if (problems.length) die(`the reply does not fit ${ref.id}:\n  ${problems.join('\n  ')}`, 1);
     if (!items.length) die('the reply holds no responses', 1);
     if (!validItems(items)) die('the reply holds a response this build cannot record; paste the text exactly as the board copied it', 1);
     const ev = addSend(ref.dir, { rev: reply.rev || st.rev, items, via: 'paste', key: reply.key });
-    // The agent has the text in front of it: the round is read.
-    markRead(ref.dir, ev.round);
+    // The agent has this text in front of it, so this round is read. A round
+    // that came before it and is still unread stays unread.
+    const earlier = unread(st).length;
+    if (!earlier) markRead(ref.dir, ev.round);
     const answered = items.filter((it) => it.card && it.state !== 'untouched' && it.state !== 'held' && ['choose', 'approve', 'answer', 'do'].includes(it.kind)).length;
     const held = items.filter((it) => it.state === 'held');
     console.log(`recorded round ${ev.round} of ${ref.id}: ${items.length} responses, ${answered} asks answered${held.length ? `, ${held.length} held (${held.map((it) => it.card).join(', ')}: ask again)` : ''}.`);
+    if (earlier) console.log(`${earlier} earlier round${earlier > 1 ? 's are' : ' is'} unread. Read ${earlier > 1 ? 'them' : 'it'} first: cards inbox ${ref.id}`);
     console.log(`Next: revise ${rel(ref.file)}, close the answered asks (cards settle ${ref.id}), then: cards render ${ref.id}`);
   },
 
@@ -268,18 +276,22 @@ const commands = {
     if (board.errors.length) die(formatErrors(board.errors, rel(ref.file)), 1);
     const st = fold(readLog(ref.dir));
     const answered = globalThis.cardsAnswered(st.sends);
-    const isAnswered = (c) => [...answered].some((k) => k.startsWith(c.id + '@'));
+    // Answered means: at the version of the card the log holds now. An answer to an older version is stale.
+    const isAnswered = (c) => answered.has(`${c.id}@${st.cards.get(c.id)?.v}`);
     const want = a._.slice(1).map((x) => x.replace(/^#/, ''));
     const pick = want.length
       ? want.map((w) => board.cards.find((c) => c.id === w || String(st.cards.get(c.id)?.n) === w) || die(`no card "${w}" on ${ref.id}`, 1))
       : board.cards.filter((c) => c.ask && c.status !== 'done' && isAnswered(c));
     const todo = pick.filter((c) => c.status !== 'done');
     if (!todo.length) return console.log(want.length ? 'already DONE; nothing to do.' : `no open ask on ${ref.id} has an answer on disk. A pasted reply is recorded with: cards ingest ${ref.id}`);
-    const lines = src.split('\n');
+    // Lines as the parser counts them (\r\n, \r or \n each end one), with every line ending kept as it is.
+    const parts = src.split(/(\r\n|\r|\n)/);
     for (const c of todo) {
-      lines[c.line - 1] = lines[c.line - 1].replace(/^(\*\*\s+)(?:(?:TODO|DOING|BLOCKED|DONE)\s+)?/, '$1DONE ');
+      const at = 2 * (c.line - 1);
+      if (!/^\*\*\s/.test(parts[at] || '') || !parts[at].includes(c.title)) die(`line ${c.line} of ${rel(ref.file)} is not the heading of ${c.id}; nothing was written. Set the keyword by hand: ** DONE ${c.title}`, 1);
+      parts[at] = parts[at].replace(/^(\*\*\s+)(?:(?:TODO|DOING|BLOCKED|DONE)\s+)?/, '$1DONE ');
     }
-    fs.writeFileSync(ref.file, lines.join('\n'));
+    fs.writeFileSync(ref.file, parts.join(''));
     console.log(`DONE: ${todo.map((c) => c.id).join(', ')}. Then: cards render ${ref.id}`);
   },
 
@@ -315,6 +327,7 @@ const commands = {
     const ref = resolveBoard(a._[0]);
     const r = buildBoard(ref);
     if (r.errors.length) die(formatErrors(r.errors, rel(ref.file)), 1);
+    saidOnce(ref, r);
     // Playwright is not a dependency of the skill. It is used where it already is:
     // in the project, or installed globally.
     let chromium = null;
@@ -361,6 +374,7 @@ const commands = {
     addSay(ref.dir, text);
     const r = buildBoard(ref, { cwd: process.cwd() });
     if (r.errors.length) die(`said; but the board has errors, so board.html was not rebuilt:\n${formatErrors(r.errors, rel(ref.file))}`, 1);
+    saidOnce(ref, r);
     console.log(`said on ${ref.id}. A served page shows it now; a file page shows it after a reload.`);
   },
 

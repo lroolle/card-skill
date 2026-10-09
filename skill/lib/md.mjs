@@ -161,6 +161,8 @@ const SAFE_URL = /^(https?:\/\/|mailto:|#|\.{0,2}\/|[^:/?#]+(?:[/?#]|$))/i;
 
 export function link(url, html) {
   if (!SAFE_URL.test(url) || /^\s*(javascript|data|vbscript):/i.test(url)) return html;
+  // "//host/x" and anything with a backslash name another machine, not a page of this work.
+  if (/^\s*\/\/|\\/.test(url)) return html;
   // A link to another site opens beside the board. A relative link is another
   // page of the same work (a sibling board): it opens in place, like any page.
   if (!/^(https?:)?\/\/|^mailto:/i.test(url)) return `<a href="${esc(url)}">${html}</a>`;

@@ -8,6 +8,8 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "board": "node skill/bin/cards.mjs"
-  }
+    "board": "node skill/bin/cards.mjs",
+    "site": "node scripts/site.mjs"
+  },
+  "license": "MIT"
 }

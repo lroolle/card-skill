@@ -669,7 +669,7 @@ test('asks that depend on asks: one waits, is held when the first answer changes
 
     // The band changes: the size was written for the suggestion, so it is held, and the bag with it.
     await page.click('#c-pick-band .opt:has(input[value="link"])');
-    assert.equal(await tab('pick-size'), 'Waits for #1');
+    assert.equal(await tab('pick-size'), 'On hold');
     assert.ok(await off('pick-size'));
     assert.match(await page.textContent('#c-pick-size .gate-note'), /written for the suggestion in 1, and you changed 1\. The agent will ask this again\./);
     assert.equal(await tab('bag'), 'Waits for #2');
@@ -825,6 +825,107 @@ test('translations and published copies: a language link in the same tab; a copy
     await page.keyboard.press('Control+Enter');
     assert.match(await page.textContent('dialog p'), /published copy of the board\. Copy your reply and send it to the person who shared it\./);
     assert.doesNotMatch(await page.inputValue('dialog textarea'), /cards ingest/);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('asks written for one answer, or for any answer: a branch opens, the other says it is not needed', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const ref = resolveBoard('branch', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  const size = (id, band, a, b) => `** Which size, for the ${band} band?\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n:ASK: choose\n:SUGGEST: none\n:NEEDS: pick-band=${band}\n:END:\nMeasure your wrist.\n\n- [ ] ${a}\n- [ ] ${b}\n`;
+  fs.writeFileSync(ref.file, `#+title: Branch\n\n** Which band?\n:PROPERTIES:\n:CUSTOM_ID: pick-band\n:ASK: choose\n:END:\nThe sport band is lighter.\n\n- [X] sport :: Sport band\n- [ ] link :: Magnetic link\n\n${size('size-sport', 'sport', 's-m :: S/M, 140 to 180 mm', 'm-l :: M/L, 160 to 210 mm')}\n${size('size-link', 'link', 's :: S, 140 to 160 mm', 'l :: L, 160 to 180 mm')}\n** Put it in the bag\n:PROPERTIES:\n:CUSTOM_ID: bag\n:ASK: approve\n:NEEDS: pick-band=*\n:END:\nNothing is ordered before you approve.\n`);
+  const r = buildBoard(ref, { cwd });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(r.data.cards['size-link'].when, { 'pick-band': 'link' });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack');
+    const tab = (id) => page.textContent(`#c-${id} .tab`);
+    const off = (id) => page.$$eval(`#c-${id} .ask :is(input, button.btn)`, (els) => els.every((e) => e.disabled));
+    assert.deepEqual([await tab('size-sport'), await tab('size-link'), await tab('bag')], ['Waits for #1', 'Waits for #1', 'Waits for #1']);
+    assert.match(await page.textContent('.lamp'), /1 waiting on you/);
+
+    // Not the suggested band: the ask written for it opens, the other is not needed, and "any answer" opens too.
+    await page.click('#c-pick-band .opt:has(input[value="link"])');
+    assert.deepEqual([await tab('size-sport'), await tab('size-link'), await tab('bag')], ['Not needed', 'Choose', 'Approve']);
+    assert.ok(await off('size-sport'));
+    assert.ok(!(await off('size-link')));
+    assert.match(await page.textContent('#c-size-sport .gate-note'), /Not needed: this applies only when 1 is answered “Sport band”\./);
+    assert.equal(await page.$('#c-size-sport [data-act="anyway"]'), null, 'there is nothing to answer anyway');
+    assert.match(await page.textContent('.lamp'), /2 waiting on you/);
+    await page.click('#c-size-link .opt:has(input[value="l"])');
+    await page.click('#c-bag [data-approve="approve"]');
+    await page.keyboard.press('Control+Enter');
+    const text = await page.inputValue('dialog textarea');
+    assert.match(text, /#1 pick-band\s+choose\s+changed: link/);
+    assert.match(text, /#2 size-sport\s+choose\s+held: not needed; it applies to another answer of #1/);
+    assert.match(text, /#3 size-link\s+choose\s+chosen: l\n/);
+    assert.match(text, /#4 bag\s+approve\s+approved\n/);
+    assert.doesNotMatch(text, /answered after/, 'neither answer rests on a changed suggestion');
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('review fixes: a text answer opens what waits for it; an answer held in a later round no longer stands', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { execFileSync } = await import('node:child_process');
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const cli = (args, input) => execFileSync('node', [path.join(SKILL, 'bin', 'cards.mjs'), ...args], { cwd, input, encoding: 'utf8' });
+  const ref = resolveBoard('rounds', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  fs.writeFileSync(ref.file, `#+title: Rounds\n\n** What is the budget?\n:PROPERTIES:\n:CUSTOM_ID: budget\n:ASK: answer\n:END:\nOnly you know it.\n\n** Buy the plan that fits the budget\n:PROPERTIES:\n:CUSTOM_ID: buy\n:ASK: approve\n:NEEDS: budget\n:END:\nI buy nothing before you approve.\n\n** Which band?\n:PROPERTIES:\n:CUSTOM_ID: band\n:ASK: choose\n:END:\nThe sport band is lighter.\n\n- [X] sport :: Sport\n- [ ] link :: Link\n\n** Which size?\n:PROPERTIES:\n:CUSTOM_ID: size\n:ASK: choose\n:SUGGEST: none\n:NEEDS: band\n:END:\nMeasure your wrist.\n\n- [ ] s :: Small\n- [ ] l :: Large\n`);
+  buildBoard(ref, { cwd });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    const url = pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack';
+    await page.goto(url);
+    const off = (id) => page.$$eval(`#c-${id} .ask :is(input, button.btn)`, (els) => els.every((e) => e.disabled));
+    const copy = async () => {
+      await page.keyboard.press('Control+Enter');
+      const text = await page.inputValue('dialog textarea');
+      await page.click('dialog [data-copy]');
+      await page.waitForSelector('dialog', { state: 'detached' });
+      return text;
+    };
+
+    // The first character typed into a text ask opens the ask that waits for it; the box keeps the caret.
+    assert.ok(await off('buy'));
+    await page.click('#c-budget textarea');
+    await page.keyboard.type('4');
+    assert.ok(!(await off('buy')), 'the approval opens while you type');
+    assert.equal(await page.evaluate(() => document.activeElement.tagName), 'TEXTAREA');
+    await page.keyboard.type('00 a month');
+    assert.equal(await page.inputValue('#c-budget textarea'), '400 a month');
+    await page.keyboard.press('Escape');
+
+    // Round 1: the suggested band, and a size.
+    await page.click('#c-band .opt:has(input[value="sport"])');
+    await page.click('#c-size .opt:has(input[value="s"])');
+    cli(['ingest'], await copy());
+    cli(['render', 'rounds', '--quiet']);
+    await page.goto(url);
+    assert.equal(await page.textContent('#c-size .tab'), 'Chosen');
+
+    // Round 2: the band changes. The size was answered for the other band: it comes back held.
+    await page.click('#c-band .opt:has(input[value="link"])');
+    assert.equal(await page.textContent('#c-size .tab'), 'On hold');
+    const second = await copy();
+    assert.match(second, /#3 band\s+choose\s+changed: link/);
+    assert.match(second, /#4 size\s+choose\s+held: #3 changed from your suggestion/);
+    cli(['ingest'], second);
+    cli(['render', 'rounds', '--quiet']);
+    assert.match(cli(['show', 'rounds']), /2 waiting on you/, 'the size and the approval still wait');
+    assert.match(cli(['settle', 'rounds']), /DONE: budget, band\./, 'settle closes what stands, and not the held size');
+    assert.deepEqual(errors, []);
   } finally {
     await browser.close();
   }
