@@ -75,45 +75,84 @@ function findFont(script, weight, env) {
   return null;
 }
 
-// How to run fonttools here: on the PATH, through uv, or as a Python module.
+// The cache: one directory per user under the temp directory, closed to everyone
+// else. If it is not that (another owner, a link, a file), there is no cache
+// and no font: boardFont() says why and the page keeps the system font.
+function cacheDir() {
+  const uid = typeof process.getuid === 'function' ? process.getuid() : null;
+  const dir = path.join(os.tmpdir(), `cards-fonts-${uid ?? 'u'}`);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const st = fs.lstatSync(dir);
+  if (!st.isDirectory() || (uid !== null && (st.uid !== uid || (st.mode & 0o022)))) throw new Error(`${dir} is not a directory of this user alone`);
+  fs.accessSync(dir, fs.constants.W_OK);
+  return dir;
+}
+
+// How to run fonttools here: on the PATH, as a Python module, or through uv.
+// uv is asked without the network first. It may fetch fonttools once; where
+// that fails, a mark in the cache keeps the next renders from waiting for the
+// network again, for a day.
+const DAY = 24 * 60 * 60 * 1000;
 let SUBSETTER;
-function subsetter() {
+function subsetter(dir) {
   if (SUBSETTER !== undefined) return SUBSETTER;
-  const ok = (cmd, args) => spawnSync(cmd, args, { stdio: 'ignore', timeout: 120000 }).status === 0;
+  const ok = (cmd, args, timeout = 20000) => spawnSync(cmd, args, { stdio: 'ignore', timeout }).status === 0;
+  const uvx = ['uvx', '--quiet', '--from', 'fonttools[woff]', 'pyftsubset'];
+  const offline = ['uvx', '--offline', ...uvx.slice(1)];
+  const mark = path.join(dir, 'no-fonttools');
+  const tried = () => { try { return Date.now() - fs.statSync(mark).mtimeMs < DAY; } catch { return false; } };
   if (ok('pyftsubset', ['--help'])) SUBSETTER = ['pyftsubset'];
-  else if (ok('uvx', ['--quiet', '--from', 'fonttools[woff]', 'pyftsubset', '--help'])) SUBSETTER = ['uvx', '--quiet', '--from', 'fonttools[woff]', 'pyftsubset'];
   else if (ok('python3', ['-c', 'import fontTools.subset'])) SUBSETTER = ['python3', '-m', 'fontTools.subset'];
-  else SUBSETTER = null;
+  else if (ok(offline[0], [...offline.slice(1), '--help'])) SUBSETTER = offline;
+  else if (!tried() && ok(uvx[0], [...uvx.slice(1), '--help'], 120000)) SUBSETTER = offline;
+  else {
+    SUBSETTER = null;
+    try { fs.writeFileSync(mark, ''); } catch { /* no mark: the next render asks again */ }
+  }
   return SUBSETTER;
 }
 
-// One subset: this font, these characters. Kept in the temp directory under a
-// name made from both, so the same board renders at once the second time.
-function subset(font, script, chars, tool) {
+// A file of the cache is used only when it is the font it is named as.
+const MAGIC = { woff2: 'wOF2', woff: 'wOFF' };
+function isFont(file, flavor) {
+  try {
+    const fd = fs.openSync(file, 'r');
+    try {
+      const head = Buffer.alloc(4);
+      return fs.readSync(fd, head, 0, 4, 0) === 4 && head.toString('latin1') === MAGIC[flavor] && fs.fstatSync(fd).size > 64;
+    } finally { fs.closeSync(fd); }
+  } catch { return false; }
+}
+
+// One subset: this font, these characters. Kept in the cache under a name made
+// from both, so the same board renders at once the second time. A subset is
+// written under another name and renamed when it is whole.
+function subset(font, script, chars, tool, dir) {
   const st = fs.statSync(font);
   // Name records 0, 13 and 14 are the font's copyright and its license: the Open
   // Font License asks that they travel with the font, and here they do, inside it.
   const options = ['--no-hinting', '--desubroutinize', '--layout-features=locl,kern,liga', '--name-IDs=0,1,2,13,14', '--notdef-outline', '--drop-tables+=DSIG'];
   const key = crypto.createHash('sha256').update([font, st.size, st.mtimeMs, script, chars.join(''), options.join(' ')].join('|')).digest('hex').slice(0, 24);
-  const dir = path.join(os.tmpdir(), 'cards-fonts');
-  fs.mkdirSync(dir, { recursive: true });
   for (const flavor of ['woff2', 'woff']) {
     const out = path.join(dir, `${key}.${flavor}`);
-    if (fs.existsSync(out) && fs.statSync(out).size > 0) return { file: out, flavor };
+    if (isFont(out, flavor)) return { file: out, flavor };
   }
-  const list = path.join(dir, `${key}.txt`);
+  const list = path.join(dir, `${key}.${process.pid}.txt`);
   fs.writeFileSync(list, chars.join(''));
   const base = [font, `--text-file=${list}`, ...options];
   if (/\.ttc$/i.test(font)) base.push(`--font-number=${SCRIPTS[script]}`);
-  // woff2 needs brotli; without it, woff (zlib) still works and is a third larger.
-  for (const flavor of ['woff2', 'woff']) {
-    const out = path.join(dir, `${key}.${flavor}`);
-    try {
-      execFileSync(tool[0], [...tool.slice(1), ...base, `--flavor=${flavor}`, `--output-file=${out}`], { stdio: 'ignore', timeout: 180000 });
-      if (fs.existsSync(out) && fs.statSync(out).size > 0) return { file: out, flavor };
-    } catch { /* try the next flavor */ }
-  }
-  return null;
+  try {
+    // woff2 needs brotli; without it, woff (zlib) still works and is a third larger.
+    for (const flavor of ['woff2', 'woff']) {
+      const out = path.join(dir, `${key}.${flavor}`);
+      const part = path.join(dir, `${key}.${process.pid}.${flavor}.part`);
+      try {
+        execFileSync(tool[0], [...tool.slice(1), ...base, `--flavor=${flavor}`, `--output-file=${part}`], { stdio: 'ignore', timeout: 180000 });
+        if (isFont(part, flavor)) { fs.renameSync(part, out); return { file: out, flavor }; }
+      } catch { /* try the next flavor */ } finally { fs.rmSync(part, { force: true }); }
+    }
+    return null;
+  } finally { fs.rmSync(list, { force: true }); }
 }
 
 export function boardFont(lang, text, { env = process.env } = {}) {
@@ -124,21 +163,28 @@ export function boardFont(lang, text, { env = process.env } = {}) {
   if (!chars.length) return { css: '', state: 'none', why: '' };
   const regular = findFont(script, 'Regular', env);
   if (!regular) return { css: '', state: 'system', why: 'no open CJK font on this machine (Noto Sans CJK or Source Han Sans)' };
-  const tool = subsetter();
-  if (!tool) return { css: '', state: 'system', why: 'fonttools is not installed (pyftsubset)' };
-  const faces = [[regular, '400']];
-  const bold = findFont(script, 'Bold', env);
-  if (bold) faces.push([bold, '600 700']);
-  const family = familyOf(regular, script);
-  // board.css puts var(--cjk) first in its font stacks; here it gets its face.
-  const rules = [`:root{--cjk:"${family}"}`];
-  let bytes = 0;
-  for (const [file, weight] of faces) {
-    const s = subset(file, script, chars, tool);
-    if (!s) return { css: '', state: 'system', why: `fonttools could not subset ${path.basename(file)}` };
-    const data = fs.readFileSync(s.file);
-    bytes += data.length;
-    rules.push(`@font-face{font-family:"${family}";font-style:normal;font-weight:${weight};font-display:swap;src:url(data:font/${s.flavor};base64,${data.toString('base64')}) format("${s.flavor}");unicode-range:${RANGE}}`);
+  // From here on nothing may stop a render: a cache that cannot be used, or a
+  // tool that fails, leaves the page with the system font and a reason.
+  try {
+    const dir = cacheDir();
+    const tool = subsetter(dir);
+    if (!tool) return { css: '', state: 'system', why: 'fonttools is not installed (pyftsubset)' };
+    const faces = [[regular, '400']];
+    const bold = findFont(script, 'Bold', env);
+    if (bold) faces.push([bold, '600 700']);
+    const family = familyOf(regular, script);
+    // board.css puts var(--cjk) first in its font stacks; here it gets its face.
+    const rules = [`:root{--cjk:"${family}"}`];
+    let bytes = 0;
+    for (const [file, weight] of faces) {
+      const s = subset(file, script, chars, tool, dir);
+      if (!s) return { css: '', state: 'system', why: `fonttools could not subset ${path.basename(file)}` };
+      const data = fs.readFileSync(s.file);
+      bytes += data.length;
+      rules.push(`@font-face{font-family:"${family}";font-style:normal;font-weight:${weight};font-display:swap;src:url(data:font/${s.flavor};base64,${data.toString('base64')}) format("${s.flavor}");unicode-range:${RANGE}}`);
+    }
+    return { css: rules.join('\n'), state: 'embedded', family, why: `${chars.length} characters of ${family}, ${Math.round(bytes / 1024)} KB`, bytes, chars: chars.length };
+  } catch (e) {
+    return { css: '', state: 'system', why: `the font cache cannot be used (${e.message})` };
   }
-  return { css: rules.join('\n'), state: 'embedded', family, why: `${chars.length} characters of ${family}, ${Math.round(bytes / 1024)} KB`, bytes, chars: chars.length };
 }

@@ -72,3 +72,50 @@ test('font: render puts the font into the page and says so once; an export carri
   assert.match(cards(['export', 'zh', '--out', path.join(cwd, 'out')]), /font: the page carries its own font/);
   assert.equal((fs.readFileSync(path.join(cwd, 'out', 'index.html'), 'utf8').match(/@font-face\{font-family:"[^"]+ SC"/g) || []).length, 2);
 });
+
+// ---- the review of 0.2.0: the cache is private, checked, and never the end of a render ----
+
+test('font: a cache that cannot be used leaves the system font and a reason, not an error', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-fonttmp-'));
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 'u';
+  fs.writeFileSync(path.join(tmp, `cards-fonts-${uid}`), 'a file where the cache directory should be');
+  const was = process.env.TMPDIR;
+  process.env.TMPDIR = tmp;
+  try {
+    // Any file will do for the font: the cache is looked at before the font is read.
+    const f = boardFont('zh-Hans', '看板', { env: { CARDS_CJK_FONT: CLI } });
+    assert.deepEqual([f.state, f.css], ['system', '']);
+    assert.match(f.why, /^the font cache cannot be used \(/);
+  } finally { if (was === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = was; }
+});
+
+test('font: with no tool, the wait for one happens once: a mark keeps the next render from asking the network', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-fonttmp-'));
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 'u';
+  const lib = path.join(path.dirname(CLI), '..', 'lib', 'font.mjs');
+  const ask = () => JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e',
+    `import { boardFont } from ${JSON.stringify(lib)}; console.log(JSON.stringify(boardFont('zh-Hans', '看板')));`],
+    { encoding: 'utf8', env: { PATH: path.join(tmp, 'no-bin'), TMPDIR: tmp, CARDS_CJK_FONT: CLI } }));
+  assert.deepEqual([ask().state, ask().why], ['system', 'fonttools is not installed (pyftsubset)']);
+  assert.ok(fs.existsSync(path.join(tmp, `cards-fonts-${uid}`, 'no-fonttools')));
+  if (uid !== 'u') assert.equal(fs.statSync(path.join(tmp, `cards-fonts-${uid}`)).mode & 0o077, 0, 'the cache is closed to other users');
+});
+
+test('font: a file of the cache that is not a font is made again, not put into the page', { skip }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-fonttmp-'));
+  const was = process.env.TMPDIR;
+  process.env.TMPDIR = tmp;
+  try {
+    const first = boardFont('zh-Hans', '缓存里的字', { env });
+    assert.equal(first.state, 'embedded');
+    const dir = path.join(tmp, fs.readdirSync(tmp).find((n) => n.startsWith('cards-fonts-')));
+    const fonts = fs.readdirSync(dir).filter((n) => /\.woff2?$/.test(n));
+    assert.ok(fonts.length >= 1);
+    assert.deepEqual(fs.readdirSync(dir).filter((n) => /\.(part|txt)$/.test(n)), [], 'nothing half-made is left behind');
+    for (const n of fonts) fs.writeFileSync(path.join(dir, n), 'junk');
+    const again = boardFont('zh-Hans', '缓存里的字', { env });
+    assert.equal(again.state, 'embedded');
+    assert.equal(again.bytes, first.bytes, 'the same font as the first time');
+    assert.equal(again.css, first.css);
+  } finally { if (was === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = was; }
+});

@@ -13,7 +13,7 @@ import { strings as uiStrings, t } from './i18n.mjs';
 import { family, translationChecks } from './siblings.mjs';
 import { VERSION, HOME } from './version.mjs';
 import { boardFont } from './font.mjs';
-import { writeIndex, isBoardsRoot } from './index.mjs';
+import { writeIndex, ownsIndex } from './index.mjs';
 import '../runtime/digest.js';
 
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
@@ -84,6 +84,9 @@ function pastView(src, fmt, ctx) {
 // publish: the page leaves the machine (`cards export`). It then carries the
 // board as it is now and nothing else: no replies, no chat, no past versions,
 // no path on this disk.
+// Where a published copy's "Back" link may go: a relative address or an http(s) one, nothing that runs.
+export const safeHome = (home) => (typeof home === 'string' && /^(https?:\/\/|\.{0,2}\/|[^:/?#\s]+(?:[/?#]|$))/i.test(home) && !/^\s*\/\//.test(home) ? home : '');
+
 export function pageData(board, st, ref, { live = false, token = null, cwd = process.cwd(), publish = false, chipHref = null, home = null } = {}) {
   const byId = new Map(board.cards.map((c) => [c.id, c]));
   const nOf = (id) => st.cards.get(id)?.n ?? '?';
@@ -154,7 +157,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       path: publish ? '' : displayPath(cwd, ref.file),
       // The way back: the list of this project's boards (lib/index.mjs), or for a
       // published copy the page its publisher names (`cards export --home`).
-      home: publish ? (home || '') : live ? '/' : ref && ref.dir && isBoardsRoot(path.dirname(ref.dir)) ? '../index.html' : '',
+      home: publish ? safeHome(home) : live ? '/' : ref && ref.dir && ownsIndex(path.dirname(ref.dir)) ? '../index.html' : '',
       // The same board in other languages (lib/siblings.mjs).
       langs: family(ref, board).map((m) => ({ id: m.id, lang: m.lang, self: m.self, href: hrefOf(m.id) })),
     },

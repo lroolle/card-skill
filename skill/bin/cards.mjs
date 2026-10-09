@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE, addIds, setStatus, moveCards } from '../lib/board.mjs';
 import { lint, formatWarnings } from '../lib/lint.mjs';
-import { buildBoard, outline } from '../lib/compile.mjs';
+import { buildBoard, outline, safeHome } from '../lib/compile.mjs';
 import { resolveAssets } from '../lib/assets.mjs';
 import { resolveBoard, listBoards, readLog, fold, unread, markRead, boardsRoot, addSay, addSend } from '../lib/store.mjs';
 import { serve, validItems } from '../lib/serve.mjs';
@@ -371,6 +371,7 @@ const commands = {
       return `files/${encodeURIComponent(copies.get(asset.abs))}`;
     };
     // --home: where the copy's "Back" link goes (the page that links to it); none without it.
+    if (typeof a.home === 'string' && !safeHome(a.home)) die(`--home takes a relative address or an http(s) one, not "${a.home}"`);
     const r = buildBoard(ref, { publish: true, write: false, chipHref, home: typeof a.home === 'string' ? a.home : null });
     if (r.errors.length) die(formatErrors(r.errors, rel(ref.file)), 1);
     fs.mkdirSync(out, { recursive: true });

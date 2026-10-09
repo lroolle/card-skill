@@ -250,7 +250,8 @@ const ORG_SETTINGS = ['todo', 'seq_todo', 'typ_todo', 'startup', 'options', 'fil
   'archive', 'link', 'setupfile', 'category', 'macro', 'select_tags', 'exclude_tags', 'bibliography', 'cite_export'];
 // Properties Emacs writes into a drawer on its own. They are not ours and not errors.
 const ORG_OWNED = /^(ID|VISIBILITY|ORDERED|NOBLOCKING|COOKIE_DATA|LOGGING|CATEGORY|ARCHIVE|DIR|ATTACH_DIR|EFFORT|STYLE|LAST_REPEAT|CREATED|ARCHIVE_\w+|EXPORT_\w+|\w+_ALL)$/;
-const PLANNING_RE = /^\s*(CLOSED|SCHEDULED|DEADLINE):\s/;
+// With its timestamp: "DEADLINE: Friday is the day" is a sentence of the card, not a planning line.
+const PLANNING_RE = /^\s*(CLOSED|SCHEDULED|DEADLINE):\s*[<[]\d{4}-\d{2}-\d{2}/;
 const orgList = (v) => (v ? v.split(/[\s,]+/).map((x) => x.replace(/^#/, '')).filter(Boolean) : []);
 // :NEEDS: a b=link c=*  ->  the cards this one waits on, and for an ask that
 // waits on an ask, which answer it is written for: none named (the one the
@@ -466,9 +467,19 @@ function parseOrgBoard(src, id) {
 // addIds(src) -> { src, added: [[line, id]] }. Gives every card of a board.org
 // that has no :CUSTOM_ID: one made from its claim, written into the file once.
 // After that the id is the card's own: the claim may change, the id stays.
+// It finds a card's drawer where drawer() above finds it (after empty lines and
+// a planning line), so a card that has an id never gets a second one.
 export function addIds(src) {
-  const lines = String(src).split('\n');
-  const taken = new Set([...String(src).matchAll(/^\s*:CUSTOM_ID:\s*(\S+)\s*$/gim)].map((m) => m[1]));
+  const L = srcLines(src);
+  const EOL = /(\r\n|\r|\n)$/;
+  const text = (i) => (L[i] || '').replace(EOL, '');
+  const eolOf = (i, or) => ((L[i] || '').match(EOL) || [or])[0];
+  const fileEol = eolOf(0, '\n');
+  const taken = new Set();
+  for (let i = 0; i < L.length; i++) {
+    const m = text(i).match(/^\s*:CUSTOM_ID:\s*(\S+)\s*$/i);
+    if (m) taken.add(m[1]);
+  }
   const fresh = (title) => {
     let base = slug(title).replace(/-+$/, ''); // a cut at 32 characters may end on a dash
     if (!/[a-z0-9]/i.test(plain(title))) {
@@ -483,31 +494,39 @@ export function addIds(src) {
   };
   const added = [];
   let block = null;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].replace(/\r$/, '');
+  for (let i = 0; i < L.length; i++) {
+    const line = text(i);
     if (block) { if (new RegExp(`^\\s*#\\+end_${block}\\s*$`, 'i').test(line)) block = null; continue; }
     const b = line.match(/^\s*#\+begin_(\w+)/i);
     if (b) { block = b[1]; continue; }
     const hd = line.match(/^\*\*\s+(.*?)\s*$/);
     if (!hd) continue;
-    const eol = lines[i].endsWith('\r') ? '\r' : '';
-    let at = i + 1;
-    if (PLANNING_RE.test(lines[at] || '')) at++;
-    const drawer = (lines[at] || '').trim().toUpperCase() === ':PROPERTIES:';
-    if (drawer) {
-      let end = at + 1;
-      while (end < lines.length && lines[end].trim().toUpperCase() !== ':END:') end++;
-      if (lines.slice(at, end).some((l) => /^\s*:CUSTOM_ID:/i.test(l))) continue;
-      const idv = fresh(orgHead(hd[1]).title);
-      lines.splice(at + 1, 0, `:CUSTOM_ID: ${idv}${eol}`);
+    const eol = eolOf(i, fileEol);
+    let j = i + 1;
+    while (j < L.length && !text(j).trim()) j++;
+    const planned = PLANNING_RE.test(text(j));
+    if (planned) j++;
+    const title = orgHead(hd[1]).title;
+    if (text(j).trim().toUpperCase() === ':PROPERTIES:') {
+      let end = j + 1;
+      while (end < L.length && text(end).trim().toUpperCase() !== ':END:') end++;
+      let own = -1;
+      for (let k = j + 1; k < end; k++) if (/^\s*:CUSTOM_ID:/i.test(text(k))) own = k;
+      if (own >= 0 && /^\s*:CUSTOM_ID:\s*\S/i.test(text(own))) continue;
+      const idv = fresh(title);
+      // A :CUSTOM_ID: with no value is filled in; else the id is the drawer's first line.
+      if (own >= 0) L[own] = `:CUSTOM_ID: ${idv}${eolOf(own, eol)}`;
+      else L.splice(j + 1, 0, `:CUSTOM_ID: ${idv}${eolOf(j, eol)}`);
       added.push([i + 1, idv]);
     } else {
-      const idv = fresh(orgHead(hd[1]).title);
-      lines.splice(at, 0, `:PROPERTIES:${eol}`, `:CUSTOM_ID: ${idv}${eol}`, `:END:${eol}`);
+      const idv = fresh(title);
+      const at = planned ? j : i + 1;
+      if (!EOL.test(L[at - 1])) L[at - 1] += eol; // the heading was the last line of the file
+      L.splice(at, 0, `:PROPERTIES:${eol}`, `:CUSTOM_ID: ${idv}${eol}`, `:END:${eol}`);
       added.push([i + 1, idv]);
     }
   }
-  return { src: lines.join('\n'), added };
+  return { src: L.join(''), added };
 }
 
 // Lines as the parser counts them (\r\n, \r or \n each end one), each with
@@ -540,20 +559,22 @@ export function setStatus(src, cards, kw) {
 export function moveCards(src, board, cards, where) {
   const L = srcLines(src);
   const eol = ((L[0] || '').match(/(\r\n|\r|\n)$/) || ['\n'])[0];
-  const named = board.sections.filter((x) => x.title);
-  const heads = [...board.cards.map((c) => c.line), ...named.map((x) => x.line)].sort((x, y) => x - y);
+  // Every heading ends the card before it, also a section heading with no title.
+  // (Cards before the first section are a section with no heading: its line is its first card's.)
+  const heads = [...new Set([...board.cards.map((c) => c.line), ...board.sections.map((x) => x.line)])].sort((x, y) => x - y);
   const endOf = (line) => heads.find((h) => h > line) ?? L.length + 1; // the first line after it
   const blank = (l) => /^\s*$/.test(l);
 
   let at;
   let into;
   if (where.to !== undefined) {
-    const name = String(where.to).replace(/^§/, '');
-    const sec = named.find((x) => x.id === name || x.title.toLowerCase() === name.toLowerCase());
-    if (!sec) throw new Error(`no section "${name}" on this board. Sections: ${named.map((x) => x.id).join(', ')}`);
-    const next = named[named.indexOf(sec) + 1];
+    // A reply names a section as "§id"; "§" alone is the cards that stand outside every section.
+    const name = String(where.to).replace(/^§/, '').trim();
+    const sec = board.sections.find((x) => x.id === name || (x.title || '').toLowerCase() === name.toLowerCase());
+    if (!sec) throw new Error(`no section "${name}" on this board. Sections: ${board.sections.map((x) => x.id || '§').join(', ')}`);
+    const next = board.sections[board.sections.indexOf(sec) + 1];
     at = next ? next.line : L.length + 1;
-    into = `the end of "${sec.title}"`;
+    into = sec.title ? `the end of "${sec.title}"` : 'the end of the cards with no section';
   } else {
     const t = where.before || where.after;
     if (cards.some((c) => c.id === t.id)) throw new Error(`${t.id} is one of the cards to move`);

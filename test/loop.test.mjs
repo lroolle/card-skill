@@ -294,8 +294,11 @@ test('version: skill/ does not change under a version that is already tagged', (
     return t.skip('no release tags in this checkout');
   }
   if (git(['rev-parse', '-q', '--verify', `refs/tags/v${VERSION}`]).status !== 0) return; // not released yet
-  const changed = git(['diff', '--name-only', `v${VERSION}`, '--', 'skill']).stdout.trim();
-  assert.equal(changed, '', `skill/ changed after v${VERSION} was tagged. Raise VERSION in skill/lib/version.mjs and open its section in skill/CHANGES.md.`);
+  // A commit from before that release has the number and not yet the tagged skill/: that is in order (git bisect lands there).
+  if (git(['merge-base', '--is-ancestor', `v${VERSION}`, 'HEAD']).status !== 0) return;
+  const diff = git(['diff', '--name-only', `v${VERSION}`, '--', 'skill']);
+  assert.equal(diff.status, 0, `git diff failed: ${diff.stderr}`);
+  assert.equal(diff.stdout.trim(), '', `skill/ changed after v${VERSION} was tagged. Raise VERSION in skill/lib/version.mjs and open its section in skill/CHANGES.md.`);
 });
 
 test('version: one number everywhere, and a render by another build is said once', () => {
@@ -616,4 +619,117 @@ test('render: the same board and the same log give the same page, byte for byte'
   const list = fs.readFileSync(index);
   cards(cwd, ['render', 'watch', '--quiet']);
   assert.ok(list.equals(fs.readFileSync(index)), 'the list of boards is the same too');
+});
+
+// ---- the review of 0.2.0 before its tag: each finding, as the reviewer reproduced it ----
+
+test('review 0.2: cards ids finds a drawer where the parser finds it, so a card that has an id keeps it', () => {
+  // An empty line before the drawer: the parser reads the drawer (and warns); ids once wrote a second one above it.
+  const src = '#+title: T\n\n** Pick the queue\n\n:PROPERTIES:\n:CUSTOM_ID: pick-queue\n:ASK: choose\n:END:\n- [X] nats :: NATS\n- [ ] kafka :: Kafka\n\n** A card with no id\nText.\n';
+  const { cwd, ref } = project(src, 'b');
+  assert.match(cards(cwd, ['ids', 'b']), /^added 1 id: a-card-with-no-id\./);
+  const after = fs.readFileSync(ref.file, 'utf8');
+  assert.equal((after.match(/:CUSTOM_ID:/g) || []).length, 2);
+  assert.match(after, /\*\* Pick the queue\n\n:PROPERTIES:\n:CUSTOM_ID: pick-queue\n:ASK: choose\n:END:/, 'the card with an id is as it was');
+  const b = parseBoard(after, { fmt: 'org' });
+  assert.deepEqual(b.errors, []);
+  assert.deepEqual(b.cards.map((c) => [c.id, c.ask]), [['pick-queue', 'choose'], ['a-card-with-no-id', null]]);
+
+  // Whatever check calls "no id", ids fills: an empty :CUSTOM_ID:, and a file whose lines end with a bare \r.
+  const empty = project('#+title: T\n\n** One claim stands here\n:PROPERTIES:\n:CUSTOM_ID:\n:BASIS: fact\n:END:\nGist.\n', 'e');
+  assert.match(fails(empty.cwd, ['check', 'e']), /card has no id/);
+  assert.match(cards(empty.cwd, ['ids', 'e']), /added 1 id: one-claim-stands-here\./);
+  assert.match(fs.readFileSync(empty.ref.file, 'utf8'), /:PROPERTIES:\n:CUSTOM_ID: one-claim-stands-here\n:BASIS: fact\n:END:/);
+  assert.match(cards(empty.cwd, ['check', 'e']), /^ok: 1 card/m);
+  const cr = project('#+title: T\r\r** One claim stands here\rGist.\r', 'c');
+  assert.match(cards(cr.cwd, ['ids', 'c']), /added 1 id: one-claim-stands-here\./);
+  assert.equal(fs.readFileSync(cr.ref.file, 'utf8'), '#+title: T\r\r** One claim stands here\r:PROPERTIES:\r:CUSTOM_ID: one-claim-stands-here\r:END:\rGist.\r');
+  // A drawer with an empty line above it and no id gets the id inside, not a second drawer.
+  const gap = project('#+title: T\n\n** One claim stands here\n\n:PROPERTIES:\n:BASIS: fact\n:END:\nGist.\n', 'g');
+  cards(gap.cwd, ['ids', 'g']);
+  assert.match(fs.readFileSync(gap.ref.file, 'utf8'), /\*\* One claim stands here\n\n:PROPERTIES:\n:CUSTOM_ID: one-claim-stands-here\n:BASIS: fact\n:END:\nGist\.\n$/);
+});
+
+test('review 0.2: a sentence that starts with DEADLINE: is text of the card; a planning line has a timestamp', () => {
+  const { cwd, ref } = project('#+title: T\n\n** The ship date is fixed\nDEADLINE: Friday is the day we ship.\n\n** DONE The freeze is over\nCLOSED: [2026-10-09 Fri 10:00]\nIt ended on time.\n', 'd');
+  cards(cwd, ['ids', 'd']);
+  const after = fs.readFileSync(ref.file, 'utf8');
+  assert.match(after, /\*\* The ship date is fixed\n:PROPERTIES:\n:CUSTOM_ID: the-ship-date-is-fixed\n:END:\nDEADLINE: Friday is the day we ship\./);
+  assert.match(after, /CLOSED: \[2026-10-09 Fri 10:00\]\n:PROPERTIES:\n:CUSTOM_ID: the-freeze-is-over\n:END:\nIt ended on time\./);
+  const b = parseBoard(after, { fmt: 'org' });
+  assert.deepEqual(b.errors, []);
+  assert.match(b.cards[0].body, /DEADLINE: Friday is the day we ship\./, 'the sentence is on the card');
+  assert.ok(!/CLOSED/.test(b.cards[1].body), 'what Emacs wrote is not');
+});
+
+test('review 0.2: move works on a board with no sections, and a section heading with no title stays where it is', () => {
+  // No sections: the reply names the place as a bare section sign.
+  const flat = project('#+title: T\n\n** One claim stands here\n:PROPERTIES:\n:CUSTOM_ID: one\n:END:\nA.\n\n** Two claims stand here\n:PROPERTIES:\n:CUSTOM_ID: two\n:END:\nB.\n', 'f');
+  assert.match(cards(flat.cwd, ['move', 'f', 'two', 'one', '--to', '§']), /moved two, one to the end of the cards with no section\./);
+  assert.deepEqual(order(fs.readFileSync(flat.ref.file, 'utf8')), ['two', 'one']);
+
+  const src = '#+title: T\n\n* First\n\n** Card a stands here\n:PROPERTIES:\n:CUSTOM_ID: a\n:END:\nA.\n\n* \n\n** Card b stands here\n:PROPERTIES:\n:CUSTOM_ID: b\n:END:\nB.\n\n* Last\n\n** Card c stands here\n:PROPERTIES:\n:CUSTOM_ID: c\n:END:\nC.\n';
+  const { cwd, ref } = project(src, 'u');
+  cards(cwd, ['move', 'u', 'a', '--to', 'last']);
+  const after = fs.readFileSync(ref.file, 'utf8');
+  assert.deepEqual(after.split('\n').filter((l) => /^\* |^:CUSTOM_ID/.test(l)), ['* First', '* ', ':CUSTOM_ID: b', '* Last', ':CUSTOM_ID: c', ':CUSTOM_ID: a']);
+  const sec = (s) => parseBoard(s, { fmt: 'org' }).sections.map((x) => x.cards.join(','));
+  assert.deepEqual(sec(src), ['a', 'b', 'c']);
+  assert.deepEqual(sec(after), ['', 'b', 'c,a'], 'card b is still in its own section');
+});
+
+test('review 0.2: the list of boards never takes a page that is not ours, and never stops a render', () => {
+  // CARDS_ROOT names a directory that has its own index.html.
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-root-'));
+  fs.mkdirSync(path.join(cwd, 'docs', 'plan'), { recursive: true });
+  fs.writeFileSync(path.join(cwd, 'docs', 'index.html'), '<!doctype html><title>My docs</title>');
+  fs.writeFileSync(path.join(cwd, 'docs', 'plan', 'board.org'), WATCH);
+  const run = (args, env) => execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8', env: { ...process.env, ...env } });
+  run(['render', 'plan', '--quiet'], { CARDS_ROOT: 'docs' });
+  assert.equal(fs.readFileSync(path.join(cwd, 'docs', 'index.html'), 'utf8'), '<!doctype html><title>My docs</title>');
+  assert.match(fs.readFileSync(path.join(cwd, 'docs', 'plan', 'board.html'), 'utf8'), /"home":""/, 'and the board has no link to a list that is not there');
+  // Without that page the list is written, and written again on the next render.
+  fs.rmSync(path.join(cwd, 'docs', 'index.html'));
+  run(['render', 'plan', '--quiet'], { CARDS_ROOT: 'docs' });
+  assert.match(fs.readFileSync(path.join(cwd, 'docs', 'index.html'), 'utf8'), /<meta name="generator" content="cards /);
+  assert.match(fs.readFileSync(path.join(cwd, 'docs', 'plan', 'board.html'), 'utf8'), /"home":"\.\.\/index\.html"/);
+
+  // A sibling board that cannot be read, and a log with a line that is no event: the render of a good board goes through.
+  const p = project(WATCH, 'good');
+  const bad = resolveBoard('bad', p.cwd);
+  fs.mkdirSync(bad.dir, { recursive: true });
+  fs.writeFileSync(bad.file, WATCH);
+  fs.writeFileSync(path.join(bad.dir, 'log.jsonl'), 'null\n[1,2]\n"text"\n');
+  assert.match(cards(p.cwd, ['render', 'good', '--quiet']), /rev 1 \(/);
+  assert.match(cards(p.cwd, ['render', 'bad', '--quiet']), /rev 1 \(/, 'a log line that is no event is skipped, as a torn line is');
+  if (typeof process.getuid === 'function' && process.getuid() !== 0) {
+    fs.chmodSync(bad.file, 0o000);
+    try {
+      assert.match(cards(p.cwd, ['render', 'good', '--quiet']), /rev 1\. open:/);
+      assert.match(fs.readFileSync(path.join(path.dirname(p.ref.dir), 'index.html'), 'utf8'), /bad/);
+    } finally { fs.chmodSync(bad.file, 0o644); }
+  }
+});
+
+test('review 0.2: the Back link of a published copy goes to a page, never to a script', () => {
+  const { cwd } = project();
+  const out = path.join(cwd, 'out');
+  for (const home of ['javascript:alert(document.domain)', 'data:text/html,x', '//other.example/x']) {
+    assert.match(fails(cwd, ['export', 'watch', '--out', out, '--home', home]), /--home takes a relative address or an http\(s\) one/);
+  }
+  assert.ok(!fs.existsSync(path.join(out, 'index.html')), 'nothing was written');
+  cards(cwd, ['export', 'watch', '--out', out, '--home', '../index.html']);
+  assert.match(fs.readFileSync(path.join(out, 'index.html'), 'utf8'), /"home":"\.\.\/index\.html"/);
+});
+
+// The repo keeps the page of the example board so that a clone opens as a working board.
+// A change of the runtime without a new render would leave that page behind, and the next
+// render by anyone would change a file that git tracks.
+test('the example board in the repo: its page is what this build renders', () => {
+  const ref = resolveBoard('design-review', ROOT);
+  const log = fs.readFileSync(path.join(ref.dir, 'log.jsonl'), 'utf8');
+  const r = buildBoard(ref, { cwd: ROOT, write: false });
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.html === fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8'), 'the page is behind the build. Run: node skill/bin/cards.mjs render design-review');
+  assert.equal(fs.readFileSync(path.join(ref.dir, 'log.jsonl'), 'utf8'), log, 'and the log holds every version of its cards');
 });

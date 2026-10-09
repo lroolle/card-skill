@@ -954,6 +954,15 @@ test('a sample in a frame: one row of tools, no chat box, nothing kept between v
     assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY), 'auto', 'the wheel goes on to the page around the board');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.rail')).position), 'sticky', 'the ask tabs stay in sight');
 
+    // The filter, the order, the search and the help have no control in a frame, and no key either:
+    // two presses of f once left no card on the page and no way back.
+    const cardsShown = () => page.$$eval('.card', (els) => els.filter((e) => e.getClientRects().length).length);
+    const before = await cardsShown();
+    await page.focus('body');
+    for (const key of ['f', 'f', 's', '/', '?']) await page.keyboard.press(key);
+    assert.equal(await cardsShown(), before, 'every card is still there');
+    assert.equal(await page.$('dialog[open]'), null, 'no help opened');
+
     // Choosing with the keyboard: the card is drawn again, and the focus is on the same option.
     await page.focus('#c-pick-band input[value="link"]');
     await page.keyboard.press('Space');

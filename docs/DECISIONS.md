@@ -677,3 +677,50 @@ the report spelled it) was read as a line of the lede, with no warning.
 It is a keyword now, and `cards check` names the right spelling.
 Tests: `test/loop.test.mjs` "set", "move", "lint: syntax that does
 nothing here".
+
+## D37. 0.2.0 was reviewed before its tag: one blocker, eleven more faults, all fixed
+
+2026-10-09. Built.
+The code that came after the v0.1.0 tag (about 840 lines in `skill/`) had
+no reader but its writer. A fresh reviewer read it before the tag and said
+"fix first". What changed, by finding:
+
+1. Blocker. `cards ids` looked for a card's drawer on the line under the
+   heading; the parser also accepts an empty line between them. A card
+   written that way got a second drawer and a new id, and the human's
+   answers to the old id were orphaned. `addIds` now finds the drawer
+   where the parser finds it.
+2. With `CARDS_ROOT`, a render replaced that folder's own `index.html`.
+   The list is written only where no `index.html` is, or where the one
+   that is there carries our generator tag. A board links to the list
+   only then.
+3. `cards move ... --to §` on a board with no sections: the reply names
+   that place as a bare section sign, and the command now takes it.
+4. A planning line has a timestamp. A sentence that starts with
+   `DEADLINE: ` is text of the card; before, it was dropped.
+5. `ids` fills an empty `:CUSTOM_ID:`, and reads `\r` line endings as the
+   parser does: what `check` calls "no id", `ids` gives an id.
+6. A section heading with no title is a boundary for `move`.
+7. The font cache is a directory of this user alone (mode 0700, owner
+   checked, no link followed). A subset is written beside its name and
+   renamed when whole; a cached file is used only when its first bytes
+   say it is that font. Any failure leaves the system font and a reason.
+8. The probe for fonttools asks uv without the network first. Where the
+   one attempt with the network fails, a mark in the cache stops the next
+   renders from waiting again, for a day.
+9. One board that cannot be read is one row of the list that says so. A
+   log line that is JSON but no event is skipped. The lookup of
+   translations skips a sibling it cannot read. The test for this
+   finding found that third place.
+10. The version test applies from the tagged commit on, not to the
+    commits before it that already carry the number (`git bisect`).
+11. `--home` takes a relative address or an http(s) one.
+12. In a frame, the keys for the hidden filter, order, search and help do
+    nothing. Two presses of `f` had left no card and no way back.
+
+Why review before the tag and not after: a tag closes the version (D35);
+a fault found later needs a new one.
+Not reviewed: `scripts/`, `site/`, the older `board.md` path, Windows,
+the hook inside a real session. The reviewer says so; so does this note.
+Tests: `test/loop.test.mjs` "review 0.2: ...", `test/font.test.mjs` (the
+last three), `test/e2e.test.mjs` "a sample in a frame".

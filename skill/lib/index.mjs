@@ -28,14 +28,19 @@ export function indexRows(root) {
   for (const d of fs.readdirSync(root, { withFileTypes: true })) {
     if (!d.isDirectory() || !SOURCES.some((f) => isFile(path.join(root, d.name, f)))) continue;
     const dir = path.join(root, d.name);
-    const file = sourceIn(dir);
-    const board = parseBoard(fs.readFileSync(file, 'utf8'), { id: d.name, file });
-    const st = fold(readLog(dir));
-    const answered = globalThis.cardsAnswered(st.sends);
-    // An ask is open when its card is not done and it has no answer at the version of the card the log holds.
-    const waiting = board.cards.filter((c) => c.ask && c.status !== 'done' && !answered.has(`${c.id}@${st.cards.get(c.id)?.v ?? 1}`)).length;
-    const last = [...st.revs.map((r) => r.at), ...st.sends.map((s) => s.at)].filter(Boolean).sort().pop() || '';
-    rows.push({ id: d.name, title: board.title, lang: board.lang, rev: st.rev, cards: board.cards.length, waiting, unread: unread(st).length, at: last, broken: board.errors.length > 0, rendered: isFile(path.join(dir, 'board.html')) });
+    // One board that cannot be read is one row that says so, never the end of the list.
+    try {
+      const file = sourceIn(dir);
+      const board = parseBoard(fs.readFileSync(file, 'utf8'), { id: d.name, file });
+      const st = fold(readLog(dir));
+      const answered = globalThis.cardsAnswered(st.sends);
+      // An ask is open when its card is not done and it has no answer at the version of the card the log holds.
+      const waiting = board.cards.filter((c) => c.ask && c.status !== 'done' && !answered.has(`${c.id}@${st.cards.get(c.id)?.v ?? 1}`)).length;
+      const last = [...st.revs.map((r) => r.at), ...st.sends.map((s) => s.at)].filter(Boolean).sort().pop() || '';
+      rows.push({ id: d.name, title: board.title, lang: board.lang, rev: st.rev, cards: board.cards.length, waiting, unread: unread(st).length, at: last, broken: board.errors.length > 0, rendered: isFile(path.join(dir, 'board.html')) });
+    } catch {
+      rows.push({ id: d.name, title: d.name, lang: 'en', rev: 0, cards: 0, waiting: 0, unread: 0, at: '', broken: true, rendered: isFile(path.join(dir, 'board.html')) });
+    }
   }
   // What waits on the human first; then the board that moved last.
   return rows.sort((a, b) => (b.waiting > 0) - (a.waiting > 0) || String(b.at).localeCompare(String(a.at)) || a.id.localeCompare(b.id));
@@ -97,9 +102,20 @@ ${rows.length ? `<ul>${rows.map(item).join('')}</ul>` : '<p class="empty">No boa
 // The index is written into a boards directory only: `.cards`, or the one CARDS_ROOT names.
 export const isBoardsRoot = (root) => path.basename(root) === '.cards' || (process.env.CARDS_ROOT && path.resolve(process.env.CARDS_ROOT) === root);
 
+// The list is ours to write only where no index.html is, or where the one that is
+// there is a list we wrote. CARDS_ROOT may name a directory with a page of its own.
+const OURS = /<meta name="generator" content="cards /;
+export function ownsIndex(root) {
+  if (!isBoardsRoot(root)) return false;
+  try { return OURS.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')); } catch (e) { return e.code === 'ENOENT'; }
+}
+
+// Never throws: the list is a convenience, and a render must not fail for it.
 export function writeIndex(root) {
-  if (!isBoardsRoot(root)) return null;
+  if (!ownsIndex(root)) return null;
   const file = path.join(root, 'index.html');
-  fs.writeFileSync(file, indexHtml(indexRows(root), { name: `Boards of ${path.basename(path.dirname(root)) || 'this project'}` }));
-  return file;
+  try {
+    fs.writeFileSync(file, indexHtml(indexRows(root), { name: `Boards of ${path.basename(path.dirname(root)) || 'this project'}` }));
+    return file;
+  } catch { return null; }
 }

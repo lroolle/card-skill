@@ -68,7 +68,8 @@ export function readLog(dir) {
   const out = [];
   for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
     if (!line.trim()) continue;
-    try { out.push(JSON.parse(line)); } catch { /* a torn last line is skipped, never fatal */ }
+    // A torn last line is skipped, never fatal; so is a line that is JSON but not an event.
+    try { const e = JSON.parse(line); if (e && typeof e === 'object' && !Array.isArray(e)) out.push(e); } catch { /* skipped */ }
   }
   return out;
 }

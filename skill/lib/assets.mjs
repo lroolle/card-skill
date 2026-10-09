@@ -109,7 +109,7 @@ export function imageSize(buf, ext) {
       if (vb && w && !h) h = w * +vb[2] / +vb[1];
       if (vb && h && !w) w = h * +vb[1] / +vb[2];
       if (vb && !w && !h) [w, h] = [+vb[1], +vb[2]];
-      if (w && h) return [Math.round(w), Math.round(h)];
+      if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) return [Math.round(w), Math.round(h)];
     }
   } catch { /* a short or odd header: no size */ }
   return null;

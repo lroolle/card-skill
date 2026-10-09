@@ -2045,10 +2045,11 @@
       case 'd': toggleDesk(); break;
       case 'z': if (deskOn()) cycleZoom(); break;
       case 'c': if (!ASKED.embed) { e.preventDefault(); toggleChat(true); } break;
-      case 'f': S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); break;
-      case 's': S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast(t('sort_toast', { order: $('[data-sort] option[value="' + S.sort + '"]').textContent })); break;
-      case '/': e.preventDefault(); $('[data-search]').focus(); break;
-      case '?': openHelp(); break;
+      // In a frame the filter, the order, the search and the help have no control on the page: no key for them either.
+      case 'f': if (!ASKED.embed) { S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); } break;
+      case 's': if (ASKED.embed) break; S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast(t('sort_toast', { order: $('[data-sort] option[value="' + S.sort + '"]').textContent })); break;
+      case '/': if (!ASKED.embed) { e.preventDefault(); $('[data-search]').focus(); } break;
+      case '?': if (!ASKED.embed) openHelp(); break;
     }
   });
 

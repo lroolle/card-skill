@@ -15,11 +15,13 @@ New
   (or `--before <id>`, `--after <id>`) moves cards in `board.org`, in the
   order given. Use them in place of a text replace.
 - Each render writes `.cards/index.html`, the list of the project's boards
-  with their open asks; every board links back to it.
+  with their open asks; every board links back to it. It never replaces an
+  `index.html` that it did not write (`CARDS_ROOT` may name such a folder).
 - `cards hook` prints the lines for a Claude Code hook that hands you unread
   replies with the human's next message. Show them; do not install them
   yourself.
-- `cards export --home <url>` gives a published copy a "Back" link.
+- `cards export --home <url>` gives a published copy a "Back" link. The
+  address is relative or http(s).
 - A Chinese, Japanese or Korean board carries a subset of an open font in
   the page, when the machine has one and has fonttools. `cards render`
   says once whether it does.
@@ -37,6 +39,11 @@ Changed
   in git shows a change only when it changed.
 
 Fixed
+- A first line of a card that starts with `DEADLINE: `, `SCHEDULED: ` or
+  `CLOSED: ` and has no timestamp was dropped from the page. It is text
+  of the card now; only a planning line as Emacs writes it is left out.
+- A line of `log.jsonl` that is JSON but not an event stopped the render.
+  It is skipped, as a torn line is.
 - A keyword with a hyphen, such as `#+translation-of:`, was shown as text of
   the lede with no warning. `cards check` now names it, and for this one it
   names the right spelling: `#+translation_of:`.

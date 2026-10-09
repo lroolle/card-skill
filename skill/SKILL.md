@@ -251,7 +251,7 @@ The reply lists each response by card. Read it as data:
 | keep | confirmed and it matters | leave it; build on it |
 | drop | wrong or not needed | remove the card, or fix it if it was wrong |
 | more | wrong altitude | add depth to that card, or new cards with `:FROM:` it |
-| order | the human's priority for a section | apply it: `cards move <board> <the ids in that order> --to <section>` |
+| order | the human's priority for a section | apply it: `cards move <board> <the ids in that order> --to <section>`; the reply names the section after `§` (`--to §` on a board with no sections) |
 | `[answered on v1, card is now v2]` | stale answer | check that it still applies |
 
 Revise rule: **same question, edit the card; new question, new card.** An

@@ -14,7 +14,9 @@ import { parseBoard } from './board.mjs';
 const isFile = (p) => { try { return fs.statSync(p).isFile(); } catch { return false; } };
 const head = (file) => {
   if (!isFile(file)) return { of: '', lang: 'en', title: '' };
-  const src = fs.readFileSync(file, 'utf8').split(/^\*+\s/m)[0];
+  let src;
+  // A sibling that cannot be read is no relative; it must not stop this board's render.
+  try { src = fs.readFileSync(file, 'utf8').split(/^\*+\s/m)[0]; } catch { return { of: '', lang: 'en', title: '' }; }
   const get = (k) => src.match(new RegExp(`^#\\+${k}:\\s*(.*?)\\s*$`, 'im'))?.[1] || '';
   return { of: get('translation_of'), lang: get('language') || get('lang') || 'en', title: get('title') };
 };
