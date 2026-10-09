@@ -433,28 +433,36 @@
     var head = s.title ? '<div class="shelf-head"><h2>' + esc(s.title) + '</h2><span class="count">' + ids.length + '</span></div>' : '';
     // On the desk a column is as wide as its widest figure needs (card padding and border: 34px).
     var figW = Math.max.apply(null, [0].concat(ids.map(function (id) { return B.cards[id].fig_w || 0; })));
-    var colW = figW ? ' style="--col-w:' + Math.min(560, figW + 34) + 'px"' : '';
+    // At Full a column is also as wide as its widest table wants (compile.mjs, tableWidth).
+    // (A DONE card is closed: its table does not show, and asks for no room.)
+    var tblW = Math.max.apply(null, [0].concat(ids.map(function (id) { return B.cards[id].status === 'done' ? 0 : B.cards[id].tbl_w || 0; })));
+    var colW = figW || tblW ? ' style="' + (figW ? '--col-w:' + Math.min(560, figW + 34) + 'px;' : '') + (tblW ? '--col-wf:' + Math.min(560, tblW + 34) + 'px' : '') + '"' : '';
     var top = head || s.note_html ? '<div class="shelf-top">' + head + (s.note_html ? '<div class="shelf-note">' + s.note_html + '</div>' : '') + '</div>' : '';
     return '<section class="shelf" data-section="' + esc(s.id) + '"' + colW + '>' + top +
       '<div class="slots" data-layout="' + s.layout + '" style="--cols:' + compareCols(ids.length) + '">' +
       ids.map(function (id) { return cardHtml(B.cards[id], keys); }).join('') + '</div></section>';
   }
 
+  var KEY_HTML = {}; // a fact's key as written -> its markup
   function factKeys(ids) {
     var keys = [];
-    ids.forEach(function (id) { B.cards[id].facts.forEach(function (f) { if (keys.indexOf(f[0]) < 0) keys.push(f[0]); }); });
+    ids.forEach(function (id) { B.cards[id].facts.forEach(function (f) { if (keys.indexOf(f[0]) < 0) keys.push(f[0]); if (f[2]) KEY_HTML[f[0]] = f[2]; }); });
     return keys.length ? keys : null;
   }
 
   function factsHtml(c, keys) {
     if (!c.facts.length && !keys) return '';
     var rows;
+    // A key shows its markup (code, emphasis) as any text of the card does. Where a card of a
+    // compare section lacks a key, the key's markup comes from a card that has it.
+    var keyHtml = function (f) { return f[2] || esc(f[0]); };
     if (keys) {
       var map = {};
-      c.facts.forEach(function (f) { map[f[0]] = f[1]; });
-      rows = keys.map(function (k) { return '<dt>' + esc(k) + '</dt><dd' + (map[k] === undefined ? ' class="blank">—' : '>' + map[k]) + '</dd>'; });
+      var names = {};
+      c.facts.forEach(function (f) { map[f[0]] = f[1]; names[f[0]] = keyHtml(f); });
+      rows = keys.map(function (k) { return '<dt>' + (names[k] || KEY_HTML[k] || esc(k)) + '</dt><dd' + (map[k] === undefined ? ' class="blank">—' : '>' + map[k]) + '</dd>'; });
     } else {
-      rows = c.facts.map(function (f) { return '<dt>' + esc(f[0]) + '</dt><dd>' + f[1] + '</dd>'; });
+      rows = c.facts.map(function (f) { return '<dt>' + keyHtml(f) + '</dt><dd>' + f[1] + '</dd>'; });
     }
     return '<dl class="facts">' + rows.join('') + '</dl>';
   }
@@ -540,7 +548,7 @@
       }).join('') + '</ol></details>'
       : '';
     var replyShown = !!(d.reply) || S.replyOpen.has(c.id);
-    return '<article class="card' + (c.wide ? ' wide' : '') + '" id="c-' + esc(c.id) + '" data-id="' + esc(c.id) + '" data-status="' + c.status + '"' +
+    return '<article class="card' + (c.wide ? ' wide' : '') + (c.tbl_w > 440 && c.status !== 'done' ? ' wide-t' : '') + '" id="c-' + esc(c.id) + '" data-id="' + esc(c.id) + '" data-status="' + c.status + '"' +
       (c.ask ? ' data-ask="' + c.ask + '"' : '') + ' tabindex="0" aria-labelledby="t-' + esc(c.id) + '">' +
       (isOpenAsk(c) ? '<div class="tab">' + esc(tabLabel(c)) + '</div>' : '') +
       '<div class="addr"><span class="n ref-n" title="' + esc(t('card_n', { card: c.n })) + '">' + c.n + '</span><span class="rel"></span>' +
@@ -557,6 +565,7 @@
       }).join('') + '<button class="act reply-btn" data-act="reply" aria-pressed="' + replyShown + '" title="' + esc(t('reply_title')) + '">' + esc(t('reply')) + '</button>' +
       '<button class="grip" data-act="grip" aria-label="' + esc(t('grip_label', { card: c.n })) + '" title="' + esc(t('grip_title')) + '">' + ICON.grip + '</button></div>' +
       '<div class="reply"' + (replyShown ? '' : ' hidden') + '><textarea data-field="reply" rows="2" placeholder="' + esc(t('reply_label', { card: c.n })) + '" aria-label="' + esc(t('reply_label', { card: c.n })) + '">' + esc(d.reply || '') + '</textarea></div>' +
+      '<span class="widen" aria-hidden="true" title="' + esc(t('size_title')) + '"></span>' +
       '</article>';
   }
 
@@ -987,8 +996,14 @@
       });
       savePlace();
     }
-    plane.style.width = (right + GRID * 3) + 'px';
-    plane.style.height = (bottom + GRID * 3) + 'px';
+    // While a card is being sized the plane keeps the size it had: a plane that changed its
+    // width under a centred or fitted desk would move the card's edge away from the pointer.
+    // The card may reach over the plane's edge until you let go.
+    var w = right + GRID * 3;
+    var h = bottom + GRID * 3;
+    if (S.holding && plane.style.width) { w = parseFloat(plane.style.width) || w; h = parseFloat(plane.style.height) || h; }
+    plane.style.width = w + 'px';
+    plane.style.height = h + 'px';
   }
 
   function nudge(id, key) {
@@ -1201,8 +1216,9 @@
       $$('.card, .shelf-top', plane).forEach(clearBox);
       plane.style.width = plane.style.height = '';
     }
-    // A running zoom animation owns the scale until it ends.
-    if (!S.animating && !S.back && S.zoom === 'fit') S.scale = S.target = fitScale();
+    // A running zoom animation owns the scale until it ends; so does a card that is being sized.
+    if (S.holding) { /* keep the scale */ }
+    else if (!S.animating && !S.back && S.zoom === 'fit') S.scale = S.target = fitScale();
     else if (!S.animating && !S.back) S.scale = S.target = S.zoom;
     syncSizer();
     drawWires();
@@ -1216,7 +1232,51 @@
     if (wireFrame) return;
     wireFrame = requestAnimationFrame(function () { wireFrame = 0; if (deskOn()) layoutDesk(); });
   }
+  // A table that is wider than its card shows each row as a block (board.css, .table.stacked).
+  // Its own width is measured once, as a table, and kept: the card may get wider again.
+  // The change is made in the next frame, not inside the observer's own call: a change of layout
+  // there is one the observer cannot deliver, and WebKit reports that as an error of the page.
+  var tableQueue = new Set();
+  var tableFrame = 0;
+  var tableWatch = window.ResizeObserver ? new ResizeObserver(function (entries) {
+    entries.forEach(function (en) { tableQueue.add(en.target); });
+    if (tableFrame) return;
+    tableFrame = requestAnimationFrame(function () {
+      tableFrame = 0;
+      var todo = Array.from(tableQueue);
+      tableQueue.clear();
+      todo.forEach(function (wrap) { if (wrap.isConnected) fitTable(wrap); });
+    });
+  }) : null;
+  function fitTable(wrap) {
+    var room = wrap.clientWidth;
+    if (!room) return; // not shown at this level
+    var table = wrap.firstElementChild;
+    if (!wrap.dataset.own) {
+      // The width the table reads well at: each column about 16 characters, or less when the whole
+      // table is shorter than that, and never less than its longest words need.
+      wrap.classList.remove('stacked');
+      table.style.width = '0';
+      var least = table.offsetWidth;
+      table.style.width = 'max-content';
+      var most = table.offsetWidth;
+      table.style.width = '';
+      wrap.dataset.own = String(Math.min(most, Math.max(least, 120 * (+wrap.dataset.cols || 1))));
+    }
+    // Rows become blocks only where the columns have names to put on the fields.
+    var stack = +wrap.dataset.own > room + 1 && !!table.tHead;
+    if (stack !== wrap.classList.contains('stacked')) wrap.classList.toggle('stacked', stack);
+  }
+  function fitTables(root) {
+    $$('.table', root || document).forEach(function (wrap) {
+      if (tableWatch) tableWatch.observe(wrap);
+      fitTable(wrap);
+    });
+  }
+
   function watchSizes() {
+    if (tableWatch) tableWatch.disconnect();
+    fitTables();
     var bar = $('.bar');
     if (bar) document.documentElement.style.setProperty('--bar-h', bar.offsetHeight + 'px');
     if (!sizeWatch) return;
@@ -1592,7 +1652,7 @@
   function openHelp() {
     // [the key, as typed; what it does]. Key names stay literal; 'Alt + arrows' names keys in words, so it translates.
     var keys = [['j / k', t('keys_step')], ['Enter', t('keys_open')], ['Esc', t('keys_clear')], ['n', t('keys_next_waiting')],
-      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['z', t('keys_zoom')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
+      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['z', t('keys_zoom')], ['[  ]  0', t('keys_width')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
       ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')], ['Ctrl + Enter', t('send')], ['Esc', t('keys_undo_send')]];
     var dlg = document.createElement('dialog');
     var made = B.build ? '<a class="made" href="' + esc(B.build.home) + '" target="_blank" rel="noopener noreferrer">' + esc(t('mark_title', { version: B.build.version })) + '</a>' : '';
@@ -1912,6 +1972,109 @@
   // Drag the empty desk to pan, as you would slide paper on a table. Drag a
   // card by its top strip (or its grip) to place it; a click is not a drag.
   var pan = null;
+  // ---- the width of a card on the desk: drag its right edge, or [ and ] on the card in focus ----
+  var MIN_W = GRID * 10;   // 240px
+  var MAX_W = GRID * 40;   // 960px
+  function ownWidth(el) {
+    // The width the layout gives the card: its section's column at this level.
+    var sh = el.closest('.shelf');
+    var cs = sh ? getComputedStyle(sh) : null;
+    var num = function (name) { return cs ? parseFloat(cs.getPropertyValue(name)) || 0 : 0; };
+    if (S.alt === 'claim') return 288;
+    return Math.max(288, num('--col-w'), S.alt === 'full' ? num('--col-wf') : 0);
+  }
+  // The card you just sized lies on top, as a card you put down does: its edge stays in reach
+  // where it now covers a neighbour. The order of PLACE.cards is the stacking order.
+  function raise(id) {
+    var keep = PLACE.cards[id];
+    delete PLACE.cards[id];
+    PLACE.cards[id] = keep;
+  }
+  // done: the drag or the key press is over (the width goes on the grid, and is kept).
+  // exact: the width is the layout's own, which need not lie on the grid.
+  function setWidth(id, w, done, exact) {
+    var el = cardEl(id);
+    if (!el || S.view !== 'desk') return;
+    if (!PLACE) freeze();
+    var p = PLACE.cards[id];
+    if (!p) return;
+    p[2] = exact ? w : clamp(done ? snap(w) : w, MIN_W, MAX_W);
+    setBox(el, p);
+    if (done) { raise(id); savePlace(); layoutDesk(); } else scheduleWires();
+  }
+  function nudgeWidth(id, steps) {
+    var el = cardEl(id);
+    if (!el || S.view !== 'desk') return;
+    setWidth(id, el.offsetWidth + steps * GRID * 2, true);
+    reveal(id);
+  }
+  function resetWidth(id) {
+    var el = cardEl(id);
+    // On the layout's own places every card has its own width already.
+    if (!el || S.view !== 'desk' || !PLACE) return;
+    setWidth(id, ownWidth(el), true, true);
+  }
+  // A drag that just ended is followed by a click where the pointer is, when the pointer is a
+  // mouse; that click must do nothing. A touch drag is followed by none, so the mark runs out
+  // by itself and the next tap counts.
+  var swallowTimer = 0;
+  function swallowClick() {
+    swallow = true;
+    clearTimeout(swallowTimer);
+    swallowTimer = setTimeout(function () { swallow = false; }, 350);
+  }
+  var size = null;
+  app.addEventListener('pointerdown', function (e) {
+    var h = e.target.closest('.widen');
+    if (!h || S.view !== 'desk' || e.button !== 0) return;
+    var card = h.closest('.card');
+    // off: from the pointer to the card's right edge, on the screen. The edge keeps that distance.
+    size = { el: card, id: card.dataset.id, x: e.clientX, off: e.clientX - card.getBoundingClientRect().right, moved: false, pid: e.pointerId, handle: h };
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+  // The handle is not part of the card for a click: it does not focus, open or close it.
+  // (The click that ends a drag lands here, on the handle that holds the pointer: the mark for it is used up.)
+  app.addEventListener('click', function (e) { if (e.target.closest('.widen')) { swallow = false; e.preventDefault(); e.stopPropagation(); } }, true);
+  window.addEventListener('pointermove', function (e) {
+    if (!size) return;
+    if (!size.moved && Math.abs(e.clientX - size.x) < 3) return;
+    if (!size.moved) {
+      size.moved = true;
+      // While you drag, the table keeps its scale and its size: a card that grows would
+      // else shrink a fitted desk, or shift a centred one, away from under the pointer.
+      S.holding = true;
+      var pl = $('.plane');
+      if (pl && !pl.style.width) { pl.style.width = pl.offsetWidth + 'px'; pl.style.height = pl.offsetHeight + 'px'; }
+      if (!PLACE) freeze();
+      size.el.style.zIndex = '999';
+      size.el.classList.add('sizing');
+      document.documentElement.classList.add('sizing');
+      try { size.handle.setPointerCapture(size.pid); } catch (err) { /* the pointer left already */ }
+    }
+    setWidth(size.id, (e.clientX - size.off - size.el.getBoundingClientRect().left) / S.scale, false);
+    e.preventDefault();
+  });
+  function endSize() {
+    if (!size) return;
+    var s0 = size;
+    size = null;
+    document.documentElement.classList.remove('sizing');
+    s0.el.classList.remove('sizing');
+    if (!s0.moved) return;
+    S.holding = false;
+    setWidth(s0.id, s0.el.offsetWidth, true);
+    swallowClick();
+  }
+  window.addEventListener('pointerup', endSize);
+  window.addEventListener('pointercancel', endSize);
+  app.addEventListener('dblclick', function (e) {
+    var h = e.target.closest('.widen');
+    if (!h || S.view !== 'desk') return;
+    resetWidth(h.closest('.card').dataset.id);
+    e.preventDefault();
+  });
+
   var move = null;
   var swallow = false;
   app.addEventListener('pointerdown', function (e) {
@@ -1971,7 +2134,7 @@
         PLACE.cards[move.id] = keep;
         savePlace();
         layoutDesk();
-        swallow = true;
+        swallowClick();
       }
       move = null;
       return;
@@ -2009,9 +2172,12 @@
       if (S.focus) { S.open.delete(S.focus); clearFocus(); }
       return;
     }
-    if (typingTarget(target) || e.metaKey || e.ctrlKey || document.querySelector('dialog[open]')) return;
+    // "[" and "]" are typed with AltGr (Ctrl + Alt) or Option on many keyboards: they pass.
+    var bracket = e.key === '[' || e.key === ']';
+    if (typingTarget(target) || ((e.metaKey || e.ctrlKey) && !bracket) || document.querySelector('dialog[open]')) return;
     var tc = target.closest && target.closest('.card');
     var id = tc ? tc.dataset.id : S.focus;
+    if (bracket) { if (deskOn() && id) { e.preventDefault(); nudgeWidth(id, e.key === '[' ? -1 : 1); } return; }
     if (e.altKey && id && /^Arrow/.test(e.key)) {
       e.preventDefault();
       // On a desk you arranged, Alt + arrows move the card one grid step. On the
@@ -2044,6 +2210,7 @@
       case 'n': nextWaiting(); break;
       case 'd': toggleDesk(); break;
       case 'z': if (deskOn()) cycleZoom(); break;
+      case '0': if (deskOn() && id) resetWidth(id); break;
       case 'c': if (!ASKED.embed) { e.preventDefault(); toggleChat(true); } break;
       // In a frame the filter, the order, the search and the help have no control on the page: no key for them either.
       case 'f': if (!ASKED.embed) { S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); } break;

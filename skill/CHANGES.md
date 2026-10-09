@@ -31,6 +31,25 @@ New
 - SKILL.md: when a board is in use, ask on the board and nowhere else; the
   link is the hand-over.
 
+The page
+- A table keeps its words whole. Where a card is too narrow for it, each
+  row is shown as a block, with the fields under the names of their columns:
+  give a table a head row. A column of numbers is set to the right; a row
+  `| <l> | <c> | <r> |` says otherwise. `#+caption:` above a table shows.
+- A fact with a long key no longer leaves its value one letter wide, and a
+  key shows its markup (`=code=`) as other text does.
+- More of Org is shown as Org means it: lines that start with `: ` are code,
+  `#+begin_verse` keeps its lines, `#+begin_center` is set in the middle,
+  `[@10]` sets the number of a list item, `[-]` is a task partly done,
+  `x^{2}` and `a_{ij}` go above and below the line, `\\` at the end of a
+  line breaks it, `<2026-10-09 Fri>` reads as a date, `<https://...>` is a
+  link. Code in a line has an edge, so a comma after it reads as following
+  it.
+- A card has a firmer edge and a shadow. On the desk the human can set the
+  width of a card: drag its right edge (double-click puts it back), or `[`
+  and `]` on the card in focus. At Full the desk gives a section with a
+  wide table a wider column.
+
 Changed
 - Figures are numbered in the order of the source, also a picture inside a
   list or a quote. `cards check` warns when such a picture has no caption.

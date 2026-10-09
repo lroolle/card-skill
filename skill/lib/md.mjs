@@ -258,7 +258,7 @@ export function renderBlocks(blocks, ctx = {}) {
 
 function renderBlock(b, ctx) {
   switch (b.type) {
-    case 'paragraph': return `<p>${inl(b.text, ctx)}</p>`;
+    case 'paragraph': return `<p${b.set ? ` class="${b.set}"` : ''}>${inl(b.text, ctx)}</p>`;
     case 'heading': return `<h4>${inl(b.text, ctx)}</h4>`;
     case 'hr': return '<hr>';
     case 'quote': return `<blockquote>${renderBlocks(b.blocks, ctx)}</blockquote>`;
@@ -277,13 +277,15 @@ function renderBlock(b, ctx) {
       return ctx.asset ? ctx.asset(b) : `<p class="file"><span class="file-chip missing"><span class="file-name">${esc(b.path)}</span></span></p>`;
     }
     case 'table': {
-      const cell = (tag, c, k) => {
-        const a = b.align[k] ? ` style="text-align:${b.align[k]}"` : '';
-        return `<${tag}${a}>${inl(c, ctx)}</${tag}>`;
-      };
-      const head = b.head.length ? `<thead><tr>${b.head.map((c, k) => cell('th', c, k)).join('')}</tr></thead>` : '';
-      const rows = b.rows.map((r) => `<tr>${r.map((c, k) => cell('td', c, k)).join('')}</tr>`).join('');
-      return `<div class="table"><table>${head}<tbody>${rows}</tbody></table></div>`;
+      // Each cell carries the name of its column, and the parts their roles: when a card
+      // is too narrow for the table, the page shows each row as a block (board.css,
+      // .table.stacked), and a screen reader still finds a table.
+      const cls = (k) => (b.align[k] === 'right' ? ' class="r"' : b.align[k] === 'center' ? ' class="c"' : '');
+      const names = b.head.map((c) => inl(c, ctx).replace(/<[^>]*>/g, '').trim());
+      const head = b.head.length ? `<thead role="rowgroup"><tr role="row">${b.head.map((c, k) => `<th role="columnheader"${cls(k)}>${inl(c, ctx)}</th>`).join('')}</tr></thead>` : '';
+      const rows = b.rows.map((r) => `<tr role="row">${r.map((c, k) => `<td role="cell"${cls(k)}${names[k] ? ` data-label="${names[k]}"` : ''}>${inl(c, ctx)}</td>`).join('')}</tr>`).join('');
+      const cap = b.info ? `<p class="tcap">${inl(b.info, ctx)}</p>` : '';
+      return `${cap}<div class="table" data-cols="${Math.max(b.head.length, ...b.rows.map((r) => r.length), 0)}"><table role="table">${head}<tbody role="rowgroup">${rows}</tbody></table></div>`;
     }
     case 'list': {
       const tag = b.ordered ? 'ol' : 'ul';
@@ -291,10 +293,12 @@ function renderBlock(b, ctx) {
         const tight = it.blocks.length === 1 && it.blocks[0].type === 'paragraph';
         let body = tight ? inl(it.blocks[0].text, ctx) : renderBlocks(it.blocks, ctx);
         if (it.term) body = `<b>${inl(it.term, ctx)}</b> ${body}`;
-        if (it.task === null) return `<li>${body}</li>`;
-        const said = ctx.t ? ctx.t(it.task ? 'task_done' : 'task_open') : it.task ? 'done' : 'not done';
-        const box = `<span class="box" aria-label="${esc(said)}">${it.task ? '✓' : ''}</span>`;
-        return `<li class="task${it.task ? ' checked' : ''}">${box}<span>${body}</span></li>`;
+        const value = it.value ? ` value="${it.value}"` : '';
+        if (it.task === null) return `<li${value}>${body}</li>`;
+        const state = it.task ? 'task_done' : it.partial ? 'task_partial' : 'task_open';
+        const said = ctx.t ? ctx.t(state) : { task_done: 'done', task_partial: 'partly done', task_open: 'not done' }[state];
+        const box = `<span class="box" aria-label="${esc(said)}">${it.task ? '✓' : it.partial ? '–' : ''}</span>`;
+        return `<li${value} class="task${it.task ? ' checked' : it.partial ? ' partial' : ''}">${box}<span>${body}</span></li>`;
       });
       return `<${tag}>${items.join('')}</${tag}>`;
     }

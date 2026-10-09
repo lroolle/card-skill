@@ -26,6 +26,10 @@
   --mask-show:   oklch(1 0 0);           /* a mask is luminance, not a theme color: these two stay put in dark mode */
   --mask-faint:  oklch(0.42 0 0);
   --shadow:      oklch(0.235 0.014 260 / 0.16);
+  /* A card is card stock on the rack: a firm edge, and the shadow of a sheet that lies flat. */
+  --card-line:   oklch(0.835 0.008 245);
+  --card-shadow: 0 1px 1px oklch(0.235 0.014 260 / 0.05), 0 2px 6px -2px oklch(0.235 0.014 260 / 0.10);
+  --card-lift:   0 1px 1px oklch(0.235 0.014 260 / 0.06), 0 6px 16px -6px oklch(0.235 0.014 260 / 0.18);
 
   /* --cjk is the subset of an open font that a Chinese, Japanese or Korean board
      carries (lib/font.mjs sets it to the face's own name). It covers CJK characters
@@ -68,6 +72,10 @@
     --ok:          oklch(0.72 0.12 150);
     --link-option: oklch(0.74 0.12 300);
     --shadow:      oklch(0.10 0.012 260 / 0.5);
+    /* At night a shadow hardly shows on a dark rack: the edge carries the card, the shadow only seats it. */
+    --card-line:   oklch(0.37 0.009 250);
+    --card-shadow: 0 1px 1px oklch(0.10 0.012 260 / 0.35), 0 2px 6px -2px oklch(0.10 0.012 260 / 0.45);
+    --card-lift:   0 1px 1px oklch(0.10 0.012 260 / 0.4), 0 6px 16px -6px oklch(0.10 0.012 260 / 0.6);
   }
 }
 
@@ -173,16 +181,17 @@ h1.title {
 .card {
   position: relative; display: flex; flex-direction: column; gap: var(--s2);
   min-width: 0; padding: var(--s3) var(--s4) var(--s2);
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); border: 1px solid var(--card-line); border-radius: var(--r); box-shadow: var(--card-shadow);
   transition: opacity var(--fast) var(--ease), border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
   cursor: default;
 }
-.card:hover { border-color: var(--line-strong); }
-.card.focused { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.card:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.board.focusing .card:not(.focused):not(.lit) { background: var(--surface-2); border-color: var(--line); }
+.card:hover { border-color: var(--line-strong); box-shadow: var(--card-lift); }
+.card.focused { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--card-lift); }
+.card:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--card-lift); }
+/* A card that is not part of what you look at lies back: inset stock, a faint edge, no shadow. */
+.board.focusing .card:not(.focused):not(.lit) { background: var(--surface-2); border-color: var(--line); box-shadow: none; }
 .board.focusing .card:not(.focused):not(.lit) :is(.claim, .gist, .lbl, dd, .depth) { color: var(--fg-3); }
-.card.lit { border-color: var(--line-strong); box-shadow: 0 0 0 1px var(--accent-soft); }
+.card.lit { border-color: var(--line-strong); box-shadow: 0 0 0 1px var(--accent-soft), var(--card-shadow); }
 .card.flash { animation: flash 1.2s var(--ease); }
 @keyframes flash { from { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); } }
 
@@ -224,10 +233,14 @@ h1.title {
 .meter { height: 3px; background: var(--line); border-radius: var(--r-s); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--fg); }
 
-dl.facts { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); margin: var(--s1) 0 0; font-size: var(--t-s); }
-dl.facts dt, dl.facts dd { margin: 0; padding: 5px 0; border-top: 1px solid var(--line); }
+/* The value has at least three fifths of the row, so the key takes what it needs up to two
+   fifths, also when the key is one long word (a path in code). A word breaks only when it
+   is longer than its column (overflow-wrap: break-word), never to make a column narrow:
+   with "anywhere" a long key left its value one letter wide. */
+dl.facts { display: grid; grid-template-columns: minmax(0, max-content) minmax(60%, 1fr); margin: var(--s1) 0 0; font-size: var(--t-s); }
+dl.facts dt, dl.facts dd { margin: 0; padding: 5px 0; border-top: 1px solid var(--line); overflow-wrap: break-word; }
 dl.facts dt { padding-right: var(--s4); color: var(--fg-3); }
-dl.facts dd { color: var(--fg); overflow-wrap: anywhere; }
+dl.facts dd { color: var(--fg); }
 dl.facts .blank { color: var(--fg-3); }
 
 /* ---------- asks ---------- */
@@ -302,16 +315,42 @@ textarea::placeholder { color: var(--fg-3); }
 .depth li.task { list-style: none; margin-left: -1.25em; display: flex; gap: var(--s2); }
 .depth li.task .box { flex: none; width: 14px; height: 14px; margin-top: 4px; border: 1.5px solid var(--line-strong); border-radius: var(--r-s); font-size: 10px; line-height: 11px; text-align: center; }
 .depth li.task.checked > span:last-child { color: var(--fg-3); text-decoration: line-through; }
-code { font-family: var(--mono); font-size: 0.86em; background: var(--surface-2); border-radius: var(--r-s); padding: 1px 4px; }
+/* Code in a line is a small mark with an edge of its own. Without the edge its padding read as a
+   space: "cards ids ," and a line that began with code looked indented. */
+code { font-family: var(--mono); font-size: 0.86em; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); border-radius: var(--r-s); padding: 1px 3px; }
 pre { overflow-x: auto; padding: var(--s3); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r); font-size: var(--t-s); line-height: 1.5; }
-pre code { background: none; padding: 0; font-size: inherit; }
+pre code { background: none; box-shadow: none; padding: 0; font-size: inherit; }
 pre.diff .add { color: var(--ok); }
 pre.diff .del { color: var(--danger); }
 pre.diff .hunk { color: var(--fg-3); }
+/* A table keeps its words whole: a column is never narrower than its longest word
+   (overflow-wrap: break-word; "anywhere" set "faceup" as "faceu / p"). Where the card is too
+   narrow for that, the page marks the table .stacked (board.js, fitTables) and each row
+   becomes a block: the first field is its name, the others stand under the names of their
+   columns and wrap. A table with no head row, or one the page has not measured, scrolls. */
 .table { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: var(--t-s); }
-th, td { text-align: left; padding: 6px var(--s3) 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+th, td { text-align: left; padding: 6px var(--s3) 6px 0; border-top: 1px solid var(--line); vertical-align: top; overflow-wrap: break-word; }
+th:last-child, td:last-child { padding-right: 0; }
 th { color: var(--fg-3); font-weight: var(--w-strong); border-top: 0; }
+:is(th, td).r { text-align: right; font-variant-numeric: tabular-nums; }
+:is(th, td).c { text-align: center; }
+.tcap { margin: 0 0 var(--s1); font-size: var(--t-s); color: var(--fg-2); }
+.depth .tcap { margin-bottom: var(--s1); }
+.table.stacked { overflow-x: visible; }
+.table.stacked :is(table, tbody) { display: block; }
+.table.stacked thead { display: none; }
+.table.stacked tr { display: flex; flex-wrap: wrap; gap: 2px var(--s4); padding: var(--s2) 0; border-top: 1px solid var(--line); }
+.table.stacked td { flex: 1 1 14ch; min-width: 0; padding: 0; border: 0; text-align: left; }
+.table.stacked td:first-child { flex-basis: 100%; font-weight: var(--w-strong); }
+.table.stacked td:not(:first-child)[data-label]::before { content: attr(data-label); display: block; font-size: var(--t-xs); color: var(--fg-3); font-weight: var(--w-regular); }
+.table.stacked td:empty { display: none; }
+/* Org's verse keeps its lines; its center block is set in the middle. */
+p.verse { white-space: pre-wrap; }
+p.center { text-align: center; }
+time { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--fg-2); }
+sup, sub { font-size: 0.75em; line-height: 0; }
+.depth li.task.partial .box { color: var(--fg-2); font-weight: var(--w-strong); }
 ul.tradeoffs { list-style: none; padding: 0; }
 ul.tradeoffs li { display: flex; gap: var(--s2); }
 ul.tradeoffs .sign { flex: none; width: 1em; font-weight: var(--w-strong); color: var(--fg-3); }
@@ -419,6 +458,9 @@ dialog.lightbox::backdrop { background: var(--bg); }
 /* A card whose first figure is wide takes two columns on the rack, when two fit. */
 @media (min-width: 721px) {
   .view-rack .slots[data-layout="grid"] > .card.wide { grid-column: span 2; }
+  /* Only at Full, where the table shows on every card: a card that took two columns when you
+     opened it would jump away from under the pointer, and break the one column of the ledger. */
+  .view-rack.alt-full .slots[data-layout="grid"] > .card.wide-t { grid-column: span 2; }
 }
 
 /* references: a numeral is an address you can follow */
@@ -489,7 +531,7 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 }
 .view-rack.alt-claim .card:not(.open) {
   flex-direction: row; align-items: baseline; gap: var(--s3); padding: 7px var(--s3);
-  background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0;
+  background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none;
 }
 .view-rack.alt-claim .card:not(.open):last-child { border-bottom: 0; }
 .view-rack.alt-claim .card:not(.open) .addr { display: contents; }
@@ -501,7 +543,7 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 .view-rack.alt-claim .card.focused:not(.open) { box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* settled work recedes */
-.card[data-status="done"] { background: var(--surface-2); border-style: dashed; }
+.card[data-status="done"] { background: var(--surface-2); border-style: dashed; border-color: var(--line-strong); box-shadow: none; }
 .card[data-status="done"]:not(.open) :is(.gist, .fig, .facts, .ask, .depth, .history, .meter) { display: none; }
 .card[data-status="done"] .claim { color: var(--fg-2); font-weight: var(--w-regular); }
 
@@ -561,6 +603,7 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 }
 .view-rack :is(.sizer, .plane) { display: contents; }
 .view-desk .shelf { position: relative; z-index: 1; flex: none; width: max(var(--desk-col), var(--col-w, 0px)); margin-top: var(--s5); }
+.view-desk.alt-full .shelf { width: max(var(--desk-col), var(--col-w, 0px), var(--col-wf, 0px)); }
 .view-desk.alt-claim .shelf { width: var(--desk-col); }
 .view-desk .shelf-head h2 { white-space: normal; }
 .view-desk .slots, .view-desk .slots[data-layout] { grid-template-columns: minmax(0, 1fr); max-width: none; }
@@ -569,6 +612,22 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 /* The top strip of a card is its handle: drag it to place the card. */
 .view-desk .card .addr { cursor: grab; }
 .view-desk .card.moving { z-index: 5; box-shadow: 0 16px 32px -14px var(--shadow); }
+/* The right edge of a card on the desk sets its width: drag it; double-click puts the width back.
+   (Keys: [ and ] on the card in focus.) The reading view is a grid, and has no such edge. */
+.widen { display: none; }
+.view-desk .card .widen {
+  display: block; position: absolute; top: var(--r); bottom: var(--r); right: -9px; width: 12px;
+  cursor: ew-resize; touch-action: none; z-index: 2;
+}
+.view-desk .card .widen::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 6px; width: 3px; border-radius: var(--r-s);
+  background: var(--accent); opacity: 0; transition: opacity var(--fast) var(--ease);
+}
+.view-desk .card .widen:hover::after, .view-desk .card.sizing .widen::after { opacity: 1; }
+.view-desk .card.sizing { z-index: 5; box-shadow: var(--card-lift); }
+html.sizing, html.sizing * { cursor: ew-resize !important; user-select: none; }
+/* Under a finger the handle is wider and lies outside the card, so it covers no button of the card. */
+@media (pointer: coarse) { .view-desk .card .widen { right: -24px; width: 26px; } .view-desk .card .widen::after { left: 20px; opacity: 0.35; } }
 .view-desk .card.moving .addr { cursor: grabbing; }
 /* On the desk the marks never float over a card: a lit card's link label sits
    where the overlay would be. The focused card shows them as a footer. */

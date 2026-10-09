@@ -79,3 +79,33 @@ Mentions are dashed 4-3, the same dash as a weak arrow in a flow.
 Reuse: a line style with a meaning is never used for another meaning, as
 with color.
 Expires: never (perceptual).
+
+## 2026-10-09 rejected: a column one letter wide
+
+Why: text in a card broke "anywhere" so that nothing could stick out. A table
+then set "faceup" as "faceu / p", and a fact with a long key left its value
+one letter per line. The human: "narrow cards are like bad in rendering the
+table".
+Where: the progress board, the names table and the facts of card 36, on the
+desk at 288px and in the reading view.
+Landed: words stay whole in tables and facts. A fact's key takes at most two
+fifths of the row. A table that cannot fit shows each row as a block with
+named fields; on the desk the column widens for it at Full, and the human
+can set a card's width.
+Reuse: never buy a narrow column by breaking words; change the layout of
+the thing instead (stack it, widen it, or let it scroll).
+Expires: never (perceptual).
+
+## 2026-10-09 rejected: cards with no edge to speak of
+
+Why: a card was a 1px rule in `--line` on the rack, with no shadow ("structure
+before shadow"). The human asked for "better card details like border and
+shadow". On a light rack the cards did not read as sheets you can pick up,
+and on the desk they are exactly that.
+Where: every card, both views.
+Landed: a firmer edge and the shadow of a sheet that lies flat; a small lift
+under the pointer and in focus; DONE and dimmed cards lie back with none.
+Reuse: shadow is allowed for the one thing that is an object in the world of
+the page (the card). Nothing inside a card gets one.
+Expires: when the human rules again.
+

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { parseBoard, anatomy, syntaxOf, parseCard } from './board.mjs';
 import { lint } from './lint.mjs';
 import { esc, renderBlocks, parseFacts } from './md.mjs';
-import { renderFigure, isFigure, figuresIn, WIDE } from './figure.mjs';
+import { renderFigure, isFigure, figuresIn, WIDE, cols } from './figure.mjs';
 import { resolveAssets, assetHtml, assetKey, imageFigure } from './assets.mjs';
 import { sync, fold, readLog, markBuild, markFont } from './store.mjs';
 import { strings as uiStrings, t } from './i18n.mjs';
@@ -47,6 +47,20 @@ function figureOf(b, label, ctx) {
   return a && a.kind === 'image' ? imageFigure(a, b.info, label, ctx) : { html: assetHtml(b, ctx.assets, ctx), width: 0 };
 }
 
+// How wide a table wants to be, in px, from its text: a column is as wide as its longest
+// field, between 3 and 26 characters. The desk gives the card's column that width at Full,
+// and in the reading view a card with a wide table takes two columns. An estimate: the
+// page measures the real table, and shows its rows as blocks where it does not fit.
+function tableWidth(b, plain) {
+  const n = Math.max(b.head.length, ...b.rows.map((r) => r.length), 0);
+  let w = 0;
+  for (let k = 0; k < n; k++) {
+    const longest = Math.max(...[b.head[k], ...b.rows.map((r) => r[k])].map((c) => cols(plain(c || ''))));
+    w += Math.min(Math.max(longest, 3), 26) * 7.2 + 12;
+  }
+  return Math.round(w);
+}
+
 // Figures are numbered per card, in source order: Fig. 12.1 is the first
 // figure on card 12, so a human can point at it in words.
 function cardView(card, ctx, n = '?') {
@@ -66,8 +80,10 @@ function cardView(card, ctx, n = '?') {
     gist_html: a.gist ? `<p>${inline(a.gist.text, ctx)}</p>` : '',
     figure_html: fig ? fig.html : '',
     fig_w: fig ? fig.width : 0,
+    tbl_w: Math.max(0, ...a.depth.filter((b) => b.type === 'table').map((b) => tableWidth(b, ctx.plain || String))),
     wide: !!fig && fig.width > WIDE,
-    facts: a.facts ? parseFacts(a.facts.text).map(([k2, v]) => [k2, inline(v, ctx)]) : [],
+    // [key as written (rows of a compare section line up by it), value as markup, key as markup]
+    facts: a.facts ? parseFacts(a.facts.text).map(([k2, v]) => [k2, inline(v, ctx), inline(k2, ctx)]) : [],
     depth_html: renderBlocks(a.depth, fctx),
     options: a.options,
   };
@@ -126,6 +142,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       figure_html: v.figure_html,
       wide: v.wide,
       fig_w: v.fig_w,
+      tbl_w: v.tbl_w,
       facts: v.facts,
       depth_html: v.depth_html,
       options: v.options.map((o) => ({

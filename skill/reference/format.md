@@ -231,13 +231,37 @@ out one column per section, in board order, until the human moves a card.
 #+begin_src <language>          code
 #+begin_example                 code with no language
 #+begin_quote                   a quote
-| a | b |                       a table; the first |---+---| rule ends the head
+| a | b |                       a table; the first |---+---| rule ends the head.
+                                A column of numbers is set to the right; a row
+                                | <l> | <c> | <r> | says otherwise and is not shown.
+                                #+caption: above a table is its caption
+: fixed-width text              code, as in an example block (also what follows #+RESULTS:)
+#+begin_verse ... #+end_verse   lines and indentation kept
+#+begin_center ... #+end_center set in the middle
+10. [@10] item                  an item that sets its number
+- [-] task                      a task with some of its parts done
+x^{2}  a_{ij}                   above and below the line; braces are required,
+                                so snake_case_name stays as it is
+\\ at the end of a line         a line break
+<2026-10-09 Fri>                a date (also [2026-10-09 Fri 10:00]); shown without brackets
+<https://example.org>           a link
 -----                           a rule
 ````
 
 Indent the lines inside a block by two spaces, as Emacs does; the
 indentation is removed. A line inside a block that starts with `*` or `#+`
 takes a leading comma (`,*`), as in Org.
+
+A table is shown as a table where it fits its card; its words are never
+broken to make a column narrow. In a card that is too narrow, each row
+becomes a block: the first field is its name, and the other fields stand
+under the names of their columns. So give a table a head row, and put what
+names the row in the first column. On the desk the human can also set the
+width of a card.
+
+Shown as written, because a board is not typeset: entities (`\alpha`),
+`--` and `---` (command flags look the same), footnotes (`[fn:1]`), LaTeX
+and macros.
 
 ## Figures
 

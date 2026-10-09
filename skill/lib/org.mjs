@@ -9,11 +9,18 @@
 //   #+begin_src flow ... #+end_src     code; `sketch` and `flow` are figures
 //   #+begin_src tradeoffs | diff       widgets
 //   #+begin_example / #+begin_quote    code / quote
+//   : a fixed-width line               code, as #+begin_example
+//   #+begin_verse / #+begin_center     lines kept as written / set in the middle
 //   #+begin_comment                    not shown
 //   - key :: value               a description list; at top level, the facts
 //   - [X] option / - [ ] option  checkboxes: the options of an ask
-//   | a | b |  |---+---|         a table; the rule ends the head
+//   | a | b |  |---+---|         a table; the rule ends the head. A column of numbers
+//                                is set to the right; | <l> | <c> | <r> | says otherwise
 //   *bold* /em/ _underline_ +strike+ =verbatim= ~code~
+//   x^{2}  a_{ij}                above and below the line, with braces only
+//   \\  at the end of a line     a line break
+//   <2026-10-09 Fri>  [2026-10-09 Fri 10:00]   a date, kept on one line
+//   Entities (\alpha), -- and ---, footnotes and LaTeX are shown as written.
 //   [[#id]] [[#id][text]]        a card reference; [[https://...][text]] a link
 //   [[file:shot.png]]            alone in a paragraph: a file the card shows
 //   #+include: "f.js" src js :lines "10-40"   an excerpt of a project file
@@ -26,6 +33,9 @@ const BEGIN_RE = /^\s*#\+begin_(\w+)(?:\s+(.*?))?\s*$/i;
 const KEYWORD_RE = /^\s*#\+(\w+):\s*(.*?)\s*$/;
 const DRAWER_RE = /^\s*:([\w-]+):\s*$/;
 const HR_RE = /^\s*-{5,}\s*$/;
+const FIXED_RE = /^\s*:(?: |$)/; // ": text", a fixed-width line; not ":DRAWER:"
+// A field Org counts as a number: digits with separators, a sign, a percent sign.
+const NUMBER_RE = /^[-+]?[\d.,]*\d[\d.,]*\s?%?$/;
 
 const indentOf = (line) => line.match(/^\s*/)[0].replace(/\t/g, '    ').length;
 
@@ -39,7 +49,7 @@ function blockText(lines) {
 
 function startsBlock(line, next) {
   return BEGIN_RE.test(line) || KEYWORD_RE.test(line) || HEADING_RE.test(line) || HR_RE.test(line) ||
-    LIST_RE.test(line) || /^\s*\|/.test(line) || DRAWER_RE.test(line) || /^\s*#(\s|$)/.test(line);
+    LIST_RE.test(line) || /^\s*\|/.test(line) || DRAWER_RE.test(line) || /^\s*#(\s|$)/.test(line) || FIXED_RE.test(line);
 }
 
 // parseOrgBlocks(src) -> [{ type, line, ... }]. `line` is 0-based within src.
@@ -66,11 +76,14 @@ export function parseOrgBlocks(src, { top = true } = {}) {
         blocks.push({ type: 'code', lang, info: caption, text: blockText(body), line: start });
       } else if (kind === 'quote') {
         blocks.push({ type: 'quote', blocks: parseOrgBlocks(body.join('\n'), { top: false }), line: start });
+      } else if (kind === 'verse') {
+        // A verse keeps its line breaks and its indentation; markup inside still works.
+        blocks.push({ type: 'paragraph', text: blockText(body), set: 'verse', line: start });
       } else if (kind !== 'comment' && kind !== 'export') {
         // A comment block is not shown, as in Org; an export block is raw markup, which a
-        // board never passes through. Any other special block (center, verse, ...) shows
-        // its content as ordinary blocks.
-        blocks.push(...parseOrgBlocks(body.join('\n'), { top: false }).map((b) => ({ ...b, line: start })));
+        // board never passes through. A center block sets its paragraphs in the middle. Any
+        // other special block shows its content as ordinary blocks.
+        blocks.push(...parseOrgBlocks(body.join('\n'), { top: false }).map((b) => ({ ...b, ...(kind === 'center' && b.type === 'paragraph' ? { set: 'center' } : {}), line: start })));
       }
       caption = '';
       continue;
@@ -87,6 +100,15 @@ export function parseOrgBlocks(src, { top = true } = {}) {
       continue;
     }
     if (/^\s*#(\s|$)/.test(line)) { i++; continue; } // a comment line
+    if (FIXED_RE.test(line)) {
+      // Lines that start with ": " are fixed-width text: what a src block printed, or a short example.
+      const body = [];
+      while (i < lines.length && FIXED_RE.test(lines[i])) body.push(lines[i++].replace(/^\s*: ?/, ''));
+      const fixed = body.join('\n').replace(/\s+$/, '');
+      if (fixed) blocks.push({ type: 'code', lang: '', info: caption, text: fixed, line: start });
+      caption = '';
+      continue;
+    }
     if (DRAWER_RE.test(line) && line.trim().toLowerCase() !== ':end:') {
       i++;
       while (i < lines.length && lines[i].trim().toLowerCase() !== ':end:') i++;
@@ -107,7 +129,19 @@ export function parseOrgBlocks(src, { top = true } = {}) {
       // Rows above the first rule are the head (Org allows several; the first is used).
       const head = rule > 0 ? cells(kept[0]) : [];
       const body = kept.slice(rule > 0 ? rule : 0).filter((r) => !isRule(r)).map(cells);
-      blocks.push({ type: 'table', head, align: head.map(() => ''), rows: body, line: start });
+      // Alignment as in Org: a cookie row (<l> <c> <r>) decides; without one, a column
+      // in which at least half of the fields are numbers is set to the right.
+      const cookie = rows.find(isCookie);
+      const said = cookie ? cells(cookie).map((c) => ({ l: 'left', c: 'center', r: 'right' })[(c.match(/^<([lrc])/) || [])[1]] || '') : [];
+      const count = Math.max(head.length, ...body.map((r) => r.length), 0);
+      const align = Array.from({ length: count }, (_, k) => {
+        if (said[k]) return said[k];
+        // (With no head row the first row is often the names: there, more than half must be numbers.)
+        const fields = body.map((r) => r[k]).filter(Boolean);
+        const numbers = fields.filter((v) => NUMBER_RE.test(v)).length * 2;
+        return fields.length && (head.length ? numbers >= fields.length : numbers > fields.length) ? 'right' : '';
+      });
+      blocks.push({ type: 'table', head, align, rows: body, info: caption, line: start });
       caption = '';
       continue;
     }
@@ -126,7 +160,9 @@ export function parseOrgBlocks(src, { top = true } = {}) {
     i++;
     while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) para.push(lines[i++].trim());
     const file = fileTarget(para.join(' '));
-    blocks.push(file ? { type: 'file', path: file, info: caption, line: start } : { type: 'paragraph', text: para.join(' '), line: start });
+    // The lines of a paragraph are joined by a space; a line that ends in "\\" keeps its end, which breaks the line.
+    const text = para.map((l, k) => (k < para.length - 1 && /\\\\$/.test(l) ? `${l}\n` : `${l} `)).join('').trimEnd();
+    blocks.push(file ? { type: 'file', path: file, info: caption, line: start } : { type: 'paragraph', text, line: start });
     caption = '';
   }
   return blocks;
@@ -211,6 +247,9 @@ function parseList(lines, i) {
   const out = items.map((it) => {
     let text = it.lines[0];
     let task = null;
+    // "[@10]" sets the number of an item; "[-]" is a task with some of its parts done.
+    const at = text.match(/^\[@(\d{1,9})\]\s+(.*)$/);
+    if (at) text = at[2];
     const t = text.match(/^\[([ xX-])\]\s+(.*)$/);
     if (t) { task = t[1] === 'x' || t[1] === 'X'; text = t[2]; }
     let term;
@@ -218,6 +257,8 @@ function parseList(lines, i) {
     if (d) { term = (d[1] || '').trim(); text = d[2] || ''; }
     const item = { task, blocks: parseOrgBlocks([text, ...it.lines.slice(1)].join('\n'), { top: false }) };
     if (term !== undefined) item.term = term;
+    if (at) item.value = +at[1];
+    if (t && t[1] === '-') item.partial = true;
     return item;
   });
   return [{ type: 'list', ordered, items: out, line: start }, i];
@@ -234,6 +275,10 @@ const mark = (ch) => new RegExp(`${PRE}${ch}([^\\s${ch === '\\*' ? '*' : ch}]|[^
 const CODE_RE = new RegExp(`${PRE}([=~])([^\\s]|[^\\s][\\s\\S]*?[^\\s])\\2${POST}`, 'g');
 const EMPH = [[mark('\\*'), 'strong'], [mark('/'), 'em'], [mark('_'), 'u'], [mark('\\+'), 'del']];
 const LINK_RE = /\[\[([^\]]+)\](?:\[([^\]]*)\])?\]/g;
+// A date, then at most the name of the day, a time or a range of times, and repeaters or
+// warnings (+1w, .+2d, -3d). "[2026-10-09 note: do it]" is not a timestamp.
+const STAMP = '\\d{4}-\\d{2}-\\d{2}(?: [^\\s\\d:\\]>+.-]{1,10})?(?: \\d{1,2}:\\d{2}(?:-\\d{1,2}:\\d{2})?)?(?: [.+-]{1,2}\\d+[hdwmy])*';
+const TIME_RE = new RegExp(`<(${STAMP})>|\\[(${STAMP})\\]`, 'g');
 export const ORG_REF = /^#?([a-z0-9][a-z0-9-]{0,47})$/;
 
 // orgInline(text, { ref(id, labelHtml?) -> html }) -> html
@@ -253,8 +298,15 @@ export function orgInline(src, ctx = {}) {
       const url = /^file:/i.test(target) || !SCHEME_RE.test(target) ? target.replace(/^file:/i, '').replace(/::.*$/, '') : target;
       return keep(link(url, label || esc(target.replace(/^file:/i, ''))));
     });
+    s = s.replace(/<(https?:\/\/[^\s<>]+)>/g, (_, u) => keep(link(u, esc(u)))); // <https://...>, a link in angle brackets
     s = s.replace(/(^|[\s(])(https?:\/\/[^\s<]*[^\s<.,;:!?)\]'"])/g, (_, pre, u) => pre + keep(link(u, esc(u))));
+    // A date as Org writes it stays on one line and reads as a date, without its brackets.
+    s = s.replace(TIME_RE, (_, a, b) => { const d = a || b; return keep(`<time datetime="${esc(d.slice(0, 10))}">${esc(d)}</time>`); });
     for (const [re, tag] of EMPH) s = s.replace(re, (_, pre, c) => pre + keep(`<${tag}>${run(c)}</${tag}>`));
+    // Above and below the line, with braces only: x^{2}, a_{ij}. A bare snake_case_name stays as it is.
+    s = s.replace(/(\S)([\^_])\{([^{}\n]{1,40})\}/g, (_, pre, m, c) => pre + keep(`<${m === '^' ? 'sup' : 'sub'}>${run(c)}</${m === '^' ? 'sup' : 'sub'}>`));
+    // Two backslashes at the end of a line break the line there (the paragraph keeps that line end).
+    s = s.replace(/\\\\[ \t]*\n\s*/g, () => keep('<br>'));
     return esc(s);
   };
   let out = run(src);
@@ -267,6 +319,7 @@ export function orgPlain(src) {
   let s = String(src).replace(LINK_RE, (_, target, desc) => desc ?? target.replace(/^#/, ''));
   s = s.replace(CODE_RE, (_, pre, _m, c) => pre + c);
   for (const [re] of EMPH) s = s.replace(re, (_, pre, c) => pre + c);
+  s = s.replace(TIME_RE, (_, a, b) => a || b).replace(/(\S)[\^_]\{([^{}\n]{1,40})\}/g, '$1$2').replace(/\\\\[ \t]*\n/g, ' ');
   return s.replace(/\s+/g, ' ').trim();
 }
 

@@ -1049,3 +1049,263 @@ test('touch: on a phone-size touch screen, taps answer an ask, open a picture at
     await browser.close();
   }
 });
+
+// ---- tables in narrow cards, and the width of a card on the desk ----
+
+const TABLES = `#+title: Names for the tool
+#+todo: TODO DOING BLOCKED | DONE
+
+* Names
+
+** Three names are free, and each has one weak point
+:PROPERTIES:
+:CUSTOM_ID: names
+:BASIS: fact
+:END:
+Each name was checked on the registry.
+
+- files of the skill changed after the tag :: 17, in 8 commits
+- what =cards ids= did :: nothing, as it should
+
+| Name | Weak point | Top hit, stars |
+|------+------------+----------------|
+| faceup | "face" reads as a human face | Lindydancer/faceup, 33 |
+| aboveboard | ten letters, a moral tone | a security token repo, 6 |
+| deskcheck | sounds like a linter | a tool since September |
+
+| Engine | Tests |
+|--------+-------|
+| Chromium | 1,204 |
+| WebKit | 98 |
+
+* Beside
+
+** A second card stands beside the first
+:PROPERTIES:
+:CUSTOM_ID: second
+:BASIS: fact
+:FROM: names
+:END:
+It has no table.
+
+- =skill/reference/templates/review.org= :: the template that a review starts from
+
+** DONE A closed card keeps a wide table to itself
+:PROPERTIES:
+:CUSTOM_ID: closed
+:BASIS: fact
+:END:
+Nobody sees this table until the card is opened.
+
+| Name | Weak point of the name | Top hit on the registry, with its stars |
+|------+------------------------+------------------------------------------|
+| faceup | "face" reads as a human face | Lindydancer/faceup, 33 |
+
+* Last
+
+** The last column holds one card
+:PROPERTIES:
+:CUSTOM_ID: last
+:BASIS: fact
+:END:
+It stands at the right end of the desk.
+`;
+
+test('tables and widths: words stay whole, rows stack where a table cannot fit, and a card on the desk takes the width you give it', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  fs.writeFileSync(ref.file, TABLES);
+  buildBoard(ref, { cwd });
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url + '?view=desk&level=full');
+    await page.waitForSelector('#c-names table');
+    const width = () => page.$eval('#c-names', (el) => el.offsetWidth);
+    const stacked = () => page.$$eval('#c-names .table', (els) => els.map((e) => e.classList.contains('stacked')));
+    // One line of text in a field means no word was broken to make its column narrow.
+    const oneLine = (sel) => page.$$eval(sel, (els) => els.every((e) => e.getClientRects().length === 0 || e.offsetHeight < 2.2 * parseFloat(getComputedStyle(e).lineHeight)));
+
+    // At Full the column of a section is as wide as its widest table wants.
+    const own = await width();
+    assert.ok(own > 400, `the card is wider than a plain column: ${own}`);
+    assert.deepEqual(await stacked(), [false, false]);
+    assert.ok(await oneLine('#c-names tbody td:first-child'), 'faceup, aboveboard and deskcheck stand on one line each');
+    // A column of numbers is set to the right, as in Org.
+    assert.equal(await page.$eval('#c-names .table:nth-of-type(2) tbody td:last-child', (e) => getComputedStyle(e).textAlign), 'right');
+    // The key of a fact shows its markup as any text does.
+    assert.equal(await page.$eval('#c-names dl.facts dt code', (e) => e.textContent), 'cards ids');
+    // A fact's value keeps a readable width beside a long key.
+    assert.ok(await page.$eval('#c-names dl.facts dd', (e) => e.offsetWidth) > 120);
+
+    // The right edge of a card sets its width. Drag it left: the card gets narrow, on the grid.
+    const drag = async (dx) => {
+      const b = await page.locator('#c-names .widen').boundingBox();
+      await page.mouse.move(b.x + b.width / 2, b.y + 40);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width / 2 + dx / 2, b.y + 44, { steps: 4 });
+      await page.mouse.move(b.x + b.width / 2 + dx, b.y + 48, { steps: 4 });
+      await page.mouse.up();
+    };
+    const scale = await page.evaluate(() => { const p = document.querySelector('.plane'); return p.getBoundingClientRect().width / p.offsetWidth; });
+    await drag(-260 * scale);
+    await page.waitForFunction((w) => document.querySelector('#c-names').offsetWidth < w - 200, own);
+    const narrow = await width();
+    assert.equal(narrow % 24, 0, `the width is on the grid: ${narrow}`);
+    assert.ok(narrow >= 240 && narrow < own - 200);
+    // The three-column table cannot fit now: each row is a block, the first field its name, the others under the names of their columns.
+    await page.waitForFunction(() => document.querySelector('#c-names .table').classList.contains('stacked'));
+    assert.deepEqual(await stacked(), [true, false], 'the table of two short columns still fits');
+    assert.deepEqual(await page.$eval('#c-names .table.stacked td:nth-child(2)', (e) => [e.dataset.label, getComputedStyle(e, '::before').content !== 'none', getComputedStyle(e, '::before').display]), ['Weak point', true, 'block']);
+    assert.ok(await oneLine('#c-names .table.stacked td:first-child'));
+    assert.equal(await page.$eval('#c-names .table.stacked', (e) => e.scrollWidth <= e.clientWidth + 1), true, 'nothing sticks out of the card');
+    // The lines to other cards follow the new edge, and the click that ends a drag does not open or focus anything else.
+    assert.ok(await page.$$eval('.wires .wire', (w) => w.length) >= 1);
+
+    // The width is yours: it is there after a reload.
+    await page.reload();
+    await page.waitForSelector('#c-names table');
+    assert.equal(await width(), narrow);
+    await page.waitForFunction(() => document.querySelector('#c-names .table').classList.contains('stacked'));
+
+    // Keys on the card in focus: ] wider, [ narrower, two grid steps each.
+    await page.click('#c-names .claim');
+    await page.keyboard.press(']');
+    await page.keyboard.press(']');
+    assert.equal(await width(), narrow + 96);
+    await page.keyboard.press('[');
+    assert.equal(await width(), narrow + 48);
+    // It stops at the least and the most a card may be.
+    for (let k = 0; k < 30; k++) await page.keyboard.press('[');
+    assert.equal(await width(), 240);
+
+    // A double-click on the edge gives the card the width of its column again, and the table is a table again.
+    await page.dblclick('#c-names .widen', { position: { x: 6, y: 40 } });
+    await page.waitForFunction((w) => document.querySelector('#c-names').offsetWidth === w, own);
+    await page.waitForFunction(() => !document.querySelector('#c-names .table').classList.contains('stacked'));
+
+    // Arrange puts every card back, widths too.
+    await drag(120 * scale);
+    await page.waitForFunction((w) => document.querySelector('#c-names').offsetWidth > w + 90, own);
+    await page.click('[data-act="arrange"]');
+    await page.waitForFunction((w) => document.querySelector('#c-names').offsetWidth === w, own);
+
+    // The reading view has no such edge. On a phone the wide table stacks too, and the short one stays.
+    const phone = await browser.newPage({ viewport: { width: 390, height: 800 } });
+    phone.on('pageerror', (e) => errors.push(e.message));
+    await phone.goto(url + '?view=rack&level=full');
+    await phone.waitForSelector('#c-names table');
+    assert.equal(await phone.$eval('#c-names .widen', (e) => getComputedStyle(e).display), 'none');
+    await phone.waitForFunction(() => document.querySelector('#c-names .table').classList.contains('stacked'));
+    assert.deepEqual(await phone.$$eval('#c-names .table', (els) => els.map((e) => e.classList.contains('stacked'))), [true, false]);
+    assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'the page does not scroll sideways');
+    await phone.close();
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('resize, as a reviewer broke it: the edge follows the pointer at any zoom, a sized card lies on top, the handle is no card click, a tap after a touch drag counts', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  fs.writeFileSync(ref.file, TABLES);
+  buildBoard(ref, { cwd });
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    // Fit, on a window in which the desk is scaled down: the hard case for a drag.
+    await page.goto(url + '?view=desk&level=gist');
+    await page.waitForSelector('#c-last');
+    const scale = () => page.evaluate(() => { const p = document.querySelector('.plane'); return p.getBoundingClientRect().width / p.offsetWidth; });
+    const edge = (id) => page.$eval('#c-' + id, (el) => el.getBoundingClientRect().right);
+    const grab = async (id, dx, check) => {
+      const b = await page.locator(`#c-${id} .widen`).boundingBox();
+      const x0 = b.x + b.width / 2;
+      const off = x0 - await edge(id);
+      await page.mouse.move(x0, b.y + 30);
+      await page.mouse.down();
+      await page.mouse.move(x0 + dx / 2, b.y + 32, { steps: 5 });
+      await page.mouse.move(x0 + dx, b.y + 34, { steps: 5 });
+      await page.waitForTimeout(80);
+      const during = { edge: await edge(id), want: x0 + dx - off, scale: await scale() };
+      if (check) await check();
+      await page.mouse.up();
+      return during;
+    };
+    const s0 = await scale();
+    // The rightmost card: its growth makes the plane wider, which once shrank a fitted desk under the pointer.
+    const d = await grab('last', 60); // 60px: the pointer stays inside the window
+    assert.ok(Math.abs(d.edge - d.want) < 3, `the edge is under the pointer: ${d.edge} for ${d.want}`);
+    assert.ok(Math.abs(d.scale - s0) < 0.002, `the desk keeps its scale while you drag: ${d.scale} for ${s0}`);
+    // A card that is made wider than the gap to its neighbour lies on top of it, edge and all.
+    const before = await page.$eval('#c-names', (el) => el.offsetWidth);
+    await grab('names', 200 * (await scale()));
+    await page.waitForFunction((w) => document.querySelector('#c-names').offsetWidth > w + 150, before);
+    const top = await page.evaluate(() => { const r = document.querySelector('#c-names .widen').getBoundingClientRect(); return document.elementFromPoint(r.left + r.width / 2, r.top + 20).className; });
+    assert.equal(top, 'widen', 'its edge is still in reach');
+
+    // A click on the edge is not a click on the card: nothing gets the focus, nothing opens.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400); // the click that ends a drag is past
+    await page.click('#c-second .widen', { position: { x: 6, y: 20 } });
+    assert.equal(await page.$('.card.focused'), null);
+    // Double-click on the edge of a card that is in focus and open: the width goes back, the card stays open.
+    await page.click('#c-names .claim'); // a click on a card gives it the focus and opens it
+    assert.equal(await page.$eval('#c-names', (el) => el.classList.contains('open')), true);
+    await page.dblclick('#c-names .widen', { position: { x: 6, y: 20 } });
+    await page.waitForFunction((w) => document.querySelector('#c-names').offsetWidth === w, before);
+    assert.equal(await page.$eval('#c-names', (el) => el.classList.contains('open')), true);
+    // 0 does the same from the keyboard; on places the layout made it does nothing, and Arrange stays off.
+    await page.keyboard.press(']');
+    await page.keyboard.press('0');
+    assert.equal(await page.$eval('#c-names', (el) => el.offsetWidth), before);
+    await page.click('[data-act="arrange"]');
+    await page.waitForFunction(() => document.querySelector('[data-act="arrange"]').disabled);
+    await page.dblclick('#c-second .widen', { position: { x: 6, y: 20 } });
+    assert.equal(await page.$eval('[data-act="arrange"]', (b) => b.disabled), true, 'a double-click on a layout nobody touched changes nothing');
+
+    // A fact whose key is one long word (a path in code) leaves its value three fifths of the row.
+    const [kw, vw] = await page.$eval('#c-second dl.facts', (dl) => [dl.querySelector('dt').offsetWidth, dl.querySelector('dd').offsetWidth]);
+    assert.ok(vw >= 1.4 * kw && vw > 120, `key ${kw}, value ${vw}`);
+    // A DONE card is closed: its table asks for no room on the desk, and for no second column in the reading view.
+    await page.goto(url + '?view=desk&level=full&fresh');
+    await page.waitForSelector('#c-closed');
+    assert.equal(await page.$eval('#c-closed', (el) => el.offsetWidth), 288);
+    await page.goto(url + '?view=rack&level=full&fresh');
+    await page.waitForSelector('#c-closed');
+    assert.equal(await page.$eval('#c-closed', (el) => el.classList.contains('wide-t')), false);
+    // The ledger of claims is one column, also when you open the card with the wide table.
+    await page.goto(url + '?view=rack&level=claim&fresh');
+    await page.waitForSelector('#c-names');
+    await page.click('#c-names .claim');
+    const lefts = await page.$$eval('.card', (els) => [...new Set(els.filter((e) => e.getClientRects().length && !e.classList.contains('open')).map((e) => Math.round(e.getBoundingClientRect().left)))]);
+    assert.equal(lefts.length, 1, 'every row starts at the same left edge');
+    assert.equal(await page.$eval('#c-second', (el) => getComputedStyle(el).boxShadow), 'none', 'a row of the ledger is no card: no shadow');
+    assert.deepEqual(errors, []);
+
+    // Touch (not in Firefox, where Playwright has no touch screen): after a drag of the edge, the next tap counts.
+    if (ENGINE !== 'firefox') {
+      const touch = await browser.newContext({ viewport: { width: 1000, height: 700 }, hasTouch: true });
+      const tp = await touch.newPage();
+      await tp.goto(url + '?view=desk&level=gist&fresh');
+      await tp.waitForSelector('#c-last');
+      const b = await tp.locator('#c-last .widen').boundingBox();
+      const w0 = await tp.$eval('#c-last', (el) => el.offsetWidth);
+      await tp.evaluate(([x, y]) => {
+        const h = document.querySelector('#c-last .widen');
+        const ev = (type, dx) => h.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true, button: 0, clientX: x + dx, clientY: y }));
+        ev('pointerdown', 0);
+        for (const dx of [10, 40, 80]) window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', clientX: x + dx, clientY: y }));
+        window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 7, pointerType: 'touch', clientX: x + 80, clientY: y }));
+      }, [b.x + b.width / 2, b.y + 30]);
+      await tp.waitForFunction((w) => document.querySelector('#c-last').offsetWidth > w + 40, w0);
+      await tp.waitForTimeout(450); // a touch drag is followed by no click; the mark for one runs out
+      await tp.tap('#c-second .claim');
+      assert.equal(await tp.$eval('#c-second', (el) => el.classList.contains('focused')), true, 'the first tap after the drag is not eaten');
+      await touch.close();
+    }
+  } finally { await browser.close(); }
+});

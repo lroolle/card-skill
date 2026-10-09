@@ -777,3 +777,98 @@ silent:
 One more thing the review noted and we keep: a sentence that looks like a
 planning line in the note of a section is shown now (0.1.0 dropped it), so
 such a board gets one new revision at its first render by 0.2.0.
+
+## D38. Before the 0.2.0 tag: tables that read in a narrow card, a card edge, a width you set
+
+2026-10-09. Built. The human approved the tag on the progress board and
+asked for four things first: "resize especially like horizonaly for each
+card", "flex warp in the table; narrow cards are like bad in rendering the
+table", "better card details like border and shadow", and "other rendering
+issue in web for the org mode grammar text".
+
+What was wrong, seen on the human's own board:
+- Text broke "anywhere" so nothing stuck out of a card. A table then set
+  "faceup" as "faceu / p", and a fact with a long key left its value one
+  letter per line.
+- A card was a 1px rule with no shadow (DESIGN.md: "structure before
+  shadow").
+- A card's width on the desk was the column's, 288px, or more for a
+  figure. A table got no room.
+- Code in a line had padding and no edge, so a comma after it stood apart.
+  Fixed-width lines, verse, center, `[@10]`, `[-]`, `x^{2}`, `\\`, dates
+  and `<url>` showed as typed.
+
+What is built:
+- Words stay whole in tables and facts (`overflow-wrap: break-word`: a word
+  breaks only when it is longer than its column, never to make a column
+  narrow). A fact's key takes at most two fifths of the row.
+- A table that does not fit shows each row as a block, with every field
+  under the name of its column. The page measures each table once (the
+  width it reads well at: about 16 characters a column, never less than
+  its longest words) and compares that with the room it has, on every
+  change of the card's size. Cells carry `data-label` and the parts their
+  ARIA roles, so the table stays a table for a screen reader.
+- The compiler estimates how wide a card's tables want to be (`tbl_w`).
+  At Full the desk gives the section that width, up to 560px; in the
+  reading view such a card takes two columns.
+- On the desk the right edge of a card is a handle: drag sets the width on
+  the grid (240 to 960px), double-click gives the layout's width back, `[`
+  and `]` do it from the keyboard, Arrange resets all. The width lives
+  with the card's place in this browser.
+- A card has a firmer edge and the shadow of a sheet that lies flat; it
+  lifts a little under the pointer and in focus; DONE and dimmed cards lie
+  back. DESIGN.md "Surfaces" and TASTE.md record the ruling.
+- The Org constructs above are rendered; a fact's key shows its markup.
+
+Why rows as blocks and not a scroll bar: a card on the desk lies on a
+table that already pans and zooms; a second scroll inside the card fights
+it, and on a phone it hides columns. A table with no head row has no names
+for its fields, so that one still scrolls.
+Why the page measures and the compiler only estimates: the real width
+depends on the font of the reader's machine.
+Why braces only for `x^{2}`: Org's bare `a_b` would turn every
+snake_case_name into a subscript.
+Left as written: entities, `--`, footnotes, LaTeX, macros. Footnotes are
+the "sources" direction on the roadmap.
+Cost: the reading view has no handle; there a card is one or two columns
+wide. A card's width is not part of the board: the agent cannot set it.
+Tests: `test/org.test.mjs` (the last four), `test/e2e.test.mjs` "tables
+and widths", in Chromium, Firefox and WebKit.
+
+A reviewer who did not build this then drove it in three browsers. Nothing
+lost work; seven faults were ones a user meets, and all are fixed:
+
+- At Fit, or on a desk that is centred in its window, the edge did not
+  follow the pointer: the card that grew made the plane grow, and the desk
+  shrank or shifted under the drag. While a card is sized the desk now
+  keeps its scale and the plane its size; both settle when you let go.
+- A card made wider than the gap slid under its neighbour, handle and all.
+  The card you size lies on top, as the card you put down does.
+- A click on the handle was a click on the card (it opened and closed it,
+  and a double-click then missed). The handle is no part of the card for
+  a click.
+- After a touch drag the next tap did nothing: the page waited for a click
+  that touch never sends. The wait runs out by itself now, for a moved
+  card too.
+- A fact whose key is one long word (a path in code) took the whole row.
+  The value now has three fifths of the row at least.
+- In the ledger of claims, opening a card with a wide table made a second
+  column. A card takes two columns only at Full, where every card shows
+  its table, and never because it was opened (it jumped from under the
+  pointer). A DONE card is closed and asks for no room.
+- Smaller: a row of the ledger has no shadow; `[` and `]` work where they
+  need AltGr or Option, and `0` gives the width back; a double-click on a
+  layout nobody touched changes nothing; `[2026-10-09 note: ...]` is no
+  date; two backslashes break a line only at its end; a lone `:` is no
+  empty box; a table with no head row needs more than half numbers to be
+  set to the right.
+
+One cost stays, and it is the layout model's: after the first move or
+resize the places and widths are the human's. At Full a column then no
+longer widens for its tables (they show as blocks); Arrange gives the
+automatic layout back.
+Not fixed: a stacked table names its fields through generated text, which
+most screen readers speak and some may not; the card's edge has a contrast
+of 1.4:1 against the rack (1.8:1 at night), up from 1.2:1, and is carried
+by the fill and the shadow as well.
+Tests: `test/e2e.test.mjs` "resize, as a reviewer broke it".

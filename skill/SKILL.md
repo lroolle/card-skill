@@ -147,6 +147,9 @@ Writing rules. `cards check` enforces the mechanical ones.
   are src blocks: `tradeoffs` (`+` and `-` lines), `diff`, and the two
   figures above. In running text, file paths and config keys go in
   `=verbatim=`, because Org reads `/a/b/` as italics.
+- A table takes a head row, and its first column names the row. In a narrow
+  card the page shows each row as a block, with every field under the name
+  of its column.
 - Status is the TODO keyword (`DOING`, `BLOCKED`, `DONE`); progress is a
   cookie at the end of the claim, `[3/8]`. Keep the `#+todo:` line under
   the title: it is what makes those keywords real to Emacs and GitHub.
