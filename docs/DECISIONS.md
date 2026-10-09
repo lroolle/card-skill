@@ -174,7 +174,7 @@ Only English boards are checked.
 2026-10-09. Proposed (ask card `ask-connection`). Supersedes D5.
 One board has two views. The rack is D5: sections, numerals and focus light.
 The desk puts each section in a column, in board order, and draws a line for
-each `from=`, `needs=` and option link. A mention draws a dotted line only
+each `from=`, `needs=` and option link. A mention draws a dashed line only
 for the card in focus. A rule makes the layout, so no agent and no human
 places a card. Press `D` to switch.
 Why D5 was wrong: it rejected a canvas because people remember what they

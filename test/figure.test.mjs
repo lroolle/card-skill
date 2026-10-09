@@ -53,6 +53,29 @@ test('flow: labels are text in the SVG, never markup', () => {
   assert.match(html, /aria-label="Diagram: cap &lt;b&gt;\. &lt;script&gt;x&lt;\/script&gt; to b/);
 });
 
+test('flow: a label never sits on a line, its own included', () => {
+  // The figure from the design-review board where a dashed line ran through "[[id]]".
+  for (const src of [
+    'direction: right\nsource card -> card: from=\nneeded card -> card: needs=\noption -> decision: listed as an option\nmentioned card --> card: [[id]], focus only',
+    'Send -> cards serve: served page\ncards serve -> log.jsonl\nlog.jsonl -> agent: cards wait\nSend -> clipboard: file page\nclipboard -> chat: you paste\nchat -> agent',
+  ]) {
+    const L = layoutFlow(parseFlow(src));
+    const bez = (s0, p0, s1, p1, t) => [s0 * (1 - 3 * t * t + 2 * t ** 3) + s1 * (3 * t * t - 2 * t ** 3),
+      p0 * (1 - 1.5 * t + 1.5 * t * t - t ** 3) + p1 * (1.5 * t - 1.5 * t * t + t ** 3)];
+    const down = L.dir === 'down';
+    const points = L.edges.flatMap((e) => (e.pts || []).slice(1).flatMap((q, x) => {
+      const [s0, p0] = e.pts[x];
+      return Array.from({ length: 33 }, (_, k) => bez(s0, p0, q[0], q[1], k / 32)).map(([sv, pv]) => (down ? [sv, pv] : [pv, sv]));
+    }));
+    for (const e of L.edges.filter((x) => x.label)) {
+      const tw = cols(e.label.text) * 7.2;
+      const x0 = e.label.anchor === 'start' ? e.label.x : e.label.anchor === 'end' ? e.label.x - tw : e.label.x - tw / 2;
+      const hits = points.filter(([x, y]) => x > x0 && x < x0 + tw && y > e.label.y - 6 && y < e.label.y + 6);
+      assert.equal(hits.length, 0, `"${e.label.text}" touches a line`);
+    }
+  }
+});
+
 // ---------- sketch ----------
 
 test('sketch: shown as written, escaped, measured in columns', () => {

@@ -64,7 +64,7 @@ uses tokens only.
 | Motion | 140ms ease-out for focus and dimming; a 1.2s fade-out ring on live-changed cards; nothing else moves | reduced motion removes all of it |
 | Icons | two: grip and search, 1.5px stroke, inline SVG | text labels everywhere else |
 | Figures | a drawing panel on the card: 1px `--line` frame, `--r-in`, 12px mono; a sketch in `--fg`; flow boxes stroked `--fg-3` (bold box `--fg` 2px), arrows `--fg-3`, labels `--fg-2` with a card-stock halo; caption "Fig. n.k" in 12px | the card's one ink; no color in a figure, so the role colors keep their meaning |
-| Desk | `--desk-col` 288px columns (wider to fit a figure, up to 560px), `--desk-gutter` 96px; a 24px dot grid in `--line-strong`; lines 1.25px `--fg-3`, 1.75px `--fg` under the pointer, 2px `--accent` in focus; mentions dotted | one column per section; lines run under the cards and cross a column only in a gap |
+| Desk | `--desk-col` 288px columns (wider to fit a figure, up to 560px), `--desk-gutter` 96px; a 24px dot grid in `--line-strong`; lines 1.25px `--fg-3`, 1.75px `--fg` under the pointer, 2px `--accent` in focus; mentions dashed 4-3, as a weak flow arrow | one column per section; lines run under the cards and cross a column only in a gap |
 | zh mode | `lang:` in frontmatter sets `<html lang>`; leading rises; no embedded CJK face yet | see WARN below |
 
 ## Signature moves and device ration

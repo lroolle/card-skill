@@ -406,9 +406,14 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 .view-desk .shelves {
   position: relative; display: flex; align-items: flex-start; gap: 0 var(--desk-gutter);
   overflow-x: auto; overscroll-behavior-x: contain;
+  /* A shade at an edge with more columns: overlay scrollbars hide on a Mac. */
+  background:
+    linear-gradient(to right, var(--bg) 40%, transparent) left / 32px 100% no-repeat local,
+    linear-gradient(to left, var(--bg) 40%, transparent) right / 32px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--shadow), transparent) left / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--shadow), transparent) right / 14px 100% no-repeat scroll,
+    radial-gradient(var(--line-strong) 0.9px, transparent 1.1px) 0 0 / var(--s5) var(--s5) local;
   margin-top: var(--s5); padding: var(--s2) var(--desk-gutter) var(--s6) var(--s4);
-  background-image: radial-gradient(var(--line-strong) 0.9px, transparent 1.1px);
-  background-size: var(--s5) var(--s5); background-position: 0 0;
   cursor: grab;
 }
 .panning, .panning * { cursor: grabbing !important; user-select: none; }
@@ -417,13 +422,17 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 .view-desk .shelf-head h2 { white-space: normal; }
 .view-desk .slots, .view-desk .slots[data-layout] { grid-template-columns: minmax(0, 1fr); max-width: none; }
 .view-desk .card { cursor: default; }
+/* On the desk the marks never float over a card: a lit card's link label sits
+   where the overlay would be. The focused card shows them as a footer. */
+.view-desk .card:not(.focused) .acts { display: none; }
+.view-desk .card.focused .acts { position: static; display: flex; margin: 0 calc(var(--s2) * -1); padding: 0; border: 0; background: none; }
+.view-desk .card.focused .act.reply-btn { margin-left: auto; }
 .view-desk .card.wide { grid-column: auto; }
 
 .wires { position: absolute; left: 0; top: 0; z-index: 0; overflow: visible; pointer-events: none; }
 .view-rack .wires { display: none; }
 .wire { fill: none; stroke: var(--fg-3); stroke-width: 1.25; stroke-linecap: round; stroke-linejoin: round; transition: stroke var(--fast) var(--ease); }
-.wire.w-mentions { stroke-dasharray: 2 4; }
-.wire .pass { stroke-dasharray: 6 3; stroke-linecap: butt; } /* broken solid: passes by; dots mean a mention */
+.wire.w-mentions { stroke-dasharray: 4 3; stroke-linecap: butt; } /* the same dash as a weak arrow in a flow figure */
 .board.focusing .wire { stroke: var(--line-strong); }
 .wire.hot { stroke: var(--fg); stroke-width: 1.75; }
 .wire.on, .board.focusing .wire.on { stroke: var(--accent); stroke-width: 2; }

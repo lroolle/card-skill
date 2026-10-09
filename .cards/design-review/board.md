@@ -142,7 +142,7 @@ In one study, the users of a canvas code editor spent over 8 minutes more to ope
 # Links: the decision
 
 ## On the desk, a line means "feeds into", and the far card names the link {#desk-rules basis=fact from=opt-desk}
-Three links draw lines: `from=`, `needs=`, and the options of a decision. A mention draws a dotted line only for the card in focus. Focus turns the lines of that card blue. Each card at the far end names its link, for example "Source of 8".
+Three links draw lines: `from=`, `needs=`, and the options of a decision. A mention draws a dashed line only for the card in focus. Focus turns the lines of that card blue. Each card at the far end names its link, for example "Source of 8".
 
 ```flow What draws a line on the desk
 direction: right
@@ -175,7 +175,7 @@ The rack stays for reading and answering in every option. The question is how yo
 When a claim is about a layout, a flow or a structure, the card carries a figure. A decision about a view shows each option as a sketch. The first figure shows at the Gist level, under the gist.
 
 ```sketch Card anatomy: what shows at each level
-  ┌ Choose ┐                        ◄ tab: an ask waits on you
+  ┌ Choose ┐                       ◄ tab: an ask waits on you
  ┌┴────────┴────────────────────┐
  │ 12  Inference  v2            │  ◄ numeral and basis
  │ The claim, in one sentence   │  ◄ Claim level

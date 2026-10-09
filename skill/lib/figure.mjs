@@ -361,19 +361,23 @@ export function layoutFlow(g) {
     const [s1, p1] = e.pts[1];
     const away = s1 < s0 - 1 ? -1 : 1;
     let best = null;
+    // A sloped edge crosses a wide label near the line, so farther offsets are tried too.
+    const offsets = down ? [7, 12, 18] : [9, 15, 22];
     [0.35, 0.25, 0.5, 0.65, 0.15].forEach((t, ti) => {
       [away, -away].forEach((side, si) => {
-        const [ls, lp] = bez(s0, p0, s1, p1, t);
-        const l = down
-          ? { x: ls + 7 * side, y: lp, anchor: side < 0 ? 'end' : 'start', text: e.text }
-          : { x: lp, y: ls + (side < 0 ? 11 : -9), anchor: 'middle', text: e.text };
-        const r = extentOf(l);
-        const inside = ([x, y]) => x > r.x0 && x < r.x1 && y > r.y0 && y < r.y1;
-        const meets = (q) => r.x0 < q.x1 && q.x0 < r.x1 && r.y0 < q.y1 && q.y0 < r.y1;
-        let cost = ti + si * 0.5;
-        samples.forEach((pts, j) => { cost += pts.filter(inside).length * (j === ei ? 4 : 10); });
-        cost += realBoxes.filter(meets).length * 100 + placed.filter(meets).length * 100;
-        if (!best || cost < best.cost) best = { cost, l };
+        offsets.forEach((off, oi) => {
+          const [ls, lp] = bez(s0, p0, s1, p1, t);
+          const l = down
+            ? { x: ls + off * side, y: lp, anchor: side < 0 ? 'end' : 'start', text: e.text }
+            : { x: lp, y: ls + (side < 0 ? off + 2 : -off), anchor: 'middle', text: e.text };
+          const r = extentOf(l);
+          const inside = ([x, y]) => x > r.x0 && x < r.x1 && y > r.y0 && y < r.y1;
+          const meets = (q) => r.x0 < q.x1 && q.x0 < r.x1 && r.y0 < q.y1 && q.y0 < r.y1;
+          let cost = ti + si * 0.5 + oi * 0.7;
+          samples.forEach((pts, j) => { cost += pts.filter(inside).length * (j === ei ? 4 : 10); });
+          cost += realBoxes.filter(meets).length * 100 + placed.filter(meets).length * 100;
+          if (!best || cost < best.cost) best = { cost, l };
+        });
       });
     });
     e.label = best.l;

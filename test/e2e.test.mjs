@@ -223,10 +223,20 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     await page.waitForFunction(() => document.querySelectorAll('.wire').length === 6);
     assert.equal(await page.locator('.wire.on').count(), 3, 'a: option of g, source of c, mentioned by e');
     assert.equal(await page.textContent('#c-g .rel'), 'Decides 1');
+    // On the desk no marks bar floats over a card: the lit card under the pointer keeps its link label.
+    await page.hover('#c-g .claim');
+    assert.equal(await page.isVisible('#c-g .acts'), false);
+    assert.equal(await page.isVisible('#c-a .acts'), true, 'the focused card shows its marks as a footer');
+    const covered = await page.evaluate(() => {
+      const r = document.querySelector('#c-g .rel').getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !hit.closest('.rel');
+    });
+    assert.equal(covered, false);
 
     // The line from a (column 1) to g (column 3) crosses column 2 in a gap, not behind c, d or e.
     const behind = await page.evaluate(() => {
-      const paths = [...document.querySelectorAll('.wire[data-a="a"][data-b="g"] path')];
+      const paths = [...document.querySelectorAll('path.wire[data-a="a"][data-b="g"]')];
       const box = document.querySelector('.shelves').getBoundingClientRect();
       const rects = [...document.querySelectorAll('.card')].filter((c) => !['a', 'g'].includes(c.dataset.id))
         .map((c) => ({ id: c.dataset.id, r: c.getBoundingClientRect() }));
@@ -247,10 +257,10 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     // Lines follow the cards when the level of detail changes.
     // The desk keeps its own level of detail: it opened at Claim; the rack stays at Gist.
     assert.ok((await page.getAttribute('.board', 'class')).includes('alt-claim'));
-    const before = await page.getAttribute('.wire[data-a="c"][data-b="d"] path', 'd');
+    const before = await page.getAttribute('path.wire[data-a="c"][data-b="d"]', 'd');
     await page.keyboard.press('Escape');
     await page.keyboard.press('3');
-    await page.waitForFunction((b) => document.querySelector('.wire[data-a="c"][data-b="d"] path').getAttribute('d') !== b, before);
+    await page.waitForFunction((b) => document.querySelector('path.wire[data-a="c"][data-b="d"]').getAttribute('d') !== b, before);
 
     // Back to Claim: the line layer shrinks with the cards; no empty table, no inner vertical scroll.
     await page.keyboard.press('1');

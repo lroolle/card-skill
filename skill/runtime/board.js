@@ -587,7 +587,6 @@
     var ya = a.t + w.ya;
     var yb = b.t + w.yb;
     var d;
-    var pass = '';
     var tip;
     if (a.col === b.col) {
       // Same column: an arc in the gutter to the right, wider for longer spans.
@@ -607,9 +606,9 @@
         var inX = fwd ? col.l : col.r;
         var outX = fwd ? col.r : col.l;
         var dx = (inX - x) / 2;
-        // The run across a column is drawn apart, dotted: it passes by, it does not attach.
-        d += ' C' + (x + dx) + ',' + y + ' ' + (inX - dx) + ',' + cy + ' ' + inX + ',' + cy + ' M' + outX + ',' + cy;
-        pass += 'M' + inX + ',' + cy + ' L' + outX + ',' + cy + ' ';
+        // The run across a column stays solid: it lies in a gap, so it touches no card,
+        // and a dash would read as a mention.
+        d += ' C' + (x + dx) + ',' + y + ' ' + (inX - dx) + ',' + cy + ' ' + inX + ',' + cy + ' L' + outX + ',' + cy;
         x = outX;
         y = cy;
       }
@@ -620,7 +619,7 @@
     }
     // The arrow tip points into the card: from the left when s = -1, from the right when s = 1.
     var tx = tip[0], ty = tip[1], s = tip[2];
-    return { d: d + ' M' + (tx + 6 * s) + ',' + (ty - 4) + ' L' + tx + ',' + ty + ' L' + (tx + 6 * s) + ',' + (ty + 4), pass: pass.trim() };
+    return d + ' M' + (tx + 6 * s) + ',' + (ty - 4) + ' L' + tx + ',' + ty + ' L' + (tx + 6 * s) + ',' + (ty + 4);
   }
 
   function drawWires() {
@@ -652,7 +651,10 @@
         var qo = m.rect[q.end === 'ya' ? q.w.b : q.w.a];
         return po.t - qo.t;
       });
-      ends.forEach(function (e, i) { e.w[e.end] = Math.max(8, WIRE_Y + (i - (ends.length - 1) / 2) * 10); });
+      // 14px apart, so arrow tips (8px tall) stay separate; never past the card's own height.
+      var h = m.rect[k.slice(0, -1)];
+      var low = h ? h.b - h.t - 8 : 60;
+      ends.forEach(function (e, i) { e.w[e.end] = Math.min(low, Math.max(8, WIRE_Y + (i - (ends.length - 1) / 2) * 14)); });
     });
     // Measure the desk without the line layer, or an old, larger layer keeps the desk wide.
     svg.setAttribute('width', 0);
@@ -665,9 +667,7 @@
     svg.innerHTML = list.map(function (wi) {
       var on = lit === wi.a || lit === wi.b;
       var hot = S.hover && (S.hover === wi.a || S.hover === wi.b);
-      var g = wireD(wi, m);
-      return '<g class="wire w-' + wi.type + (on ? ' on' : '') + (hot ? ' hot' : '') + '" data-a="' + esc(wi.a) + '" data-b="' + esc(wi.b) + '">' +
-        '<path d="' + g.d + '"/>' + (g.pass ? '<path class="pass" d="' + g.pass + '"/>' : '') + '</g>';
+      return '<path class="wire w-' + wi.type + (on ? ' on' : '') + (hot ? ' hot' : '') + '" data-a="' + esc(wi.a) + '" data-b="' + esc(wi.b) + '" d="' + wireD(wi, m) + '"/>';
     }).join('');
   }
 

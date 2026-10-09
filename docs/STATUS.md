@@ -7,14 +7,14 @@ Last update: 2026-10-09. Read this first when you resume.
 v0 works end to end. On 2026-10-09 the human asked for three changes before
 they review: figures in cards, a canvas view with visible links, and writing
 near ASD-STE100. All three are built (D13, D14, D15). The design proposal is
-a board, `.cards/design-review/board.md` (rev 5, 24 cards), with 5 asks
+a board, `.cards/design-review/board.md` (rev 6, 24 cards), with 5 asks
 waiting on the human. Three decisions stay Proposed until those asks come
 back: D15 connection model (supersedes D5), D8 return path, D11 visual
 direction.
 
 ## What works, verified
 
-Each line names its check. `npm test` runs 52 tests.
+Each line names its check. `npm test` runs 53 tests.
 
 - Figures: `sketch` and `flow` parse, lay out the same way every time, escape
   all agent text, number per card (Fig. 12.1), and widen a card when wide:
@@ -60,13 +60,22 @@ P2: same-column arcs stay in the right gutter. The fixes: the desk opens at
 Claim with its own level; the line layer no longer keeps the desk wide; the
 phone desk snaps one column at a time; the three option figures draw one
 graph; figures with no shape are cut; flow labels avoid lines; a line that
-crosses a column is a broken line there. A second pass by the same reviewer
+crosses a column runs through a gap between cards. A second pass by the same reviewer
 found 9 of 13 resolved, the rest P2, and one new P1 (selecting text opened or
 closed the card), now fixed with a test. Its verdict: ship after that fix.
 Open P2s from round 3: a few flow labels still touch a line; four arrowheads
 crowd one numeral when four lines meet one card; on a phone, a wide figure
 scrolls inside its frame with only a faint shade as the hint. Do not call the
 design shipped until a human approves `ask-visual`.
+
+Mac check (2026-10-09, ego lite = Chromium 152 on macOS, through the
+deva-ego bridge, on an isolated copy of the board): sketches stay exact in
+Menlo (Chromium on a Mac does not use SF Mono); 3 P1s found and fixed: a flow
+label on its own line, a dashed column crossing that read as a mention, and
+the marks bar covering a link label on the desk. Report and 28 captures:
+`.claude/review/` (not in git). Open P2s from it: compare fact rows can drift
+when one value wraps; Esc on the desk keeps the card's focus ring; the rail
+rule runs only under the last row of tabs at 390px.
 
 Open P2s: no skip link to the toolbar; the Yours filter keeps answered-but-
 unsent asks while its badge counts only unanswered ones (on purpose; see the

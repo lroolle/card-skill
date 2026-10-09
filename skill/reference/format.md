@@ -100,7 +100,7 @@ When two cards link in more than one way, the most specific name wins.
 
 On the desk view, `from=`, `needs=` and option refs draw a line between the
 two cards. A line means "feeds into" and points from the source, the needed
-card, or the option toward the card that uses it. A mention draws a dotted
+card, or the option toward the card that uses it. A mention draws a dashed
 line only while one of its two cards is in focus. The layout is a rule: one
 column for each section, in board order. You do not place cards.
 

@@ -66,3 +66,16 @@ Landed: lines cross a column only in a gap between cards (`crossing()` in
 board.js); `test/e2e.test.mjs` samples the path and fails if it enters a card.
 Reuse: a drawn relation must not touch anything it does not relate.
 Expires: never (perceptual).
+
+## 2026-10-09 rejected: a dash that meant two things
+
+Why: to show that a desk line passes a column without touching it, the
+crossing run was drawn dotted, then dashed. A dash already meant a mention
+(and a weak arrow in a flow figure). On a real Mac at 1x the reviewer read a
+source line as a mention.
+Where: the desk, card 22 to card 17, ego lite review on a Mac.
+Landed: the crossing run is solid; it lies in a gap, so it touches no card.
+Mentions are dashed 4-3, the same dash as a weak arrow in a flow.
+Reuse: a line style with a meaning is never used for another meaning, as
+with color.
+Expires: never (perceptual).
