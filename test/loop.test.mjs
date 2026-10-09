@@ -264,7 +264,7 @@ test('translations: sibling boards link to each other, and check says where one 
   const en = buildBoard(ref, { cwd });
   assert.deepEqual(en.data.board.langs, [{ id: 'watch', lang: 'en', self: true, href: '../watch/board.html' }, { id: 'watch-zh', lang: 'zh-Hans', self: false, href: '../watch-zh/board.html' }]);
   const pub = buildBoard(zh, { cwd, publish: true, write: false });
-  assert.deepEqual(pub.data.board.langs.map((m) => [m.href, m.self]), [['../watch/', false], ['../watch-zh/', true]]);
+  assert.deepEqual(pub.data.board.langs.map((m) => [m.href, m.self]), [['../watch/index.html', false], ['../watch-zh/index.html', true]]);
 
   // The source moves on: the translation of that card is stale.
   fs.writeFileSync(ref.file, WATCH.replace('The sport band is the lighter one.', 'The sport band weighs 12 g less.'));

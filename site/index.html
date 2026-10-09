@@ -156,7 +156,7 @@ cp -R {{NAME}}/skill ~/.claude/skills/{{NAME}}</code></pre>
   <div class="wrap">
     <div class="frame">
       <span class="tab">A live board: answer it</span>
-      <iframe src="demo/" title="A sample board: pick a queue for the ingest service"></iframe>
+      <iframe src="demo/index.html" title="A sample board: pick a queue for the ingest service"></iframe>
     </div>
     <ol class="hint">
       <li><b>Click the tab "6 Choose".</b> The desk zooms to the card that waits on you. The agent's pick is marked Suggested; it counts only if you choose it.</li>
@@ -223,10 +223,10 @@ rev 1 · reply 3fa9c1d2</span>
     <div class="shelf-head"><h2>Boards from real work</h2><span class="count">4</span></div>
     <p class="shelf-note">Each one opens as a working page. Answer it; Send shows the reply and sends nothing.</p>
     <div class="tiles">
-      <a class="tile" href="design-review/"><figure><img src="shots/design-review.png" width="1280" height="800" alt="A desk of 27 cards in nine columns, joined by lines" loading="lazy"><figcaption><b>How this project was designed</b><span>The project's own design, argued card by card across three review rounds.</span><span class="meta">27 cards · 12 revisions</span></figcaption></figure></a>
-      <a class="tile" href="roadmap/"><figure><img src="shots/roadmap.png" width="1280" height="800" alt="Sixteen cards in six columns; eleven lines end at one decision" loading="lazy"><figcaption><b>What comes next</b><span>Eleven directions, each one a feature Org mode already has syntax for. One ask.</span><span class="meta">16 cards · 1 ask</span></figcaption></figure></a>
-      <a class="tile" href="demo/"><figure><img src="shots/demo.png" width="1280" height="800" alt="Three options side by side with aligned rows of facts, above a choice" loading="lazy"><figcaption><b>A decision, with its options side by side</b><span>The sample from the top of this page, as a full page in the reading view.</span><span class="meta">7 cards · 2 asks</span></figcaption></figure></a>
-      <a class="tile" href="demo-zh/" lang="zh-Hans"><figure><img src="shots/demo-zh.png" width="1280" height="800" alt="同一个看板的中文版" loading="lazy"><figcaption><b>同一个看板，中文版</b><span lang="en">The same board in Chinese. The buttons follow the board's language, and the two pages link to each other.</span><span class="meta" lang="en">7 cards · 2 asks</span></figcaption></figure></a>
+      <a class="tile" href="design-review/index.html"><figure><img src="shots/design-review.png" width="1280" height="800" alt="A desk of 27 cards in nine columns, joined by lines" loading="lazy"><figcaption><b>How this project was designed</b><span>The project's own design, argued card by card across three review rounds.</span><span class="meta">27 cards · 12 revisions</span></figcaption></figure></a>
+      <a class="tile" href="roadmap/index.html"><figure><img src="shots/roadmap.png" width="1280" height="800" alt="Sixteen cards in six columns; eleven lines end at one decision" loading="lazy"><figcaption><b>What comes next</b><span>Eleven directions, each one a feature Org mode already has syntax for. One ask.</span><span class="meta">16 cards · 1 ask</span></figcaption></figure></a>
+      <a class="tile" href="demo/index.html"><figure><img src="shots/demo.png" width="1280" height="800" alt="Three options side by side with aligned rows of facts, above a choice" loading="lazy"><figcaption><b>A decision, with its options side by side</b><span>The sample from the top of this page, as a full page in the reading view.</span><span class="meta">7 cards · 2 asks</span></figcaption></figure></a>
+      <a class="tile" href="demo-zh/index.html" lang="zh-Hans"><figure><img src="shots/demo-zh.png" width="1280" height="800" alt="同一个看板的中文版" loading="lazy"><figcaption><b>同一个看板，中文版</b><span lang="en">The same board in Chinese. The buttons follow the board's language, and the two pages link to each other.</span><span class="meta" lang="en">7 cards · 2 asks</span></figcaption></figure></a>
     </div>
   </section>
 
@@ -268,7 +268,7 @@ node skill/bin/cards.mjs serve</code></pre>
       <a href="https://github.com/{{REPO}}/blob/main/skill/SKILL.md">SKILL.md</a>
       <a href="https://github.com/{{REPO}}/blob/main/skill/reference/format.md">The format</a>
       <a href="https://github.com/{{REPO}}/blob/main/docs/DECISIONS.md">Decisions</a>
-      <a href="roadmap/">Roadmap</a>
+      <a href="roadmap/index.html">Roadmap</a>
       <span>{{LICENSE}}</span>
     </div>
     <p>Two ideas came from others: Andrej Karpathy's notes on making model output easier to judge, and <a href="https://github.com/QingYunA/answer-me-with-html">answer-me-with-html</a>, which showed that a skill can change the medium of an answer.</p>

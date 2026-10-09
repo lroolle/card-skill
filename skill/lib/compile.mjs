@@ -90,7 +90,8 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
   const words = (c) => sx.plain(`${c.title} ${String(c.body)
     .replace(/^\s*#\+include:\s*"?([^"\s]+)"?.*$/gim, (m, f) => path.basename(f))
     .replace(/\[\[(?:file:)?((?:\.{1,2}\/)[^\]]*)\]\]/g, (m, f) => path.basename(f.replace(/::.*$/, '')))}`).slice(0, 2000);
-  const hrefOf = (id) => (publish ? `../${id}/` : live ? `/b/${id}` : `../${id}/board.html`);
+  // A published copy names index.html in full, so the link also works when the files are opened from a disk.
+  const hrefOf = (id) => (publish ? `../${id}/index.html` : live ? `/b/${id}` : `../${id}/board.html`);
   const cards = {};
   for (const c of board.cards) {
     const v = cardView(c, ctx, nOf(c.id));

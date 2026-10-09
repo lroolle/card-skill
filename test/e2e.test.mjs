@@ -820,7 +820,7 @@ test('translations and published copies: a language link in the same tab; a copy
     // The published copy: no path, no past rounds, and Send explains itself to a reader who has no agent.
     await page.goto(pathToFileURL(path.join(out, 'watch', 'index.html')).href + '?view=rack');
     assert.equal(await page.textContent('.andon .path'), '');
-    assert.match(await page.getAttribute('.langs a', 'href'), /^\.\.\/watch-zh\/$/);
+    assert.match(await page.getAttribute('.langs a', 'href'), /^\.\.\/watch-zh\/index\.html$/);
     await page.click('#c-verify [data-done="done"]');
     await page.keyboard.press('Control+Enter');
     assert.match(await page.textContent('dialog p'), /published copy of the board\. Copy your reply and send it to the person who shared it\./);

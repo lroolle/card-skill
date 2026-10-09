@@ -407,8 +407,8 @@ copied answers arrived.
 a public page. The copy holds the board as it is now: no replies, no chat,
 no past versions of cards, no path on your disk. A file shown as a chip is
 copied to `<dir>/files/`. Boards that translate each other link as
-`../<board>/`: export each one into a folder with its own name, side by
-side. The export records nothing in `log.jsonl`.
+`../<board>/index.html`: export each one into a folder with its own name,
+side by side. The export records nothing in `log.jsonl`.
 
 ## The older markdown dialect
 
