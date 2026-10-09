@@ -30,13 +30,23 @@ jobs:
         with:
           node-version: 22
       # Emacs for org-lint; an open CJK font and fonttools for the font a Chinese board carries.
-      # Every step here fetches from a mirror, and a mirror sometimes stalls on the runner (three
-      # times on one day, in three different steps): each fetch has a time limit and a second try.
+      # Every step here fetches from a mirror, and a mirror sometimes stalls on the runner (four
+      # times on one day): each fetch has a time limit and a second try. The packages are kept
+      # between runs as well: the font alone is 61 MB, and a second try does not help against
+      # a mirror that is slow for one runner.
+      - uses: actions/cache@v4
+        with:
+          path: ~/apt-archives
+          key: apt-noble-emacs-nox-fonts-noto-cjk-v1
       - name: Emacs and a CJK font
         run: |
+          mkdir -p ~/apt-archives/partial
           try() { timeout 6m "$@" || { sleep 15; timeout 6m "$@"; }; }
           try sudo apt-get -o Acquire::Retries=3 update
-          try sudo apt-get -o Acquire::Retries=3 -o Dpkg::Lock::Timeout=120 install -y --no-install-recommends emacs-nox fonts-noto-cjk
+          try sudo apt-get -o Acquire::Retries=3 -o Dpkg::Lock::Timeout=120 -o Dir::Cache::archives="$HOME/apt-archives" install -y --no-install-recommends emacs-nox fonts-noto-cjk
+          # apt wrote the packages as root; the cache step reads them as this user.
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
+          ls ~/apt-archives | grep -c '\.deb$'
       - name: fonttools
         run: timeout 4m pipx install "fonttools[woff]" || { sleep 15; timeout 4m pipx install "fonttools[woff]"; }
       - name: Playwright
