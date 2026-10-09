@@ -15,7 +15,9 @@ from `site/` and the boards under `.cards/`.
   facts, options with keys, four kinds of ask, links, figures (sketch and
   flow), files (pictures, excerpts, chips), what Emacs writes into a card.
 - Org itself: every template and shown board passes `org-lint`, and Emacs
-  reads the same cards from them as our parser.
+  reads the same cards from them as our parser. On GitHub the source of
+  the sample and of the design review renders with its drawers hidden (read
+  through GitHub's API on 2026-10-09; no test repeats this).
 - Errors with a line and a corrected example; lint for the writing rules
   and for syntax that does nothing.
 - Versions that follow meaning: a re-wrapped paragraph is not a revision; a
@@ -43,7 +45,6 @@ from `site/` and the boards under `.cards/`.
 - The Chinese chrome on a real device, by a human native reader. A second
   reader with a native register guide went through all 223 strings and the
   sample board; its 49 corrections are in.
-- GitHub's rendering of `board.org` beyond the heading keywords.
 - The Chinese landing page, by any reader but its writer.
 
 ## Known limits

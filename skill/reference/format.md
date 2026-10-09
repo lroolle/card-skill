@@ -25,6 +25,11 @@ there because Org knows only `TODO` and `DONE` by default; without the line,
 Emacs and GitHub read `DOING` as the first word of the claim. `cards check`
 asks for it when a card uses `DOING` or `BLOCKED`.
 
+On GitHub, `board.org` renders as a document: drawers are hidden, facts
+are definition lists, figures are code blocks, options show as `[X]` and
+`[ ]`. GitHub hides the card states unless the board says
+`#+options: todo:t`; add that line when the source will be read there.
+
 Org's own settings for Emacs (`#+startup:`, `#+options:`, `#+filetags:`,
 `#+property:` and the like) pass without a word. Any other keyword before
 the first heading gets a warning that it does nothing here.
