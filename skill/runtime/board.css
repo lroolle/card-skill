@@ -105,7 +105,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .andon .path { font-family: var(--mono); font-size: var(--t-xs); color: var(--fg-3); }
 /* The mark: a card with its tab, at the head of the page. Its tab takes the
    signal color while an ask waits on you, as the browser tab's icon does. */
-.mark { display: inline-grid; place-items: center; width: 24px; height: 24px; order: 9; margin-left: auto; color: var(--fg-2); }
+/* 24px to hit, 16px to see: the margin takes the difference back, so the line keeps its height. */
+.mark { display: inline-grid; place-items: center; width: 24px; height: 24px; order: 9; margin: -4px -4px -4px auto; color: var(--fg-2); }
 .mark:hover { color: var(--fg); }
 .mark path { fill: currentColor; }
 .mark.lit .mark-tab { fill: var(--signal); }

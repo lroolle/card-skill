@@ -751,7 +751,8 @@ test('first view: the most detail that fits and reads; pictures at every level; 
     // A small board opens with its gists.
     const small = watch();
     buildBoard(small.ref, { cwd: small.cwd });
-    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    // (A tall window: this board of four asks is close to the two-window limit at 900.)
+    const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     await page.goto(pathToFileURL(path.join(small.ref.dir, 'board.html')).href);
     await page.waitForSelector('.board.view-desk.alt-gist');
     assert.ok(await scaleOf(page) >= 0.5);
