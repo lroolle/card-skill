@@ -97,7 +97,13 @@ test('font: with no tool, the wait for one happens once: a mark keeps the next r
     `import { boardFont } from ${JSON.stringify(lib)}; console.log(JSON.stringify(boardFont('zh-Hans', '看板')));`],
     { encoding: 'utf8', env: { PATH: path.join(tmp, 'no-bin'), TMPDIR: tmp, CARDS_CJK_FONT: CLI } }));
   assert.deepEqual([ask().state, ask().why], ['system', 'fonttools is not installed (pyftsubset)']);
-  assert.ok(fs.existsSync(path.join(tmp, `cards-fonts-${uid}`, 'no-fonttools')));
+  const mark = path.join(tmp, `cards-fonts-${uid}`, 'no-fonttools');
+  assert.ok(fs.existsSync(mark));
+  // The mark runs out a day after the attempt: a render in between must not make it new again.
+  const then = new Date(Date.now() - 23 * 60 * 60 * 1000);
+  fs.utimesSync(mark, then, then);
+  assert.equal(ask().state, 'system');
+  assert.ok(Math.abs(fs.statSync(mark).mtimeMs - then.getTime()) < 2000, 'the mark kept its time');
   if (uid !== 'u') assert.equal(fs.statSync(path.join(tmp, `cards-fonts-${uid}`)).mode & 0o077, 0, 'the cache is closed to other users');
 });
 

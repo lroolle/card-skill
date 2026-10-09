@@ -267,7 +267,11 @@ const commands = {
       refs = [ref, ...others];
     }
     let total = 0;
-    for (const ref of refs) total += printUnread(ref, { peek: !!a.peek });
+    for (const ref of refs) {
+      // One board that cannot be read must not keep the replies of the others from the agent:
+      // a hook hands over what was printed only when the command ends well.
+      try { total += printUnread(ref, { peek: !!a.peek }); } catch (e) { console.error(`cards: the board ${ref.id} cannot be read (${e.code || e.message}); its replies are not shown.`); }
+    }
     if (!total && !a.quiet) console.log('no unread replies');
   },
 
@@ -430,7 +434,9 @@ const commands = {
   hook() {
     // The hook runs where the session stands at that moment, and an agent changes directory.
     // Claude Code names the project's root in CLAUDE_PROJECT_DIR: the boards are looked for there.
-    const command = `cd "\${CLAUDE_PROJECT_DIR:-.}" && node ${JSON.stringify(path.join(SKILL, 'bin', 'cards.mjs'))} inbox --quiet`;
+    // The path stands in single quotes: sh then reads no $(...), no backtick and no $ in it.
+    const quoted = `'${path.join(SKILL, 'bin', 'cards.mjs').replace(/'/g, `'\\''`)}'`;
+    const command = `cd "\${CLAUDE_PROJECT_DIR:-.}" && node ${quoted} inbox --quiet`;
     const snippet = { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }] } };
     console.log('With this hook, Claude Code runs `cards inbox` each time the human sends a message.');
     console.log('Unread replies from every board under .cards/ of the project then reach the agent with that message,');

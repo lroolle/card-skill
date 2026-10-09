@@ -250,8 +250,9 @@ const ORG_SETTINGS = ['todo', 'seq_todo', 'typ_todo', 'startup', 'options', 'fil
   'archive', 'link', 'setupfile', 'category', 'macro', 'select_tags', 'exclude_tags', 'bibliography', 'cite_export'];
 // Properties Emacs writes into a drawer on its own. They are not ours and not errors.
 const ORG_OWNED = /^(ID|VISIBILITY|ORDERED|NOBLOCKING|COOKIE_DATA|LOGGING|CATEGORY|ARCHIVE|DIR|ATTACH_DIR|EFFORT|STYLE|LAST_REPEAT|CREATED|ARCHIVE_\w+|EXPORT_\w+|\w+_ALL)$/;
-// With its timestamp: "DEADLINE: Friday is the day" is a sentence of the card, not a planning line.
-const PLANNING_RE = /^\s*(CLOSED|SCHEDULED|DEADLINE):\s*[<[]\d{4}-\d{2}-\d{2}/;
+// A planning line as Emacs writes it: a keyword and a timestamp (a date, or a diary expression).
+const PLANNING_KEY = /^\s*(CLOSED|SCHEDULED|DEADLINE):\s/;
+const PLANNING_STAMP = /^\s*(CLOSED|SCHEDULED|DEADLINE):\s*[<[](?:\d{4}-\d{2}-\d{2}|%%\()/;
 const orgList = (v) => (v ? v.split(/[\s,]+/).map((x) => x.replace(/^#/, '')).filter(Boolean) : []);
 // :NEEDS: a b=link c=*  ->  the cards this one waits on, and for an ask that
 // waits on an ask, which answer it is written for: none named (the one the
@@ -286,24 +287,40 @@ function orgHead(text) {
   return { todo, tags, progress, title: rest.trim(), cookie: c ? c[0].trim() : '' };
 }
 
-// The property drawer right after a heading -> { props, start, end } (line offsets in `lines`).
-// A planning line (CLOSED: SCHEDULED: DEADLINE:) may stand between the two,
-// where Emacs writes it; it is not card text.
-function drawer(lines) {
+// drawerSpan(lines) -> where a card's drawer is, in the lines after its heading:
+// after empty lines and a planning line. The parser and `cards ids` both use
+// this one rule, so that a drawer the parser reads is the drawer the command
+// writes into. start: the :PROPERTIES: line, or -1; end: the :END: line;
+// body: the first line of the card's text.
+//
+// A line that starts with CLOSED:, SCHEDULED: or DEADLINE: is a planning line
+// when it has a timestamp, or when the drawer stands directly under it (a date
+// typed by hand). Any other such line is a sentence of the card.
+function drawerSpan(lines) {
   let i = 0;
   while (i < lines.length && !lines[i].trim()) i++;
   const gap = i > 0;
-  const planned = PLANNING_RE.test(lines[i] || '');
+  const isDrawer = (k) => (lines[k] || '').trim().toUpperCase() === ':PROPERTIES:';
+  const planned = PLANNING_KEY.test(lines[i] || '') && (PLANNING_STAMP.test(lines[i]) || isDrawer(i + 1));
   if (planned) i++;
-  if (lines[i]?.trim().toUpperCase() !== ':PROPERTIES:') return { props: {}, rest: planned ? lines.slice(i) : lines, at: [] };
+  if (!isDrawer(i)) return { gap, planned, start: -1, body: planned ? i : 0 };
+  let j = i + 1;
+  while (j < lines.length && lines[j].trim().toUpperCase() !== ':END:') j++;
+  return { gap, planned, start: i, end: j, open: j >= lines.length, body: j + 1 };
+}
+
+// The property drawer of a card -> { props, rest (the card's text), at (line offsets in `lines`) }.
+// A planning line is not card text.
+function drawer(lines) {
+  const d = drawerSpan(lines);
+  if (d.start < 0) return { props: {}, rest: lines.slice(d.body), at: [] };
   const props = {};
   const at = [];
-  let j = i + 1;
-  for (; j < lines.length && lines[j].trim().toUpperCase() !== ':END:'; j++) {
+  for (let j = d.start + 1; j < d.end; j++) {
     const m = lines[j].match(/^\s*:([\w-]+):\s*(.*?)\s*$/);
     if (m) { props[m[1].toUpperCase()] = m[2]; at.push([m[1].toUpperCase(), j]); }
   }
-  return { props, rest: lines.slice(j + 1), at, open: j >= lines.length, gap };
+  return { props, rest: lines.slice(d.body), at, open: d.open, gap: d.gap };
 }
 
 function parseOrgBoard(src, id) {
@@ -467,17 +484,18 @@ function parseOrgBoard(src, id) {
 // addIds(src) -> { src, added: [[line, id]] }. Gives every card of a board.org
 // that has no :CUSTOM_ID: one made from its claim, written into the file once.
 // After that the id is the card's own: the claim may change, the id stays.
-// It finds a card's drawer where drawer() above finds it (after empty lines and
-// a planning line), so a card that has an id never gets a second one.
+// A card is the lines from its heading to the next heading, as in the parser,
+// and its drawer is where drawerSpan() finds it: a card that has an id never
+// gets a second one, and an id never lands in another card.
 export function addIds(src) {
   const L = srcLines(src);
   const EOL = /(\r\n|\r|\n)$/;
-  const text = (i) => (L[i] || '').replace(EOL, '');
+  const text = L.map((l) => l.replace(EOL, ''));
   const eolOf = (i, or) => ((L[i] || '').match(EOL) || [or])[0];
   const fileEol = eolOf(0, '\n');
   const taken = new Set();
-  for (let i = 0; i < L.length; i++) {
-    const m = text(i).match(/^\s*:CUSTOM_ID:\s*(\S+)\s*$/i);
+  for (const t of text) {
+    const m = t.match(/^\s*:CUSTOM_ID:\s*(\S+)\s*$/i);
     if (m) taken.add(m[1]);
   }
   const fresh = (title) => {
@@ -492,41 +510,41 @@ export function addIds(src) {
     taken.add(idv);
     return idv;
   };
-  const added = [];
+  // Headings of sections and cards, outside blocks: the same lines the parser cuts at.
+  const heads = [];
   let block = null;
-  for (let i = 0; i < L.length; i++) {
-    const line = text(i);
-    if (block) { if (new RegExp(`^\\s*#\\+end_${block}\\s*$`, 'i').test(line)) block = null; continue; }
+  text.forEach((line, i) => {
+    if (block) { if (new RegExp(`^\\s*#\\+end_${block}\\s*$`, 'i').test(line)) block = null; return; }
     const b = line.match(/^\s*#\+begin_(\w+)/i);
-    if (b) { block = b[1]; continue; }
-    const hd = line.match(/^\*\*\s+(.*?)\s*$/);
-    if (!hd) continue;
-    const eol = eolOf(i, fileEol);
-    let j = i + 1;
-    while (j < L.length && !text(j).trim()) j++;
-    const planned = PLANNING_RE.test(text(j));
-    if (planned) j++;
-    const title = orgHead(hd[1]).title;
-    if (text(j).trim().toUpperCase() === ':PROPERTIES:') {
-      let end = j + 1;
-      while (end < L.length && text(end).trim().toUpperCase() !== ':END:') end++;
-      let own = -1;
-      for (let k = j + 1; k < end; k++) if (/^\s*:CUSTOM_ID:/i.test(text(k))) own = k;
-      if (own >= 0 && /^\s*:CUSTOM_ID:\s*\S/i.test(text(own))) continue;
-      const idv = fresh(title);
-      // A :CUSTOM_ID: with no value is filled in; else the id is the drawer's first line.
-      if (own >= 0) L[own] = `:CUSTOM_ID: ${idv}${eolOf(own, eol)}`;
-      else L.splice(j + 1, 0, `:CUSTOM_ID: ${idv}${eolOf(j, eol)}`);
-      added.push([i + 1, idv]);
-    } else {
-      const idv = fresh(title);
-      const at = planned ? j : i + 1;
-      if (!EOL.test(L[at - 1])) L[at - 1] += eol; // the heading was the last line of the file
-      L.splice(at, 0, `:PROPERTIES:${eol}`, `:CUSTOM_ID: ${idv}${eol}`, `:END:${eol}`);
-      added.push([i + 1, idv]);
+    if (b) { block = b[1]; return; }
+    const h = line.match(/^(\*{1,2})\s+(.*?)\s*$/);
+    if (h) heads.push({ i, level: h[1].length, head: h[2] });
+  });
+  // What to write, top down, so that ids are given in the order of the board.
+  const plan = [];
+  heads.forEach((h, k) => {
+    if (h.level !== 2) return;
+    const first = h.i + 1;
+    const d = drawerSpan(text.slice(first, k + 1 < heads.length ? heads[k + 1].i : text.length));
+    if (d.start < 0) {
+      plan.push({ line: h.i, at: first + (d.planned ? d.body : 0), drawer: true, id: fresh(orgHead(h.head).title) });
+      return;
     }
+    let own = -1;
+    for (let j = d.start + 1; j < d.end; j++) if (/^\s*:CUSTOM_ID:/i.test(text[first + j])) own = first + j;
+    if (own >= 0 && /^\s*:CUSTOM_ID:\s*\S/i.test(text[own])) return;
+    // A :CUSTOM_ID: with no value is filled in; else the id is the drawer's first line.
+    plan.push({ line: h.i, at: own >= 0 ? own : first + d.start + 1, fill: own >= 0, id: fresh(orgHead(h.head).title) });
+  });
+  // Written bottom up, so that the line numbers above stay true.
+  for (const p of [...plan].reverse()) {
+    const eol = eolOf(p.at - 1, eolOf(p.line, fileEol));
+    if (p.fill) { L[p.at] = `:CUSTOM_ID: ${p.id}${eolOf(p.at, eol)}`; continue; }
+    if (!EOL.test(L[p.at - 1])) L[p.at - 1] += eol; // the line above was the last of the file
+    if (p.drawer) L.splice(p.at, 0, `:PROPERTIES:${eol}`, `:CUSTOM_ID: ${p.id}${eol}`, `:END:${eol}`);
+    else L.splice(p.at, 0, `:CUSTOM_ID: ${p.id}${eol}`);
   }
-  return { src: L.join(''), added };
+  return { src: L.join(''), added: plan.map((p) => [p.line + 1, p.id]) };
 }
 
 // Lines as the parser counts them (\r\n, \r or \n each end one), each with

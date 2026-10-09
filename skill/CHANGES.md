@@ -42,7 +42,8 @@ Changed
 Fixed
 - A first line of a card that starts with `DEADLINE: `, `SCHEDULED: ` or
   `CLOSED: ` and has no timestamp was dropped from the page. It is text
-  of the card now; only a planning line as Emacs writes it is left out.
+  of the card now, unless the drawer stands directly under it; a planning
+  line as Emacs writes it is left out as before.
 - A line of `log.jsonl` that is JSON but not an event stopped the render.
   It is skipped, as a torn line is.
 - A keyword with a hyphen, such as `#+translation-of:`, was shown as text of

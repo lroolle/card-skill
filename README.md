@@ -176,7 +176,7 @@ DESIGN.md, TASTE.md   the visual material and its rulings
 npm test
 ```
 
-124 tests. The browser tests need Playwright and skip without it; three
+129 tests. The browser tests need Playwright and skip without it; three
 tests need Emacs (they run `org-lint` on the boards) and skip without it.
 On GitHub nothing skips: the suite runs in Chromium, Firefox and WebKit
 (`CARDS_BROWSER`), with Emacs and with the font tools.

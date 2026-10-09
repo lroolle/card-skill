@@ -84,8 +84,16 @@ function pastView(src, fmt, ctx) {
 // publish: the page leaves the machine (`cards export`). It then carries the
 // board as it is now and nothing else: no replies, no chat, no past versions,
 // no path on this disk.
-// Where a published copy's "Back" link may go: a relative address or an http(s) one, nothing that runs.
-export const safeHome = (home) => (typeof home === 'string' && /^(https?:\/\/|\.{0,2}\/|[^:/?#\s]+(?:[/?#]|$))/i.test(home) && !/^\s*\/\//.test(home) ? home : '');
+// Where a published copy's "Back" link may go: a relative address or an http(s) one.
+// Not a scheme that runs, and not what a browser reads as another host
+// (//host, or the same with backslashes; a tab or a line break inside is dropped by browsers).
+export const safeHome = (home) => {
+  if (typeof home !== 'string' || /[\\\x00-\x1f]/.test(home)) return '';
+  const h = home.trim();
+  if (!h || h.startsWith('//')) return '';
+  const scheme = h.match(/^([a-z][a-z0-9+.-]*):/i);
+  return !scheme || /^https?$/i.test(scheme[1]) ? h : '';
+};
 
 export function pageData(board, st, ref, { live = false, token = null, cwd = process.cwd(), publish = false, chipHref = null, home = null } = {}) {
   const byId = new Map(board.cards.map((c) => [c.id, c]));

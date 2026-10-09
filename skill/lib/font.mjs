@@ -104,7 +104,8 @@ function subsetter(dir) {
   if (ok('pyftsubset', ['--help'])) SUBSETTER = ['pyftsubset'];
   else if (ok('python3', ['-c', 'import fontTools.subset'])) SUBSETTER = ['python3', '-m', 'fontTools.subset'];
   else if (ok(offline[0], [...offline.slice(1), '--help'])) SUBSETTER = offline;
-  else if (!tried() && ok(uvx[0], [...uvx.slice(1), '--help'], 120000)) SUBSETTER = offline;
+  else if (tried()) SUBSETTER = null; // the mark is left as it is, so that it runs out a day after the attempt
+  else if (ok(uvx[0], [...uvx.slice(1), '--help'], 120000)) SUBSETTER = offline;
   else {
     SUBSETTER = null;
     try { fs.writeFileSync(mark, ''); } catch { /* no mark: the next render asks again */ }

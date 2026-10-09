@@ -732,3 +732,32 @@ the chosen option, and the reply was marked read. One change came of it:
 the printed command now starts with `cd "${CLAUDE_PROJECT_DIR:-.}"`, so it
 reads the project's boards when the agent has changed directory. Windows,
 `scripts/` and `site/` stay unread; `docs/STATUS.md` says so.
+
+The same reviewer then read these fixes. All twelve held; one of them had
+broken something else, and seven edges were new:
+
+- A (the regression). The stricter planning rule of finding 4 no longer
+  read `DEADLINE: 2026-10-15` above a drawer, a date typed by hand that
+  0.1.0 accepted. The card lost its drawer, and `cards ids` gave it a new
+  id: the damage of finding 1 again. Now a keyword line is planning when
+  it has a timestamp, or when the drawer stands directly under it.
+- The cause was the same as for finding 1: `cards ids` had its own copy of
+  the rule for where a drawer is. There is one rule now, `drawerSpan`,
+  used by the parser and by the command, and the command works on the
+  lines the parser gives each card. A test on 6,000 generated boards holds
+  the two together and knows which ids were written; it fails with the
+  regression put back.
+- B. The mark for "no font tool" was made new on every render, so it never
+  ran out. It is written only when the attempt just failed.
+- C. An id could land in the next card when a drawer had no `:END:`.
+- D. A board exported as `index.html` into `CARDS_ROOT` was taken for a
+  list. The list has a mark of its own.
+- E. `cards inbox` stopped at a board it could not read; the hook then
+  handed over nothing. It goes on and ends well.
+- F. The Back link refused `#x` and a name with a space, and passed
+  `/\\host`. It takes what has no scheme or http(s), and no backslash.
+- G. The hook put the skill's path in double quotes, where sh still reads
+  `$(...)`. It stands in single quotes.
+- H. The test of the example page failed for reasons that are not a stale
+  page, and could add to the tracked log. It skips those cases and puts
+  the log back.

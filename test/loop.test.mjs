@@ -9,7 +9,8 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { parseBoard } from '../skill/lib/board.mjs';
 import { lint } from '../skill/lib/lint.mjs';
-import { buildBoard } from '../skill/lib/compile.mjs';
+import { buildBoard, safeHome } from '../skill/lib/compile.mjs';
+import { ownsIndex } from '../skill/lib/index.mjs';
 import { fold, readLog, addSend, resolveBoard } from '../skill/lib/store.mjs';
 import { parseReply, replyItems } from '../skill/lib/ingest.mjs';
 import { validItems } from '../skill/lib/serve.mjs';
@@ -460,7 +461,7 @@ test('hook: cards hook prints the settings lines that hand the agent unread repl
   const out = cards(cwd, ['hook']);
   const snippet = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
   const command = snippet.hooks.UserPromptSubmit[0].hooks[0].command;
-  assert.match(command, /^cd "\$\{CLAUDE_PROJECT_DIR:-\.\}" && node ".*bin\/cards\.mjs" inbox --quiet$/);
+  assert.match(command, /^cd "\$\{CLAUDE_PROJECT_DIR:-\.\}" && node '.*bin\/cards\.mjs' inbox --quiet$/);
   assert.match(out, /Ask the human before you change their settings\./);
   // The command itself: silent with nothing to read, then the reply once.
   cards(cwd, ['render', 'watch', '--quiet']);
@@ -732,11 +733,107 @@ test('review 0.2: the Back link of a published copy goes to a page, never to a s
 // The repo keeps the page of the example board so that a clone opens as a working board.
 // A change of the runtime without a new render would leave that page behind, and the next
 // render by anyone would change a file that git tracks.
-test('the example board in the repo: its page is what this build renders', () => {
+test('the example board in the repo: its page is what this build renders', (t) => {
+  // The page names the list of boards beside it. Where the boards live elsewhere, or that list is not ours, the page differs for that reason alone.
+  if (process.env.CARDS_ROOT) return t.skip('CARDS_ROOT is set');
+  if (!ownsIndex(path.join(ROOT, '.cards'))) return t.skip('.cards/index.html here is not a list this tool wrote');
   const ref = resolveBoard('design-review', ROOT);
-  const log = fs.readFileSync(path.join(ref.dir, 'log.jsonl'), 'utf8');
-  const r = buildBoard(ref, { cwd: ROOT, write: false });
-  assert.deepEqual(r.errors, []);
-  assert.ok(r.html === fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8'), 'the page is behind the build. Run: node skill/bin/cards.mjs render design-review');
-  assert.equal(fs.readFileSync(path.join(ref.dir, 'log.jsonl'), 'utf8'), log, 'and the log holds every version of its cards');
+  const logFile = path.join(ref.dir, 'log.jsonl');
+  const log = fs.readFileSync(logFile, 'utf8');
+  try {
+    const r = buildBoard(ref, { cwd: ROOT, write: false });
+    assert.deepEqual(r.errors, []);
+    assert.equal(fs.readFileSync(logFile, 'utf8'), log, 'board.org changed since its last render. Run: node skill/bin/cards.mjs render design-review');
+    assert.ok(r.html === fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8'), 'the page is behind the build. Run: node skill/bin/cards.mjs render design-review');
+  } finally {
+    // A build records new versions even when it writes no page; a test must leave the tracked log as it found it.
+    if (fs.readFileSync(logFile, 'utf8') !== log) fs.writeFileSync(logFile, log);
+  }
+});
+
+// ---- the second look at those fixes: one regression and seven edges ----
+
+test('review 0.2, second look: a planning line directly on a drawer is planning with any date; the board of 0.1.0 still reads', () => {
+  // A date typed by hand, without the brackets of an Org timestamp: 0.1.0 read this card, and it must stay readable.
+  const src = '#+title: T\n\n** Ship the release on the agreed day\nDEADLINE: 2026-10-15\n:PROPERTIES:\n:CUSTOM_ID: ship\n:ASK: approve\n:END:\nWe agreed on it.\n\n** DONE The second Thursday is the review\nSCHEDULED: <%%(diary-float t 4 2)>\n:PROPERTIES:\n:CUSTOM_ID: review\n:END:\nEvery month.\n\n** The ship date is fixed\nDEADLINE: Friday is the day we ship.\n';
+  const b = parseBoard(src, { fmt: 'org' });
+  assert.deepEqual(b.errors.map((e) => e.msg), ['card has no id']);
+  assert.deepEqual(b.cards.slice(0, 2).map((c) => [c.id, c.ask, /DEADLINE|SCHEDULED/.test(c.body)]), [['ship', 'approve', false], ['review', null, false]]);
+  const { cwd, ref } = project(src, 'p');
+  assert.match(cards(cwd, ['ids', 'p']), /^added 1 id: the-ship-date-is-fixed\./, 'only the card with no drawer gets one');
+  const after = fs.readFileSync(ref.file, 'utf8');
+  assert.equal(after.slice(0, src.indexOf('** The ship date')), src.slice(0, src.indexOf('** The ship date')), 'the two cards above are untouched');
+  assert.match(after, /\*\* The ship date is fixed\n:PROPERTIES:\n:CUSTOM_ID: the-ship-date-is-fixed\n:END:\nDEADLINE: Friday is the day we ship\.\n$/);
+  assert.match(parseBoard(after, { fmt: 'org' }).cards[2].body, /DEADLINE: Friday is the day we ship\./);
+});
+
+test('review 0.2, second look: an id never lands in another card, and a file that ends inside a drawer stays whole', () => {
+  // Card 1: a drawer with no :END:. Card 2: an empty :CUSTOM_ID:. Each gets its own id, in its own lines.
+  const open = project('#+title: T\n\n** First claim stands here\n:PROPERTIES:\n:BASIS: fact\n\n** Second claim stands here\n:PROPERTIES:\n:CUSTOM_ID:\n:END:\nText.\n', 'o');
+  assert.match(cards(open.cwd, ['ids', 'o']), /added 2 ids: first-claim-stands-here, second-claim-stands-here\./);
+  const after = fs.readFileSync(open.ref.file, 'utf8');
+  assert.equal(after, '#+title: T\n\n** First claim stands here\n:PROPERTIES:\n:CUSTOM_ID: first-claim-stands-here\n:BASIS: fact\n\n** Second claim stands here\n:PROPERTIES:\n:CUSTOM_ID: second-claim-stands-here\n:END:\nText.\n');
+  assert.ok(!parseBoard(after, { fmt: 'org' }).errors.some((e) => /duplicate|no id/.test(e.msg)));
+  // The last line of the file is ":PROPERTIES:" with no line ending.
+  const cut = project('#+title: T\n\n** One claim stands here\n:PROPERTIES:', 'c');
+  cards(cut.cwd, ['ids', 'c']);
+  assert.equal(fs.readFileSync(cut.ref.file, 'utf8'), '#+title: T\n\n** One claim stands here\n:PROPERTIES:\n:CUSTOM_ID: one-claim-stands-here\n');
+  assert.match(cards(cut.cwd, ['ids', 'c']), /every card has an id; nothing to do\./);
+});
+
+test('review 0.2, second look: a board exported as index.html is not a list; an empty or an older list is ours', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-root-'));
+  const site = path.join(cwd, 'site');
+  fs.mkdirSync(path.join(site, 'plan'), { recursive: true });
+  fs.writeFileSync(path.join(site, 'plan', 'board.org'), WATCH);
+  const run = (args) => execFileSync('node', [CLI, ...args], { cwd, encoding: 'utf8', env: { ...process.env, CARDS_ROOT: 'site' } });
+  run(['render', 'plan', '--quiet']);
+  const index = path.join(site, 'index.html');
+  assert.match(fs.readFileSync(index, 'utf8'), /<meta name="cards-page" content="boards">/);
+  // The board is exported into the same folder: its index.html is a board page, with the same generator tag.
+  fs.rmSync(index);
+  run(['export', 'plan', '--out', 'site']);
+  const exported = fs.readFileSync(index, 'utf8');
+  assert.match(exported, /id="board-data"/);
+  run(['render', 'plan', '--quiet']);
+  assert.equal(fs.readFileSync(index, 'utf8'), exported, 'the published board is still there');
+  // A write that was cut short, and the list as the first builds of 0.2 wrote it (no mark of its own): both are ours.
+  for (const old of ['', '<!doctype html><meta name="generator" content="cards 0.2.0"><title>Boards</title>']) {
+    fs.writeFileSync(index, old);
+    run(['render', 'plan', '--quiet']);
+    assert.match(fs.readFileSync(index, 'utf8'), /<meta name="cards-page" content="boards">/);
+  }
+});
+
+test('review 0.2, second look: the inbox goes on past a board it cannot read; the hook path is safe in sh; the Back link', (t) => {
+  // The inbox, which the hook runs: the replies of the readable boards are printed, and the command ends well.
+  const { cwd, ref } = project(WATCH, 'a-first');
+  cards(cwd, ['render', 'a-first', '--quiet']);
+  addSend(ref.dir, { rev: 1, items: [{ card: 'verify', v: 1, kind: 'do', value: 'done' }] });
+  const bad = resolveBoard('z-bad', cwd);
+  fs.mkdirSync(bad.dir, { recursive: true });
+  fs.writeFileSync(bad.file, WATCH);
+  if (typeof process.getuid === 'function' && process.getuid() !== 0) {
+    fs.chmodSync(bad.file, 0o000);
+    try {
+      const out = execFileSync('node', [CLI, 'inbox', '--quiet'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+      assert.match(out, /reply from the board "Pick the band" \(a-first\)/);
+    } finally { fs.chmodSync(bad.file, 0o644); }
+  }
+
+  // A skill that lies in a folder with a quote, a $(...) and a backtick in its name: sh runs nothing from that name.
+  const odd = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cards-odd-')), "it's $(touch PWNED) `touch PWNED2`");
+  fs.cpSync(path.join(ROOT, 'skill'), path.join(odd, 'skill'), { recursive: true });
+  const text = execFileSync('node', [path.join(odd, 'skill', 'bin', 'cards.mjs'), 'hook'], { cwd, encoding: 'utf8' });
+  const command = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)).hooks.UserPromptSubmit[0].hooks[0].command;
+  addSend(ref.dir, { rev: 1, items: [{ card: 'verify', v: 1, kind: 'do', value: 'could_not' }] });
+  const got = execFileSync('sh', ['-c', command], { cwd, encoding: 'utf8', env: { PATH: process.env.PATH, CLAUDE_PROJECT_DIR: cwd }, stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.match(got, /reply from the board "Pick the band" \(a-first\)/);
+  assert.deepEqual(fs.readdirSync(cwd).filter((n) => /PWNED/.test(n)), [], 'nothing in the path was run');
+
+  // The Back link: what is a page passes, also with a space or only a fragment; what a browser reads as a script or another host does not.
+  const pass = ['../index.html', 'https://example.org/x', 'index.html', '#top', '?a=b:c', 'my page.html', 'docs/a:b.html', '/abs/path'];
+  const stop = ['javascript:alert(1)', ' JAVASCRIPT:x', 'java\tscript:x', 'data:text/html,x', '//other.example', '/\\other.example', '\\\\other.example', 'a:b.html', '', null];
+  assert.deepEqual(pass.map(safeHome), pass);
+  assert.deepEqual(stop.map(safeHome), stop.map(() => ''));
 });

@@ -66,6 +66,7 @@ export function indexHtml(rows, { live = false, name = 'Boards' } = {}) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="generator" content="cards ${esc(VERSION)}">
+<meta name="cards-page" content="boards">
 <title>${waiting ? `(${waiting}) ` : ''}${esc(name)}</title>
 <style>
 ${tokens}
@@ -103,11 +104,16 @@ ${rows.length ? `<ul>${rows.map(item).join('')}</ul>` : '<p class="empty">No boa
 export const isBoardsRoot = (root) => path.basename(root) === '.cards' || (process.env.CARDS_ROOT && path.resolve(process.env.CARDS_ROOT) === root);
 
 // The list is ours to write only where no index.html is, or where the one that is
-// there is a list we wrote. CARDS_ROOT may name a directory with a page of its own.
-const OURS = /<meta name="generator" content="cards /;
+// there is a list we wrote: it says so in its head. (A list of an earlier build has
+// only the generator tag; a board page has that tag too, and is not a list.) An
+// empty file is a write that was cut short. CARDS_ROOT may name a directory that
+// holds a page of its own, or a board exported there as index.html.
 export function ownsIndex(root) {
   if (!isBoardsRoot(root)) return false;
-  try { return OURS.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')); } catch (e) { return e.code === 'ENOENT'; }
+  let page;
+  try { page = fs.readFileSync(path.join(root, 'index.html'), 'utf8'); } catch (e) { return e.code === 'ENOENT'; }
+  if (!page.trim()) return true;
+  return /<meta name="cards-page" content="boards">/.test(page) || (/<meta name="generator" content="cards /.test(page) && !/id="board-data"/.test(page));
 }
 
 // Never throws: the list is a convenience, and a render must not fail for it.
