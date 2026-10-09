@@ -39,6 +39,9 @@ Fixed
   names the right spelling: `#+translation_of:`.
 - On a touch screen, the reading view at Claim set each claim one letter
   per line.
+- `cards shot` warned that the text may show as boxes on every board that
+  is not English. It says so now only when the page does not carry its own
+  font.
 - The Chinese buttons: 49 strings corrected by a second reader.
 
 Checked against Org itself

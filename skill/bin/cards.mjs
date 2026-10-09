@@ -419,7 +419,8 @@ const commands = {
       await page.screenshot({ path: out });
       const level = (view.cls.match(/alt-(\w+)/) || [])[1];
       console.log(`wrote ${rel(out)}: the ${/view-desk/.test(view.cls) ? 'desk' : 'rack'} at ${level}${/view-desk/.test(view.cls) ? `, ${Math.round(view.scale * 100)}%` : ''}.${view.hidden ? ` ${view.hidden} figure${view.hidden > 1 ? 's are' : ' is'} not shown at this level.` : ''}`);
-      if (!/^en/i.test(r.data.board.lang)) console.log('If the text shows as boxes, this machine has no font for the language; the human\'s browser will have one.');
+      // A page that carries its own font cannot show boxes for that language; the hint is for the others.
+      if (!/^en/i.test(r.data.board.lang) && !(r.font && r.font.state === 'embedded')) console.log('If the text shows as boxes, this machine has no font for the language; the human\'s browser will have one.');
     } finally { await browser.close(); }
   },
 
