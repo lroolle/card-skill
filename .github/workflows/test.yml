@@ -30,10 +30,17 @@ jobs:
         with:
           node-version: 22
       # Emacs for org-lint; an open CJK font and fonttools for the font a Chinese board carries.
-      - run: sudo apt-get -o Acquire::Retries=3 update && sudo apt-get -o Acquire::Retries=3 -o Dpkg::Lock::Timeout=120 install -y --no-install-recommends emacs-nox fonts-noto-cjk
-      - run: pipx install "fonttools[woff]"
-      - run: npm install --no-save playwright@1.62.1
-      # The download of a browser, or of the packages it needs, sometimes stalls on the runner
-      # (twice on one day here): a time limit, and a second try.
-      - run: timeout 8m npx playwright install --with-deps ${{ matrix.browser }} || timeout 8m npx playwright install --with-deps ${{ matrix.browser }}
+      # Every step here fetches from a mirror, and a mirror sometimes stalls on the runner (three
+      # times on one day, in three different steps): each fetch has a time limit and a second try.
+      - name: Emacs and a CJK font
+        run: |
+          try() { timeout 6m "$@" || { sleep 15; timeout 6m "$@"; }; }
+          try sudo apt-get -o Acquire::Retries=3 update
+          try sudo apt-get -o Acquire::Retries=3 -o Dpkg::Lock::Timeout=120 install -y --no-install-recommends emacs-nox fonts-noto-cjk
+      - name: fonttools
+        run: timeout 4m pipx install "fonttools[woff]" || { sleep 15; timeout 4m pipx install "fonttools[woff]"; }
+      - name: Playwright
+        run: timeout 4m npm install --no-save playwright@1.62.1 || { sleep 15; timeout 4m npm install --no-save playwright@1.62.1; }
+      - name: The browser
+        run: timeout 8m npx playwright install --with-deps ${{ matrix.browser }} || { sleep 15; timeout 8m npx playwright install --with-deps ${{ matrix.browser }}; }
       - run: npm test
