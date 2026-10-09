@@ -44,7 +44,7 @@ is the product running; pool 7, roll 503b4783.
       {{NAME}}
     </a>
     <nav aria-label="Page">
-      <a href="#loop">The loop</a>
+      <a href="#loop">One card</a>
       <a href="#showcase">Boards</a>
       <a class="go" href="#install">Install</a>
       <a href="https://github.com/{{REPO}}">GitHub</a>
@@ -82,40 +82,51 @@ is the product running; pool 7, roll 503b4783.
   var r = f.getBoundingClientRect();
   f.src = f.getAttribute('data-src') + '&view=rack&level=' + (r.width >= 880 ? 'gist' : 'claim');
 })();
+// When you press Send in the sample, box 3 shows your own reply. It does not leave this page.
+// Opened from a disk, a browser lets no page read another; the example then stays.
+(function () {
+  var frame = document.getElementById('sample');
+  frame.addEventListener('load', function () {
+    var doc;
+    try { doc = frame.contentDocument; } catch (e) { return; }
+    if (!doc || !doc.body) return;
+    new MutationObserver(function () {
+      var ta = doc.querySelector('dialog textarea');
+      if (!ta) return;
+      var lines = ta.value.split('\n').filter(function (l) { return /^\s+(#\d+|§|board)\s/.test(l); })
+        .map(function (l) { return l.replace(/^ {2}/, '').replace(/ {2,}/g, '  '); });
+      var out = document.getElementById('reply');
+      var note = document.getElementById('reply-note');
+      if (!lines.length || !out || !note) return;
+      out.textContent = lines.join('\n');
+      note.textContent = note.getAttribute('data-sent');
+      document.getElementById('reply-box').className = 'live';
+    }).observe(doc.body, { childList: true, subtree: true });
+  });
+})();
 </script>
 
 <div class="wrap">
   <section class="shelf" id="loop">
-    <div class="shelf-head"><h2>The loop</h2><span class="count">3</span></div>
-    <div class="cards three loop">
+    <div class="shelf-head"><h2>One card, three forms</h2><span class="count">3</span></div>
+    <div class="cards three forms loop">
       <article class="card">
         <span class="n">1</span>
-        <h3>The agent writes board.org</h3>
-        <p>Plain Org mode. A heading is a claim. The lines under it say what the card asks of you.</p>
-<pre><code>** Pick NATS unless replay matters
-<span class="dim">:PROPERTIES:
-:CUSTOM_ID: pick-queue</span>
-:ASK: choose
-<span class="dim">:END:</span>
-NATS meets both needs.
-
-- [X] [[#nats]]
-- [ ] [[#kafka]]</code></pre>
+        <h3>What the agent writes</h3>
+        <p>Card 6 of the sample, as it stands in board.org. Plain Org mode: the heading is the claim, the drawer says what the card asks, the checkboxes are the options.</p>
+<pre><code>{{CARD_SRC}}</code></pre>
       </article>
       <article class="card">
         <span class="n">2</span>
-        <h3>You judge on one page</h3>
-        <p>The top line says whose turn it is. A yellow-red tab stands on each card that waits on you. Every card takes Keep, Drop, More and a reply.</p>
-<pre><code><span class="sig"> Choose </span>   pick an option
-<span class="sig"> Approve </span>  go or no-go
-<span class="sig"> Answer </span>   your own words
-<span class="sig"> Do </span>       a step only you can take</code></pre>
+        <h3>What you see</h3>
+        <p>The same card on the page. The tab says it waits on you. The agent's pick is marked, and counts only if you choose it.</p>
+        <picture><source media="(prefers-color-scheme: dark)" srcset="shots/card6-dark.png"><img src="shots/card6-light.png" alt="Card 6 of the sample: a yellow-red tab that says Choose, three options, the first marked Suggested" loading="lazy"></picture>
       </article>
       <article class="card">
         <span class="n">3</span>
-        <h3>The agent reads your reply</h3>
-        <p>One batch, one line per card. An ask you did not touch comes back as untouched, never as consent.</p>
-<pre><code>{{REPLY}}</code></pre>
+        <h3>What the agent reads</h3>
+        <p id="reply-note" data-sent="One line per card. This is the reply you just sent in the sample above.">One line per card. This is what the sample sends after you pick Kafka. Press Send in the sample above, and your own reply takes its place.</p>
+<pre id="reply-box"><code id="reply">{{REPLY}}</code></pre>
       </article>
     </div>
   </section>

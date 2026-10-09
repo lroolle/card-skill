@@ -183,7 +183,10 @@ disposition: fix):
 - On a phone the two "shown" cards are separate pictures taken at phone
   width, not the desktop pictures at 27%.
 
-Open after the second review: below the first viewport the page is the
-usual order (steps, claims, gallery, install). The reviewer's idea: show one
-card in its three forms, with the reply the visitor's own Send produced.
+Done from the second review's last point: under the first viewport the
+page no longer restates the loop in three boxes. It shows one card of the
+sample in its three forms: its source in `board.org` (read from the file at
+build time), the card as the page draws it (a picture of the real card), and
+the reply. After the visitor presses Send in the sample, the third form is
+their own reply, read from the frame; it does not leave the page.
 Not seen on a real device.

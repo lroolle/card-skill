@@ -31,6 +31,17 @@ const out = path.resolve(ROOT, argv.includes('--out') ? argv[argv.indexOf('--out
 const cards = (...args) => execFileSync('node', [CLI, ...args], { cwd: ROOT, encoding: 'utf8' });
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+// The source of one card: from its heading to the line before the next heading.
+function cardSource(board, id) {
+  const lines = fs.readFileSync(path.join(ROOT, '.cards', board, 'board.org'), 'utf8').split('\n');
+  const at = lines.findIndex((l) => l.trim() === `:CUSTOM_ID: ${id}`);
+  let from = at;
+  while (from > 0 && !/^\*\* /.test(lines[from])) from--;
+  let to = at;
+  while (to + 1 < lines.length && !/^\*{1,2} /.test(lines[to + 1])) to++;
+  return lines.slice(from, to + 1).join('\n').trim();
+}
+
 function build(dir) {
   const repo = HOME.replace(/^https:\/\/github\.com\//, '');
   const [owner, name] = repo.split('/');
@@ -65,6 +76,9 @@ function build(dir) {
     BG: tokenOf('--bg'),
     BG_NIGHT: tokenOf('--bg', true),
     REPLY: esc(reply),
+    // Card 6 of the sample as the agent wrote it, from board.org itself, in each language.
+    CARD_SRC: esc(cardSource('demo', 'pick-queue')),
+    CARD_SRC_ZH: esc(cardSource('demo-zh', 'pick-queue')),
     CARDS: Object.keys(demo.cards).length,
     DEMO_ASKS: open(demo),
     DR_CARDS: Object.keys(review.cards).length,
@@ -122,6 +136,9 @@ async function shots() {
     ['changed-narrow', local, [400, 1400], history, { el: '#c-signal-cards' }],
     ['figure', 'design-review/index.html?view=rack&level=gist', [700, 1400], null, { el: '#c-return-channel' }],
     ['figure-narrow', 'design-review/index.html?view=rack&level=gist', [400, 1400], null, { el: '#c-return-channel' }],
+    // Card 6 of the sample as the page shows it, for "one card, three forms".
+    ['card6', 'demo/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-queue', pad: 26 }],
+    ['card6-zh', 'demo-zh/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-queue', pad: 26 }],
   ];
   for (const theme of ['light', 'dark']) {
     for (const [name, rel, [w, h], before, take] of list) {
@@ -136,7 +153,12 @@ async function shots() {
         const box = await page.locator(take.inside).boundingBox();
         take.clip = [Math.max(0, box.x - 6), Math.max(0, box.y + (take.inside === '.shelves' ? 8 : -4)), 760, 475];
       }
-      if (take.el) await page.locator(take.el).screenshot({ path: file });
+      if (take.el && take.pad) {
+        // With room above the card for its tab, which stands outside the card's own box.
+        await page.evaluate((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); window.scrollBy(0, r.top - 80); }, take.el);
+        const box = await page.locator(take.el).boundingBox();
+        await page.screenshot({ path: file, clip: { x: box.x - 6, y: box.y - take.pad, width: box.width + 12, height: box.height + take.pad + 6 } });
+      } else if (take.el) await page.locator(take.el).screenshot({ path: file });
       else await page.screenshot({ path: file, clip: { x: take.clip[0], y: take.clip[1], width: take.clip[2], height: take.clip[3] } });
       await page.close();
       console.log(`shot ${path.relative(ROOT, file)}`);

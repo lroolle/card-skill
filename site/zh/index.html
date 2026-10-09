@@ -48,7 +48,7 @@ is the product running; pool 7, roll 503b4783.
       {{NAME}}
     </a>
     <nav aria-label="页内导航">
-      <a href="#loop">一来一回</a>
+      <a href="#loop">三种样子</a>
       <a href="#showcase">看板</a>
       <a class="go" href="#install">安装</a>
       <a href="https://github.com/{{REPO}}">GitHub</a>
@@ -85,40 +85,51 @@ is the product running; pool 7, roll 503b4783.
   var r = f.getBoundingClientRect();
   f.src = f.getAttribute('data-src') + '&view=rack&level=' + (r.width >= 880 ? 'gist' : 'claim');
 })();
+// 你在示例里点“发送”之后，第三个框里换成你自己的回复。回复不离开这个页面。
+// 从磁盘直接打开文件时，浏览器不让一个页面读另一个页面，这里就保留例子。
+(function () {
+  var frame = document.getElementById('sample');
+  frame.addEventListener('load', function () {
+    var doc;
+    try { doc = frame.contentDocument; } catch (e) { return; }
+    if (!doc || !doc.body) return;
+    new MutationObserver(function () {
+      var ta = doc.querySelector('dialog textarea');
+      if (!ta) return;
+      var lines = ta.value.split('\n').filter(function (l) { return /^\s+(#\d+|§|board)\s/.test(l); })
+        .map(function (l) { return l.replace(/^ {2}/, '').replace(/ {2,}/g, '  '); });
+      var out = document.getElementById('reply');
+      var note = document.getElementById('reply-note');
+      if (!lines.length || !out || !note) return;
+      out.textContent = lines.join('\n');
+      note.textContent = note.getAttribute('data-sent');
+      document.getElementById('reply-box').className = 'live';
+    }).observe(doc.body, { childList: true, subtree: true });
+  });
+})();
 </script>
 
 <div class="wrap">
   <section class="shelf" id="loop">
-    <div class="shelf-head"><h2>一来一回</h2><span class="count">3</span></div>
-    <div class="cards three loop">
+    <div class="shelf-head"><h2>同一张卡片，三种样子</h2><span class="count">3</span></div>
+    <div class="cards three forms loop">
       <article class="card">
         <span class="n">1</span>
-        <h3>Agent 写 board.org</h3>
-        <p>就是 Org mode 纯文本。标题是结论，标题下面几行写这张卡片要你做什么。</p>
-<pre><code>** 选 NATS，除非需要长期回放
-<span class="dim">:PROPERTIES:
-:CUSTOM_ID: pick-queue</span>
-:ASK: choose
-<span class="dim">:END:</span>
-NATS 两条需求都满足。
-
-- [X] [[#nats]]
-- [ ] [[#kafka]]</code></pre>
+        <h3>Agent 写下的</h3>
+        <p>示例里的卡片 6，在 board.org 里就是这几行。纯 Org mode：标题是结论，抽屉里写这张卡片要你做什么，复选框是选项。</p>
+<pre><code>{{CARD_SRC_ZH}}</code></pre>
       </article>
       <article class="card">
         <span class="n">2</span>
-        <h3>你在一个页面上逐张判断</h3>
-        <p>页面第一行写着轮到谁。等你处理的卡片带橙色标签。每张卡片都能标保留、舍弃、细说，也能写回复。</p>
-<pre><code><span class="sig"> 选择 </span>  选一项
-<span class="sig"> 批准 </span>  行，还是不行
-<span class="sig"> 回答 </span>  用你自己的话
-<span class="sig"> 去办 </span>  只有你能办的事</code></pre>
+        <h3>你看到的</h3>
+        <p>同一张卡片在页面上。标签说明它在等你。Agent 建议的选项有标记，你选了才算数。</p>
+        <picture><source media="(prefers-color-scheme: dark)" srcset="../shots/card6-zh-dark.png"><img src="../shots/card6-zh-light.png" alt="示例的卡片 6：橙色标签“选择”，三个选项，第一个标着“建议”" loading="lazy"></picture>
       </article>
       <article class="card">
         <span class="n">3</span>
-        <h3>Agent 读你的回复</h3>
-        <p>一次发一批，一张卡片一行。你没碰的提问会如实写成未处理，不算同意。回复给 Agent 读，固定用英文。</p>
-<pre><code>{{REPLY}}</code></pre>
+        <h3>Agent 读到的</h3>
+        <p id="reply-note" data-sent="一张卡片一行。这就是你刚才在上面的示例里发出的回复。">一张卡片一行，固定用英文。这是选了 Kafka 之后示例会发出的回复。在上面的示例里点“发送”，这里就换成你自己的回复。</p>
+<pre id="reply-box"><code id="reply">{{REPLY}}</code></pre>
       </article>
     </div>
   </section>
