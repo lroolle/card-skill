@@ -34,7 +34,9 @@ from `site/` and the boards under `.cards/`.
   paths.
 - Translations: links between sibling boards, and the drift checks.
 - The list of a project's boards (`.cards/index.html`), and `cards hook`
-  for replies that arrive with the human's next message.
+  for replies that arrive with the human's next message. The hook was run
+  in a real Claude Code session (2.1.295): the reply reached the agent
+  with the next message and was marked read.
 - The file fences: no file from outside the project, no hidden file, no
   file named like a secret gets into a page.
 
@@ -47,7 +49,14 @@ from `site/` and the boards under `.cards/`.
 - The Chinese chrome on a real device, by a human native reader. A second
   reader with a native register guide went through all 223 strings and the
   sample board; its 49 corrections are in.
-- The Chinese landing page, by any reader but its writer.
+- The Chinese landing page, by a human native reader. A second reader
+  proofread it; its 19 corrections are in.
+- Windows. Nothing here has run on it. The line that `cards hook` prints
+  is a line of sh.
+- `scripts/` and `site/` as code. The pages they build had two design
+  reviews; the code of `skill/` had two code reviews (D37 is the second).
+- A board in the older `board.md` format with the commands that edit a
+  board: they refuse it and say so, and nothing more is tested there.
 
 ## Known limits
 

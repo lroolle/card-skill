@@ -428,10 +428,12 @@ const commands = {
   // Replies that arrive on their own: the lines for a Claude Code hook. The
   // agent shows them to the human; it does not edit the human's settings itself.
   hook() {
-    const command = `node ${JSON.stringify(path.join(SKILL, 'bin', 'cards.mjs'))} inbox --quiet`;
+    // The hook runs where the session stands at that moment, and an agent changes directory.
+    // Claude Code names the project's root in CLAUDE_PROJECT_DIR: the boards are looked for there.
+    const command = `cd "\${CLAUDE_PROJECT_DIR:-.}" && node ${JSON.stringify(path.join(SKILL, 'bin', 'cards.mjs'))} inbox --quiet`;
     const snippet = { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }] } };
     console.log('With this hook, Claude Code runs `cards inbox` each time the human sends a message.');
-    console.log('Unread replies from every board under .cards/ then reach the agent with that message,');
+    console.log('Unread replies from every board under .cards/ of the project then reach the agent with that message,');
     console.log('and are marked read. Merge it into .claude/settings.json of the project (or of the user):\n');
     console.log(JSON.stringify(snippet, null, 2));
     console.log('\nIt prints nothing when no reply waits. Ask the human before you change their settings.');

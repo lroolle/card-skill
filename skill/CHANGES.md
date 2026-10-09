@@ -19,7 +19,8 @@ New
   `index.html` that it did not write (`CARDS_ROOT` may name such a folder).
 - `cards hook` prints the lines for a Claude Code hook that hands you unread
   replies with the human's next message. Show them; do not install them
-  yourself.
+  yourself. The hook reads the boards of the project, wherever the session
+  stands at that moment.
 - `cards export --home <url>` gives a published copy a "Back" link. The
   address is relative or http(s).
 - A Chinese, Japanese or Korean board carries a subset of an open font in

@@ -460,7 +460,7 @@ test('hook: cards hook prints the settings lines that hand the agent unread repl
   const out = cards(cwd, ['hook']);
   const snippet = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
   const command = snippet.hooks.UserPromptSubmit[0].hooks[0].command;
-  assert.match(command, /^node ".*bin\/cards\.mjs" inbox --quiet$/);
+  assert.match(command, /^cd "\$\{CLAUDE_PROJECT_DIR:-\.\}" && node ".*bin\/cards\.mjs" inbox --quiet$/);
   assert.match(out, /Ask the human before you change their settings\./);
   // The command itself: silent with nothing to read, then the reply once.
   cards(cwd, ['render', 'watch', '--quiet']);
@@ -469,6 +469,13 @@ test('hook: cards hook prints the settings lines that hand the agent unread repl
   addSend(ref.dir, { rev: 1, items: [{ card: 'verify', v: 1, kind: 'do', value: 'done' }] });
   assert.match(run(), /reply from the board "Pick the band" \(watch\)[\s\S]*#4 verify\s+do\s+done/);
   assert.equal(run(), '', 'read once');
+  // An agent changes directory in a session; the hook still reads the boards of the project.
+  const sub = path.join(cwd, 'src', 'deep');
+  fs.mkdirSync(sub, { recursive: true });
+  addSend(ref.dir, { rev: 1, items: [{ card: 'verify', v: 1, kind: 'do', value: 'could_not' }] });
+  const from = (env) => execFileSync('sh', ['-c', command], { cwd: sub, encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
+  assert.equal(from({}), '', 'with no project named, it looks where it stands, and no board is there');
+  assert.match(from({ CLAUDE_PROJECT_DIR: cwd }), /reply from the board "Pick the band" \(watch\)/);
 });
 
 test('ids: a card may be written without a drawer; cards ids writes one, and the id then stays', () => {

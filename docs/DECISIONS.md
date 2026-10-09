@@ -724,3 +724,11 @@ Not reviewed: `scripts/`, `site/`, the older `board.md` path, Windows,
 the hook inside a real session. The reviewer says so; so does this note.
 Tests: `test/loop.test.mjs` "review 0.2: ...", `test/font.test.mjs` (the
 last three), `test/e2e.test.mjs` "a sample in a frame".
+
+After the review, its "not looked at" list was worked through as far as
+this machine allows. The hook ran in a real one-shot Claude Code session
+in a throwaway project: the unread reply reached the model, which named
+the chosen option, and the reply was marked read. One change came of it:
+the printed command now starts with `cd "${CLAUDE_PROJECT_DIR:-.}"`, so it
+reads the project's boards when the agent has changed directory. Windows,
+`scripts/` and `site/` stay unread; `docs/STATUS.md` says so.
