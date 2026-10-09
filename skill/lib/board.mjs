@@ -302,25 +302,41 @@ function drawerSpan(lines) {
   const gap = i > 0;
   const isDrawer = (k) => (lines[k] || '').trim().toUpperCase() === ':PROPERTIES:';
   const planned = PLANNING_KEY.test(lines[i] || '') && (PLANNING_STAMP.test(lines[i]) || isDrawer(i + 1));
+  // bare: a planning line with no timestamp. It is not shown, and lint says so.
+  const bare = planned && !PLANNING_STAMP.test(lines[i]) ? i : -1;
   if (planned) i++;
-  if (!isDrawer(i)) return { gap, planned, start: -1, body: planned ? i : 0 };
+  if (!isDrawer(i)) return { gap, planned, bare, start: -1, body: planned ? i : 0 };
   let j = i + 1;
   while (j < lines.length && lines[j].trim().toUpperCase() !== ':END:') j++;
-  return { gap, planned, start: i, end: j, open: j >= lines.length, body: j + 1 };
+  return { gap, planned, bare, start: i, end: j, open: j >= lines.length, body: j + 1 };
+}
+
+// strayDrawer(lines) -> the offset of a :PROPERTIES: line in a card's text, outside blocks, or -1.
+// Org reads a drawer only directly under the heading (one planning line may stand between).
+// One that stands lower, under a second planning line or a :LOGBOOK:, is text to Org and to us.
+function strayDrawer(lines) {
+  let block = null;
+  for (let i = 0; i < lines.length; i++) {
+    if (block) { if (new RegExp(`^\\s*#\\+end_${block}\\s*$`, 'i').test(lines[i])) block = null; continue; }
+    const b = lines[i].match(/^\s*#\+begin_(\w+)/i);
+    if (b) { block = b[1]; continue; }
+    if (lines[i].trim().toUpperCase() === ':PROPERTIES:') return i;
+  }
+  return -1;
 }
 
 // The property drawer of a card -> { props, rest (the card's text), at (line offsets in `lines`) }.
 // A planning line is not card text.
 function drawer(lines) {
   const d = drawerSpan(lines);
-  if (d.start < 0) return { props: {}, rest: lines.slice(d.body), at: [] };
+  if (d.start < 0) return { props: {}, rest: lines.slice(d.body), at: [], bare: d.bare };
   const props = {};
   const at = [];
   for (let j = d.start + 1; j < d.end; j++) {
     const m = lines[j].match(/^\s*:([\w-]+):\s*(.*?)\s*$/);
     if (m) { props[m[1].toUpperCase()] = m[2]; at.push([m[1].toUpperCase(), j]); }
   }
-  return { props, rest: lines.slice(d.body), at, open: d.open, gap: d.gap };
+  return { props, rest: lines.slice(d.body), at, open: d.open, gap: d.gap, bare: d.bare };
 }
 
 function parseOrgBoard(src, id) {
@@ -406,7 +422,9 @@ function parseOrgBoard(src, id) {
     const p = d.props;
     const cid = p.CUSTOM_ID;
     if (!h.title) err(c.line, 'card has an empty claim', '** NATS covers the peak with one binary');
-    if (!cid) {
+    if (!cid && strayDrawer(d.rest) >= 0) {
+      err(c.line, 'card has no id: its :PROPERTIES: drawer does not stand directly under the heading, so Org and cards read it as text', `${headLine.trim()}\n:PROPERTIES:\n:CUSTOM_ID: ${slug(h.title)}\n:END:\n(move the drawer up; one planning line may stand between the heading and it)`);
+    } else if (!cid) {
       err(c.line, 'card has no id', `${headLine.trim()}\n:PROPERTIES:\n:CUSTOM_ID: ${slug(h.title)}\n:END:\n(or let the tool write the ids of every such card: cards ids ${id})`);
     } else if (!ID_RE.test(cid)) {
       err(c.line, `id "${cid}" must be lowercase letters, digits and dashes`, `:CUSTOM_ID: ${slug(cid)}`);
@@ -461,6 +479,7 @@ function parseOrgBoard(src, id) {
       fmt: 'org',
       keyword: h.todo,
       drawerGap: !!d.gap,
+      planBare: d.bare >= 0 ? c.line + 2 + d.bare : 0, // the line of a planning line with no timestamp
     };
     card.anatomy = anatomy(card);
     if (card.ask === 'choose') {
@@ -522,10 +541,13 @@ export function addIds(src) {
   });
   // What to write, top down, so that ids are given in the order of the board.
   const plan = [];
+  const skipped = []; // lines of cards whose drawer stands too low: a second drawer above it would bury it
   heads.forEach((h, k) => {
     if (h.level !== 2) return;
     const first = h.i + 1;
-    const d = drawerSpan(text.slice(first, k + 1 < heads.length ? heads[k + 1].i : text.length));
+    const mine = text.slice(first, k + 1 < heads.length ? heads[k + 1].i : text.length); // the card's lines, as the parser cuts them
+    const d = drawerSpan(mine);
+    if (d.start < 0 && strayDrawer(mine.slice(d.body)) >= 0) { skipped.push(h.i + 1); return; }
     if (d.start < 0) {
       plan.push({ line: h.i, at: first + (d.planned ? d.body : 0), drawer: true, id: fresh(orgHead(h.head).title) });
       return;
@@ -544,7 +566,7 @@ export function addIds(src) {
     if (p.drawer) L.splice(p.at, 0, `:PROPERTIES:${eol}`, `:CUSTOM_ID: ${p.id}${eol}`, `:END:${eol}`);
     else L.splice(p.at, 0, `:CUSTOM_ID: ${p.id}${eol}`);
   }
-  return { src: L.join(''), added: plan.map((p) => [p.line + 1, p.id]) };
+  return { src: L.join(''), added: plan.map((p) => [p.line + 1, p.id]), skipped };
 }
 
 // Lines as the parser counts them (\r\n, \r or \n each end one), each with

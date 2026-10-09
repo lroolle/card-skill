@@ -105,8 +105,10 @@ The drawer comes right after the heading, with no blank line between: that
 is where Org reads it. A planning line that Emacs writes (`CLOSED:`,
 `SCHEDULED:`, `DEADLINE:`, each with its timestamp) may stand between the
 two. A line with one of these words and no timestamp is a planning line
-only when the drawer stands directly under it; anywhere else it is text of
-the card. Unknown properties
+only when the drawer stands directly under it (`cards check` then warns
+that it is not shown); anywhere else it is text of the card. A drawer that
+stands lower, under a second planning line or a `:LOGBOOK:`, is text to
+Org and to `cards`, and the card then has no id. Unknown properties
 are errors, so a typo cannot silently do nothing; the properties Emacs
 writes on its own (`:ID:`, `:VISIBILITY:`, `:ARCHIVE_TIME:`, ...) and a
 `:LOGBOOK:` drawer are allowed and ignored. A third-level heading (`***`)

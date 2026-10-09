@@ -312,10 +312,13 @@ const commands = {
     const ref = resolveBoard(a._[0]);
     if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
     if (!/\.org$/.test(ref.file)) die('cards ids edits board.org; this board is an older board.md', 1);
-    const { src, added } = addIds(fs.readFileSync(ref.file, 'utf8'));
-    if (!added.length) return console.log('every card has an id; nothing to do.');
+    const { src, added, skipped } = addIds(fs.readFileSync(ref.file, 'utf8'));
+    // A drawer that stands too low is text to the parser. A new drawer above it would bury the id and the ask it holds.
+    const low = skipped.length ? `not changed: the card${skipped.length > 1 ? 's' : ''} at line ${skipped.join(', ')} of ${rel(ref.file)} ${skipped.length > 1 ? 'have' : 'has'} a :PROPERTIES: drawer that does not stand directly under the heading. Move it up (one planning line may stand between); cards check shows how.` : '';
+    if (!added.length) return console.log(low || 'every card has an id; nothing to do.');
     fs.writeFileSync(ref.file, src);
     console.log(`added ${added.length} id${added.length > 1 ? 's' : ''}: ${added.map(([, idv]) => idv).join(', ')}.`);
+    if (low) console.log(low);
     console.log(`Use these ids in :NEEDS:, :FROM: and [[#id]] links. Then: cards render ${ref.id}`);
   },
 

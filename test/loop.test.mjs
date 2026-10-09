@@ -837,3 +837,31 @@ test('review 0.2, second look: the inbox goes on past a board it cannot read; th
   assert.deepEqual(pass.map(safeHome), pass);
   assert.deepEqual(stop.map(safeHome), stop.map(() => ''));
 });
+
+// ---- the third look: the verdict was "ship"; these two follow-ups make the tool say what it does ----
+
+test('review 0.2, third look: a drawer that stands too low is named, and cards ids does not bury it', () => {
+  // Two planning lines, or a :LOGBOOK: first: Org does not read the drawer under them, and neither do we.
+  const two = '#+title: T\n\n** TODO Ship the release on the agreed day\nSCHEDULED: <2026-10-09 Fri>\nDEADLINE: <2026-10-15 Thu>\n:PROPERTIES:\n:CUSTOM_ID: ship\n:ASK: approve\n:END:\nWe agreed.\n\n** A card with no id\nText.\n';
+  const { cwd, ref } = project(two, 't');
+  const said = fails(cwd, ['check', 't']);
+  assert.match(said, /card has no id: its :PROPERTIES: drawer does not stand directly under the heading[\s\S]*move the drawer up/);
+  assert.ok(!/cards ids t[\s\S]*cards ids t/.test(said), 'cards ids is offered for the other card only');
+  assert.match(cards(cwd, ['ids', 't']), /added 1 id: a-card-with-no-id\.\nnot changed: the card at line 3 of .*board\.org has a :PROPERTIES: drawer that does not stand directly under the heading\./);
+  const after = fs.readFileSync(ref.file, 'utf8');
+  assert.equal(after.slice(0, two.indexOf('** A card with no id')), two.slice(0, two.indexOf('** A card with no id')), 'the card with the low drawer is as it was');
+  assert.match(fails(cwd, ['check', 't']), /drawer does not stand directly under the heading/, 'and check still says what to do');
+  const log = project('#+title: T\n\n** One claim stands here\n:LOGBOOK:\n- State "DONE" from "TODO" [2026-10-09 Fri]\n:END:\n:PROPERTIES:\n:CUSTOM_ID: one\n:END:\nText.\n', 'l');
+  assert.match(cards(log.cwd, ['ids', 'l']), /^not changed: the card at line 3 /);
+  // A drawer inside a block is an example, not a drawer.
+  const ex = project('#+title: T\n\n** One claim stands here\nText.\n\n#+begin_example\n:PROPERTIES:\n:CUSTOM_ID: shown\n:END:\n#+end_example\n', 'x');
+  assert.match(cards(ex.cwd, ['ids', 'x']), /added 1 id: one-claim-stands-here\./);
+});
+
+test('review 0.2, third look: a planning line with no timestamp is not shown, and check says so', () => {
+  const b = parseBoard('#+title: T\n#+todo: TODO | DONE\n\n** The ship date is fixed for this month\nDEADLINE: Friday is the day we ship.\n:PROPERTIES:\n:CUSTOM_ID: ship\n:BASIS: fact\n:END:\nGist.\n\n** DONE The freeze is over since Friday\nCLOSED: [2026-10-09 Fri 10:00]\n:PROPERTIES:\n:CUSTOM_ID: freeze\n:BASIS: fact\n:END:\nGist.\n', { fmt: 'org' });
+  assert.deepEqual(b.errors, []);
+  assert.ok(!/DEADLINE/.test(b.cards[0].body));
+  const ws = lint(b).filter((w) => /read as a planning line and is not shown/.test(w.msg));
+  assert.deepEqual(ws.map((w) => w.line), [5], 'the line with no timestamp, and not the one Emacs wrote');
+});

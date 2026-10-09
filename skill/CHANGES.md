@@ -43,7 +43,14 @@ Fixed
 - A first line of a card that starts with `DEADLINE: `, `SCHEDULED: ` or
   `CLOSED: ` and has no timestamp was dropped from the page. It is text
   of the card now, unless the drawer stands directly under it; a planning
-  line as Emacs writes it is left out as before.
+  line as Emacs writes it is left out as before. The same holds for the
+  note of a section, so such a section shows one more line after the
+  update. Where a line with no timestamp is still left out, `cards check`
+  says so.
+- A card whose `:PROPERTIES:` drawer stands lower than Org reads it (under
+  a second planning line, or under a `:LOGBOOK:`) had the plain error
+  "card has no id". The error now names the drawer, and `cards ids` leaves
+  such a card alone.
 - A line of `log.jsonl` that is JSON but not an event stopped the render.
   It is skipped, as a torn line is.
 - A keyword with a hyphen, such as `#+translation-of:`, was shown as text of

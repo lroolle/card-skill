@@ -761,3 +761,19 @@ broken something else, and seven edges were new:
 - H. The test of the example page failed for reasons that are not a stale
   page, and could add to the tracked log. It skips those cases and puts
   the log back.
+
+A third look at that last diff ended the review: "approve, ship 0.2.0".
+A-H hold, and 20,000 boards of shapes our generator does not make broke
+nothing. Two follow-ups from it are in, each a message where the tool was
+silent:
+
+- A drawer that stands too low (under a second planning line, or under a
+  `:LOGBOOK:`) is text to Org and to us, so the card has no id. The error
+  now names the drawer, and `cards ids` leaves that card alone: a new
+  drawer above the old one would bury its id and its ask.
+- A planning line with no timestamp, directly above the drawer, is not
+  shown. `cards check` warns, and says where a sentence of the card goes.
+
+One more thing the review noted and we keep: a sentence that looks like a
+planning line in the note of a section is shown now (0.1.0 dropped it), so
+such a board gets one new revision at its first render by 0.2.0.
