@@ -34,6 +34,8 @@ New
   `:NEEDS: a=*` waits for any answer.
 - `cards render` ends with the version of the build, so you can tell when
   the SKILL.md in your context is older than the code.
+- SKILL.md: when a board is in use, ask on the board and nowhere else; the
+  link is the hand-over.
 - `cards ingest`: records a reply the human pasted, so the board shows the
   answers. `cards settle`: marks the answered asks DONE.
 - `cards export <board> --out <dir>`: a copy to publish, with no replies,

@@ -190,6 +190,11 @@ claims, each with its picture, and a click zooms to a card. `D` switches to
 the rack, a reading view. Do not repeat the cards in chat; the board is the
 answer.
 
+Ask on the board and nowhere else. When a board is in use, a decision for
+the human is an ask on a card. Do not put the same question into chat or
+into a question dialog of your environment: the human answers on the cards,
+in one batch, and the link is the hand-over.
+
 You cannot see the page. When the layout matters (pictures, a comparison, a
 board in a language you did not test), look at it:
 `node <skill>/bin/cards.mjs shot <board>` writes a picture of the first
