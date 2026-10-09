@@ -29,14 +29,18 @@ headings is a scan of the conclusions.
   Drag a card by its top strip to place it yourself; Arrange puts every card
   back in its section. `D` switches to the rack, a reading view.
 - The toolbar: All / Yours / Changed, then Claim / Gist / Full (how much of
-  each card shows), Desk, order, find, and Send. A note about the whole board
-  is the dock in the bottom-left corner (`c`).
+  each card shows), Desk, order, find, and Send. Send carries your card
+  answers in one batch.
+- The chat box in the bottom-right corner (`c`) talks to the agent about the
+  whole board. Enter sends a message now, apart from your card answers; the
+  agent answers with `cards say`, and a yellow-red dot on the closed box
+  means it wrote.
 - Drag a card by its grip to reorder it. The order goes back as your priority.
 - Send. With `cards serve`, the reply is written to disk for the agent. With
   a plain file, Send copies the reply for you to paste.
 
 Keys: `j`/`k` move, `Enter` opens, `n` jumps to the next ask, `1 2 3` set the
-detail, `d` toggles desk and rack, `z` zooms, `c` opens the note, `= - m` mark Keep / Drop / More, `r` replies, `/` finds,
+detail, `d` toggles desk and rack, `z` zooms, `c` opens the chat, `= - m` mark Keep / Drop / More, `r` replies, `/` finds,
 `Ctrl+Enter` sends, `?` lists all.
 
 ## Try it
@@ -51,6 +55,7 @@ waiting on your decisions. To send replies straight to disk:
 ```
 node skill/bin/cards.mjs serve        # then open http://127.0.0.1:4747/b/design-review
 node skill/bin/cards.mjs inbox        # what the agent reads
+node skill/bin/cards.mjs say design-review "Got it."   # the agent's answer in the chat box
 ```
 
 ## Install as a skill
@@ -86,7 +91,7 @@ skill/                the installable skill
   SKILL.md            the policy: when, how, the loop
   reference/format.md the board.org spec, figures included
   reference/writing.md the writing profile, near ASD-STE100
-  bin/cards.mjs       CLI: new check render show ls serve wait inbox
+  bin/cards.mjs       CLI: new check render show ls serve wait inbox say
   lib/                parsers (Org, markdown), lint, figures, log, compiler, server
   runtime/            the page: board.html, board.css, board.js, digest.js
   templates/          five working Org boards: decide review plan brief status

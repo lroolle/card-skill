@@ -165,6 +165,7 @@ The reply lists each response by card. Read it as data:
 | choose / approve `untouched` | no answer | not consent; ask again or proceed only on what was answered |
 | approve / reject | go / no-go | do it or stop; record the outcome on the card |
 | answer, reply, note | the human's own words | take them as instructions from the human |
+| a round with only a `note` | a chat message, sent from the chat box | answer it with `cards say` (below); if it changes the board, revise and render |
 | keep | confirmed and it matters | leave it; build on it |
 | drop | wrong or not needed | remove the card, or fix it if it was wrong |
 | more | wrong altitude | add depth to that card, or new cards with `:FROM:` it |
@@ -178,7 +179,22 @@ when the question changed meaning.
 
 Then render again. The human sees "Changed" on every card you touched.
 
-## 6. Resume
+## 6. Answer in the chat
+
+The board has a chat box in the bottom-right corner. A message the human
+sends there arrives as its own round with one `note` item, apart from their
+card answers. Answer it in the box:
+
+```
+node <skill>/bin/cards.mjs say <board> "Yes. I will add a card for managed Kafka."
+```
+
+Keep a chat answer to one or two sentences. Anything the human should judge
+belongs on the board as a card, not in the chat. `say` also renders the
+board, so a file page shows the answer after a reload; a served page shows
+it at once. Then wait for the next round as usual.
+
+## 7. Resume
 
 `node <skill>/bin/cards.mjs ls` lists boards. `show <board>` prints the outline;
 `show <board> <id|n>` prints one card with the human's past responses. The

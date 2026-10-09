@@ -11,7 +11,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { serve } from '../skill/lib/serve.mjs';
-import { resolveBoard, fold, readLog, unread } from '../skill/lib/store.mjs';
+import { resolveBoard, fold, readLog, unread, addSay } from '../skill/lib/store.mjs';
 import { buildBoard } from '../skill/lib/compile.mjs';
 
 const require = createRequire(import.meta.url);
@@ -340,7 +340,7 @@ test('reading: a drag that selects text does not open or close the card', { skip
   }
 });
 
-test('desk canvas: zoom presets, zoom to a card and back, drag to place, Arrange, the note dock', { skip: !chromium && 'playwright not installed' }, async () => {
+test('desk canvas: zoom presets, zoom to a card and back, drag to place, Arrange, the chat box', { skip: !chromium && 'playwright not installed' }, async () => {
   const { cwd, ref } = setup();
   fs.writeFileSync(ref.file, DESK);
   buildBoard(ref, { cwd });
@@ -429,13 +429,82 @@ test('desk canvas: zoom presets, zoom to a card and back, drag to place, Arrange
     await page.click('.toast button');
     assert.ok((await page.getAttribute('.board', 'class')).includes('free'));
 
-    // The note to the agent is a dock in the left corner: c opens it, Esc closes it, the draft stays.
+    // The chat box sits in the bottom-right corner: c opens it, Esc closes it, the draft stays,
+    // and a draft is not a card answer, so it does not count toward Send.
     await page.keyboard.press('c');
     await page.keyboard.type('One more thing.');
-    assert.equal(await page.textContent('[data-act="send"]'), 'Send 1');
+    assert.equal(await page.textContent('[data-act="send"]'), 'Send');
+    const chat = await page.locator('.chat-panel').boundingBox();
+    assert.ok(chat.x + chat.width > 1280 - 40, 'the chat is at the right');
     await page.keyboard.press('Escape');
-    assert.equal(await page.isVisible('.note-pill .dot'), true);
+    await page.keyboard.press('c');
+    assert.equal(await page.inputValue('.chat textarea'), 'One more thing.');
     assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('chat: a message goes now as its own round, Undo holds it back, and the agent answers with cards say', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  buildBoard(ref, { cwd });
+  const { server, url } = await serve({ cwd, port: 0, log: () => {} });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(`${url}/b/queue`);
+    const rounds = () => fold(readLog(ref.dir)).sends;
+
+    // Esc in the first seconds takes the message back into the box; nothing is sent.
+    await page.keyboard.press('c');
+    await page.keyboard.type('First thought');
+    await page.keyboard.press('Enter');
+    assert.match(await page.textContent('.chat-thread'), /Sending/);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.inputValue('.chat textarea'), 'First thought');
+    await page.waitForTimeout(5500);
+    assert.equal(rounds().length, 0);
+
+    // Enter sends it: a round with one note, apart from any card answer.
+    await page.fill('.chat textarea', 'Also compare managed Kafka.');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => /Round 1/.test(document.querySelector('.chat-thread').textContent), null, { timeout: 10000 });
+    assert.deepEqual(rounds()[0].items, [{ kind: 'note', text: 'Also compare managed Kafka.' }]);
+
+    // The agent's message appears live; while the box is closed, a dot says something new waits.
+    addSay(ref.dir, 'Got it: a managed Kafka card is next.');
+    await page.waitForSelector('.chat .msg.agent');
+    assert.match(await page.textContent('.chat .msg.agent'), /managed Kafka card is next/);
+    await page.keyboard.press('Escape');
+    addSay(ref.dir, 'Done: card 7.');
+    await page.waitForSelector('.chat-pill .dot');
+    await page.keyboard.press('c');
+    assert.equal(await page.locator('.chat .msg.agent').count(), 2);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.isVisible('.chat-pill .dot'), false, 'opening the box marks the messages seen');
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('chat in file mode: Send copies just the message', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  buildBoard(ref, { cwd });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await page.keyboard.press('c');
+    await page.keyboard.type('Can SQS replay at all?');
+    await page.click('[data-act="chat-send"]');
+    assert.equal(await page.textContent('dialog h2'), 'Copy your message');
+    const text = await page.inputValue('dialog textarea');
+    assert.match(text, /note\s+"Can SQS replay at all\?"/);
+    assert.doesNotMatch(text, /pick-queue/, 'only the message, not the card answers');
   } finally {
     await browser.close();
   }

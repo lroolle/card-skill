@@ -9,14 +9,17 @@ D11 and D15 are accepted, with the board opening on the desk. The human then
 asked for Org in place of markdown (D16) and a desk canvas (D17): zoom with
 Fit, 50% and 100%, focus that zooms to a card, cards you can drag, Arrange,
 typed lines, and the board note as a dock. All of it is built and tested.
+Then the human asked to move the note to the right as a direct chat (D18):
+a chat box in the bottom-right corner; a message goes at once as its own
+round; the agent answers with `cards say`.
 
-The board `.cards/design-review/board.org` is rev 9 (27 cards). Two asks
+The board `.cards/design-review/board.org` is rev 10 (27 cards). Two asks
 wait: `ask-canvas` (approve four choices the agent made inside D17) and
 `ask-dogfood` (a real task; the round-1 answer was a test).
 
 ## What works, verified
 
-Each line names its check. `npm test` runs 60 tests.
+Each line names its check. `npm test` runs 63 tests.
 
 - Figures: `sketch` and `flow` parse, lay out the same way every time, escape
   all agent text, number per card (Fig. 12.1), and widen a card when wide:
@@ -29,6 +32,11 @@ Each line names its check. `npm test` runs 60 tests.
   desk keeps its own level (Claim), the line layer shrinks back, and on a phone
   the page stays 390px wide with Send on screen: `test/e2e.test.mjs`.
 - Selecting text in a card does not open or close it: `test/e2e.test.mjs`.
+- The chat: a message goes as its own round with one note; Esc in the first
+  5 s takes it back; `cards say` shows live; an unread agent message puts a
+  dot on the closed box; on a file page Send copies only the message:
+  `test/e2e.test.mjs` "chat". `cards say` writes a `say` event and the page
+  carries it as data: `test/review.test.mjs`.
 - Org boards: the reader, the board parser, errors with Org fixes, the five
   templates (Org only), and the SKILL.md example: `test/kernel.test.mjs`,
   `test/figure.test.mjs`. The full browser loop runs on an Org board,

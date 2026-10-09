@@ -504,29 +504,48 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 .wire.on .ln { stroke-width: 2.25; }
 .wire.on.w-needs .ln { stroke-width: 2.5; }
 
-/* ---------- the note to the agent: a chat dock in the left corner ---------- */
+/* ---------- the chat with the agent: a box in the bottom-right corner ---------- */
 
-.note-dock { position: fixed; left: var(--s4); bottom: var(--s4); z-index: 9; }
-/* The open note always clears the toolbar. */
-.note-dock.open { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
-.note-pill {
+/* Your messages are blue (your own act); the agent's are card stock; a
+   revision is a quiet line between them. A new message from the agent puts
+   a yellow-red dot on the closed box: it waits on you. */
+.chat { position: fixed; right: var(--s4); bottom: var(--s4); z-index: 9; }
+.chat-pill {
   display: inline-flex; align-items: center; gap: var(--s2); min-height: 34px; padding: 0 var(--s3);
   border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface);
   box-shadow: 0 10px 30px -12px var(--shadow); font-size: var(--t-s); color: var(--fg-2); cursor: pointer;
 }
-.note-pill:hover { color: var(--fg); border-color: var(--fg-3); }
-.note-pill .dot { width: 8px; height: 8px; border-radius: var(--r-s); background: var(--accent); }
-.note-panel {
-  width: min(380px, calc(100vw - 2 * var(--s4))); padding: var(--s3);
+.chat-pill:hover { color: var(--fg); border-color: var(--fg-3); }
+.chat-pill .dot { width: 8px; height: 8px; border-radius: var(--r-s); background: var(--signal); }
+.chat.open { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
+.chat-panel {
+  display: flex; flex-direction: column; width: min(380px, calc(100vw - 2 * var(--s4)));
+  height: min(460px, calc(100vh - var(--bar-h, 56px) - 96px));
   background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r);
   box-shadow: 0 16px 40px -16px var(--shadow);
 }
-.note-head { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s2); font-size: var(--t-s); }
-.note-head span { flex: 1; font-size: var(--t-xs); color: var(--fg-3); }
-.note-head .btn { min-height: 28px; }
-/* Where the toolbar reaches the left corner, the dock sits above it. */
+.chat-head { display: flex; align-items: center; gap: var(--s2); padding: var(--s2) var(--s3); border-bottom: 1px solid var(--line); font-size: var(--t-s); }
+.chat-head span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-xs); color: var(--fg-3); }
+.chat-head .btn { min-height: 28px; }
+.chat-thread {
+  flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: var(--s3);
+  list-style: none; display: flex; flex-direction: column; gap: var(--s2);
+}
+.chat-thread .msg { max-width: 86%; padding: var(--s2) var(--s3); border-radius: var(--r); font-size: var(--t-s); line-height: 1.45; }
+.chat-thread .msg p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-thread .msg.you { align-self: flex-end; background: var(--accent-soft); }
+.chat-thread .msg.agent { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--line); }
+.chat-thread .meta { display: block; margin-top: 2px; font-size: var(--t-xs); color: var(--fg-3); }
+.chat-thread .sys { align-self: center; max-width: 92%; text-align: center; font-size: var(--t-xs); color: var(--fg-3); }
+.chat-thread .link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: var(--w-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.chat-compose { display: flex; align-items: flex-end; gap: var(--s2); padding: var(--s2) var(--s3) 0; border-top: 1px solid var(--line); }
+.chat-compose textarea { min-height: 40px; max-height: 140px; resize: none; font-size: var(--t-s); }
+.chat-hint { margin: 0; padding: var(--s1) var(--s3) var(--s2); font-size: var(--t-xs); color: var(--fg-3); }
+
+/* Where the toolbar reaches the right corner, the closed box sits above it. */
 @media (max-width: 1180px) {
-  .note-dock { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
+  .chat { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
+}
 }
 
 .empty { margin-top: var(--s6); color: var(--fg-2); }
@@ -652,6 +671,6 @@ dialog .row { display: flex; justify-content: flex-end; gap: var(--s2); margin-t
 
 @media print {
   body { background: var(--surface); }
-  .bar, .acts, .reply, .grip, .note-dock, .desk-bar { display: none !important; }
+  .bar, .acts, .reply, .grip, .chat, .desk-bar { display: none !important; }
   .card { break-inside: avoid; }
 }

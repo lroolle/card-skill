@@ -124,10 +124,34 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
     })),
     cards,
     sends: st.sends.map((s) => ({ round: s.round, rev: s.rev, at: s.at, items: s.items })),
+    chat: chatOf(st),
     read: st.read,
     live,
     token,
   };
+}
+
+// The chat thread: your rounds (with the note you typed, if any), the agent's
+// messages (`cards say`), and each published revision, in time order.
+const CHAT_KEEP = 60;
+function chatOf(st) {
+  const out = [];
+  for (const s of st.sends) {
+    const note = s.items.find((it) => it.kind === 'note');
+    const others = s.items.filter((it) => it.kind !== 'note' && it.state !== 'untouched').length;
+    out.push({ who: 'you', at: s.at, round: s.round, text: note ? note.text : '', responses: others, read: s.round <= st.read });
+  }
+  for (const m of st.says || []) out.push({ who: 'agent', at: m.at, text: m.text });
+  for (const r of st.revs || []) if (r.rev > 1) out.push({ who: 'board', at: r.at, rev: r.rev, cards: r.cards });
+  out.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+  // Revisions with no message between them read as one line: "rev 3 to 10".
+  const merged = [];
+  for (const m of out) {
+    const last = merged[merged.length - 1];
+    if (m.who === 'board' && last && last.who === 'board') Object.assign(last, { to: m.rev, at: m.at, cards: last.cards + m.cards });
+    else merged.push(m.who === 'board' ? { ...m, from: m.rev } : m);
+  }
+  return merged.slice(-CHAT_KEEP);
 }
 
 // Relative to the project when the board lives inside it; absolute otherwise.

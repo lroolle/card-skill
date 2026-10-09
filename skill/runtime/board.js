@@ -53,7 +53,7 @@
   // A phone opens on the rack: at phone width the whole desk fits only as a minimap.
   var NARROW = window.matchMedia('(max-width: 720px)').matches;
   var S = { view: load('view', NARROW ? 'rack' : 'desk'), alts: { rack: load('alt', 'gist'), desk: load('deskAlt', 'claim') }, filter: 'all', sort: 'board', q: '', focus: null, hover: null, open: new Set(), replyOpen: new Set(),
-    zoom: load('zoom', 'fit'), scale: 1, back: null, noteOpen: false };
+    zoom: load('zoom', 'fit'), scale: 1, back: null, chatOpen: false };
   S.alt = S.alts[S.view];
   var D = load('drafts', null) || emptyDrafts();
   // Without a server, copied drafts stay visible until the agent publishes a new rev.
@@ -205,7 +205,6 @@
       var o = D.order[s.id];
       if (o && o.join() !== s.cards.join()) items.push({ section: s.id, kind: 'order', value: o });
     });
-    if (D.note && D.note.trim()) items.push({ kind: 'note', text: D.note.trim() });
     if (withUntouched && items.length) {
       cards().forEach(function (c) {
         if (unsent(c) && !hasDraftAnswer(c)) items.push({ card: c.id, v: c.v, kind: c.ask, state: 'untouched' });
@@ -271,7 +270,7 @@
     html.push('<p class="empty" id="no-match" hidden></p>');
     html.push('</div>');
     html.push(toolbar());
-    html.push(noteDockHtml());
+    html.push(chatHtml());
     app.innerHTML = html.join('');
     applyView();
     watchSizes();
@@ -1020,25 +1019,133 @@
     }
   }
 
-  // ---- the note to the agent: a chat dock in the left corner ----
+  // ---- the chat with the agent: a box in the bottom-right corner ----
+  //
+  // A message goes now, as its own round, not with the card answers. The
+  // agent answers with `cards say`. The thread shows your rounds, the
+  // agent's messages and each revision it published, in time order. Without
+  // a server there is no channel: Send copies the message for you to paste.
 
-  function noteDockHtml() {
-    var has = !!(D.note && D.note.trim());
-    if (S.noteOpen) {
-      return '<aside class="note-dock open" aria-label="Note to the agent"><div class="note-panel">' +
-        '<div class="note-head"><b>Note to the agent</b><span>About the whole board. It goes out with your next Send.</span>' +
-        '<button class="btn" data-act="note" title="Close (Esc). The note is kept.">Close</button></div>' +
-        '<textarea data-field="note" rows="4" placeholder="Anything else?" aria-label="Note to the agent about the whole board">' + esc(D.note || '') + '</textarea></div></aside>';
-    }
-    return '<aside class="note-dock" aria-label="Note to the agent"><button class="note-pill" data-act="note" aria-expanded="false" title="A note about the whole board (c)">' +
-      'Note to the agent' + (has ? '<i class="dot" title="A note is drafted"></i>' : '') + '</button></aside>';
+  var pendingChat = null;
+  var chatSeen = load('chatSeen', '');
+  function agentUnread() {
+    return (B.chat || []).filter(function (m) { return m.who === 'agent' && m.at > chatSeen; }).length;
   }
-  function toggleNote(open) {
-    S.noteOpen = open === undefined ? !S.noteOpen : open;
-    var dock = $('.note-dock');
-    if (dock) dock.outerHTML = noteDockHtml();
-    if (S.noteOpen) { var ta = $('.note-dock textarea'); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
-    else { var pill = $('.note-pill'); if (pill) pill.focus({ preventScroll: true }); }
+  function clock(at) {
+    var d = new Date(at);
+    if (isNaN(d)) return '';
+    var t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + t;
+  }
+  function chatThreadHtml() {
+    var items = (B.chat || []).map(function (m) {
+      if (m.who === 'board') {
+        var span = m.to && m.to !== m.from ? 'revs ' + m.from + ' to ' + m.to : 'rev ' + (m.to || m.rev);
+        return '<li class="sys">The agent published ' + span + (m.cards ? ' · ' + m.cards + ' card change' + (m.cards > 1 ? 's' : '') : '') + ' · ' + esc(clock(m.at)) + '</li>';
+      }
+      if (m.who === 'agent') return '<li class="msg agent"><p>' + esc(m.text) + '</p><span class="meta">The agent · ' + esc(clock(m.at)) + '</span></li>';
+      var meta = 'Round ' + m.round + (m.responses ? ' · ' + m.responses + ' card response' + (m.responses > 1 ? 's' : '') : '') + ' · ' + (m.read ? 'read' : 'sent') + ' · ' + esc(clock(m.at));
+      return m.text
+        ? '<li class="msg you"><p>' + esc(m.text) + '</p><span class="meta">' + meta + '</span></li>'
+        : '<li class="sys">You sent ' + meta.charAt(0).toLowerCase() + meta.slice(1) + '</li>';
+    });
+    (D.chatCopied || []).forEach(function (m) {
+      items.push('<li class="msg you"><p>' + esc(m.text) + '</p><span class="meta">Copied · paste it into your agent · ' + esc(clock(m.at)) + '</span></li>');
+    });
+    if (pendingChat) {
+      items.push('<li class="msg you"><p>' + esc(pendingChat.text) + '</p><span class="meta">Sending… <button class="link" data-act="chat-undo">Undo</button></span></li>');
+    }
+    if (!items.length) {
+      items.push('<li class="sys">No messages yet. Write to the agent about the whole board. Card answers go with Send in the toolbar.</li>');
+    }
+    return items.join('');
+  }
+  function chatHtml() {
+    if (!S.chatOpen) {
+      var n = agentUnread();
+      return '<aside class="chat" aria-label="Chat with the agent"><button class="chat-pill" data-act="chat" aria-expanded="false" title="Message the agent (c)">' +
+        'Message the agent' + (n ? '<i class="dot" title="' + n + ' new from the agent"></i>' : '') + '</button></aside>';
+    }
+    var t = turn();
+    return '<aside class="chat open" aria-label="Chat with the agent"><section class="chat-panel">' +
+      '<div class="chat-head"><b>The agent</b><span>' + esc(t.text) + '</span><button class="btn" data-act="chat" title="Close (Esc). Your draft is kept.">Close</button></div>' +
+      '<ol class="chat-thread" aria-live="polite">' + chatThreadHtml() + '</ol>' +
+      '<div class="chat-compose"><textarea data-field="note" rows="2" placeholder="Message the agent" aria-label="Message the agent">' + esc(D.note || '') + '</textarea>' +
+      '<button class="send" data-act="chat-send" title="Send now (Enter). Shift + Enter makes a new line.">Send</button></div>' +
+      '<p class="chat-hint">' + (B.live ? 'Enter sends now, apart from your card answers.' : 'No server is running: Send copies the message for you to paste.') + '</p>' +
+      '</section></aside>';
+  }
+  function scrollThread() { var th = $('.chat-thread'); if (th) th.scrollTop = th.scrollHeight; }
+  function markChatSeen() {
+    var last = (B.chat || []).filter(function (m) { return m.who === 'agent'; }).pop();
+    if (last && last.at > chatSeen) { chatSeen = last.at; save('chatSeen', chatSeen); }
+  }
+  function renderChat() {
+    var dock = $('.chat');
+    var ta = $('.chat textarea');
+    var typing = ta && document.activeElement === ta;
+    // While you type, only the thread changes, so the draft and the caret stay.
+    if (S.chatOpen && typing) { $('.chat-thread').innerHTML = chatThreadHtml(); scrollThread(); markChatSeen(); return; }
+    if (dock) dock.outerHTML = chatHtml();
+    if (S.chatOpen) { scrollThread(); markChatSeen(); }
+  }
+  function toggleChat(open) {
+    S.chatOpen = open === undefined ? !S.chatOpen : open;
+    renderChat();
+    if (S.chatOpen) { var t = $('.chat textarea'); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+    else { var pill = $('.chat-pill'); if (pill) pill.focus({ preventScroll: true }); }
+  }
+  function chatSend() {
+    var text = (D.note || '').trim();
+    if (!text || pendingChat) return;
+    if (!B.live) {
+      openCopy(window.cardsDigest({ board: { id: ID, title: B.board.title, path: B.board.path }, rev: B.board.rev, at: new Date().toISOString(), items: [{ kind: 'note', text: text }] }, cardIndex()), function (msg) {
+        D.chatCopied = (D.chatCopied || []).concat([{ at: new Date().toISOString(), text: text }]).slice(-20);
+        D.note = '';
+        saveDrafts();
+        toggleChat(true);
+        toast(msg);
+      }, 'Copy your message');
+      return;
+    }
+    // Undo over confirmation, as with Send: the message leaves after a short hold.
+    pendingChat = { text: text, timer: setTimeout(postChat, UNDO_MS) };
+    D.note = '';
+    saveDrafts();
+    renderChat();
+    var ta = $('.chat textarea');
+    if (ta) { ta.value = ''; ta.focus(); }
+  }
+  function chatUndo() {
+    if (!pendingChat) return;
+    clearTimeout(pendingChat.timer);
+    D.note = pendingChat.text + (D.note ? '\n' + D.note : '');
+    pendingChat = null;
+    saveDrafts();
+    S.chatOpen = true;
+    renderChat();
+    var ta = $('.chat textarea');
+    if (ta) { ta.value = D.note; ta.focus(); }
+  }
+  function postChat() {
+    var p = pendingChat;
+    if (!p) return;
+    fetch('/api/' + encodeURIComponent(ID) + '/send', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token: B.token, rev: B.board.rev, items: [{ kind: 'note', text: p.text }] }),
+    }).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || r.status); return j; });
+    }).then(function () {
+      pendingChat = null;
+      renderChat();
+      return refresh();
+    }).catch(function (e) {
+      pendingChat = null;
+      D.note = p.text + (D.note ? '\n' + D.note : '');
+      saveDrafts();
+      renderChat();
+      toast('Not sent: ' + e.message + '. Your message is back in the box.');
+    });
   }
 
   function refreshCard(id) {
@@ -1184,18 +1291,19 @@
     });
   }
 
-  function openCopy(text) {
+  function openCopy(text, after, title) {
     var dlg = document.createElement('dialog');
-    dlg.innerHTML = '<h2>Copy your reply</h2><p>No board server is running, so the reply goes through the clipboard. Paste it into your agent. With <code>cards serve</code>, Send writes it to disk instead.</p>' +
+    dlg.innerHTML = '<h2>' + esc(title || 'Copy your reply') + '</h2><p>No board server is running, so the reply goes through the clipboard. Paste it into your agent. With <code>cards serve</code>, Send writes it to disk instead.</p>' +
       '<textarea readonly aria-label="Reply text">' + esc(text) + '</textarea>' +
       '<div class="row"><button class="btn" data-close>Close</button><button class="send" data-copy>Copy</button></div>';
     document.body.appendChild(dlg);
     var ta = dlg.querySelector('textarea');
     function done(msg) {
+      dlg.close();
+      if (after) { after(msg); return; }
       D.sentRev = B.board.rev;
       saveDrafts();
       applyView();
-      dlg.close();
       toast(msg);
     }
     function copy() {
@@ -1212,7 +1320,7 @@
 
   function openHelp() {
     var keys = [['j / k', 'Next / previous card'], ['Enter', 'Open or close the card'], ['Esc', 'Clear focus'], ['n', 'Next card waiting on you'],
-      ['1 2 3', 'Claim / Gist / Full'], ['d', 'Desk or rack'], ['z', 'Desk zoom: Fit, 50%, 100%'], ['c', 'Note to the agent'], ['=  -  m', 'Keep / Drop / More'], ['r', 'Reply to the card'], ['Alt + arrows', 'Move the card'],
+      ['1 2 3', 'Claim / Gist / Full'], ['d', 'Desk or rack'], ['z', 'Desk zoom: Fit, 50%, 100%'], ['c', 'Message the agent'], ['=  -  m', 'Keep / Drop / More'], ['r', 'Reply to the card'], ['Alt + arrows', 'Move the card'],
       ['/', 'Find'], ['f', 'Next filter'], ['s', 'Next order'], ['Ctrl + Enter', 'Send'], ['Esc', 'Undo a send in its first 5 seconds']];
     var dlg = document.createElement('dialog');
     dlg.innerHTML = '<h2>Keys</h2><dl class="keys">' + keys.map(function (k) { return '<dt>' + k[0] + '</dt><dd>' + k[1] + '</dd>'; }).join('') + '</dl>' +
@@ -1253,9 +1361,13 @@
         if (r.status === 409) { notice('The board source has an error at line ' + j.errors[0].line + ': ' + j.errors[0].msg + '. Showing rev ' + B.board.rev + '.'); return; }
         if (!r.ok) throw new Error(r.status);
         var same = j.board.rev === B.board.rev && j.sends.length === B.sends.length && j.read === B.read;
+        var chatMoved = (j.chat || []).length !== (B.chat || []).length;
+        if (same && chatMoved) { B.chat = j.chat; renderChat(); notice(''); return; }
         if (same) { notice(''); return; }
-        // Never swap data under a text box: the DOM would point at cards the data no longer has.
-        var typing = document.activeElement && document.activeElement.tagName === 'TEXTAREA';
+        // Never swap data under a card's text box: the DOM would point at cards the
+        // data no longer has. The chat box is safe: its draft lives in D.note.
+        var act = document.activeElement;
+        var typing = act && act.tagName === 'TEXTAREA' && !act.closest('.chat');
         if (typing) { pendingData = j; notice('The agent updated the board. It refreshes when you leave the text box.'); return; }
         applyData(j);
       });
@@ -1278,6 +1390,8 @@
 
   function rerender(moved) {
     var y = window.scrollY;
+    var chatTa = document.activeElement && document.activeElement.closest && document.activeElement.closest('.chat') && document.activeElement;
+    var caret = chatTa ? [chatTa.selectionStart, chatTa.selectionEnd] : null;
     var box = deskBox();
     var at = box ? [box.scrollLeft, box.scrollTop] : null;
     var focus = S.focus;
@@ -1286,7 +1400,12 @@
     window.scrollTo(0, y);
     if (at && deskBox()) { deskBox().scrollLeft = at[0]; deskBox().scrollTop = at[1]; }
     (moved || []).forEach(function (id) { var el = cardEl(id); if (el && !reduced) el.classList.add('flash'); });
-    if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true });
+    if (caret && $('.chat textarea')) {
+      var ta = $('.chat textarea');
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(caret[0], caret[1]);
+      scrollThread();
+    } else if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true });
   }
 
   // ---------- events ----------
@@ -1331,7 +1450,9 @@
       if (a === 'reply' && card) toggleReply(card.dataset.id);
       else if (a === 'desk') toggleDesk();
       else if (a === 'arrange') arrange();
-      else if (a === 'note') toggleNote();
+      else if (a === 'chat') toggleChat();
+      else if (a === 'chat-send') chatSend();
+      else if (a === 'chat-undo') chatUndo();
       else if (a === 'send') send();
       else if (a === 'help') openHelp();
       return;
@@ -1531,11 +1652,14 @@
 
   document.addEventListener('keydown', function (e) {
     var t = e.target;
+    // In the chat box, Enter sends the message; Shift + Enter makes a new line.
+    if (t.matches && t.matches('.chat textarea') && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); return; }
     if (e.key === 'Escape') {
       if (document.querySelector('dialog[open]')) return;
       if (pendingSend) { e.preventDefault(); undoSend(); return; }
-      if (t.closest && t.closest('.note-dock')) { toggleNote(false); return; }
+      if (pendingChat) { e.preventDefault(); chatUndo(); return; }
+      if (t.closest && t.closest('.chat')) { toggleChat(false); return; }
       if (typingTarget(t)) { t.blur(); if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true }); return; }
       if (S.focus) { S.open.delete(S.focus); clearFocus(); }
       return;
@@ -1573,7 +1697,7 @@
       case 'n': nextWaiting(); break;
       case 'd': toggleDesk(); break;
       case 'z': if (deskOn()) cycleZoom(); break;
-      case 'c': e.preventDefault(); toggleNote(true); break;
+      case 'c': e.preventDefault(); toggleChat(true); break;
       case 'f': S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); break;
       case 's': S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast('Order: ' + $('[data-sort] option[value="' + S.sort + '"]').textContent); break;
       case '/': e.preventDefault(); $('[data-search]').focus(); break;

@@ -71,12 +71,33 @@ A line means "feeds into" and points to the card that uses the other one. The co
 - On the section layout, a line between far columns crosses each column in a gap between cards, never behind a card.
 - Two links between the same two cards draw one line. The more specific link wins.
 
-** The note to the agent is a dock in the bottom-left corner
+** You chat with the agent in a box in the bottom-right corner
 :PROPERTIES:
 :CUSTOM_ID: desk-note
 :BASIS: fact
 :END:
-The note about the whole board was a footer under the last section. It is now a dock that stays in reach in both views. Press =c= to open it. Esc closes it and keeps the draft. A blue dot shows a drafted note.
+The note about the whole board is now a chat. Press =c=, write, and press Enter: the message goes now, as its own round. The agent answers with =cards say=, and the answer shows in the box. A yellow-red dot on the closed box means that the agent wrote.
+
+#+caption: The chat box: your messages on the right, the agent's on the left
+#+begin_src sketch
+  ┌ The agent ───────── Your turn · Close ┐
+  │          ┌─────────────────────────┐  │
+  │          │ Also compare managed    │  │ ◄ you: blue
+  │          │ Kafka.   Round 1 · read │  │
+  │          └─────────────────────────┘  │
+  │ ┌─────────────────────────┐           │
+  │ │ Got it: a card is next. │           │ ◄ the agent
+  │ └─────────────────────────┘           │
+  │      The agent published rev 8        │ ◄ a revision
+  ├───────────────────────────────────────┤
+  │ Message the agent             [Send]  │
+  └───────────────────────────────────────┘
+#+end_src
+
+- Card answers still go together, with Send in the toolbar. A chat message goes alone and at once.
+- Esc in the first 5 seconds takes the message back into the box.
+- On a file page there is no server, so Send copies the message for you to paste.
+- The thread shows your rounds, the agent's messages and each revision that the agent published, in time order.
 
 ** Approve the desk canvas as built?
 :PROPERTIES:

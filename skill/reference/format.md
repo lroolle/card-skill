@@ -238,12 +238,15 @@ Log events:
 {"t":"rev","rev":4,"at":"...","hash":"..."}
 {"t":"send","round":2,"rev":4,"at":"...","via":"board","items":[...]}
 {"t":"read","round":2,"at":"..."}
+{"t":"say","at":"...","text":"Got it."}          the agent's chat message (cards say)
 ```
 
 Send items: `mark` (keep, drop, more), `choose` (value, default, state:
 confirmed, changed or untouched), `approve` (approve, reject or untouched),
 `answer`, `reply`, `order` (section, value), `note`. Each card item carries
-the card version `v` the human saw.
+the card version `v` the human saw. A round with only a `note` was sent from
+the chat box; the page shows the rounds, the `say` messages and each
+revision as one chat thread.
 
 ## The older markdown dialect
 

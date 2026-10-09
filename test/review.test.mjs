@@ -123,3 +123,17 @@ test('cli: boolean flags do not eat the board name; --title is literal', () => {
   assert.match(out, /^rev 1/);
   assert.throws(() => execFileSync('node', [CLI, 'new', 'Bad Name'], { cwd, stdio: 'pipe' }));
 });
+
+test('cli: cards say writes the agent\'s message to the log and the page; the thread is in time order', () => {
+  const cwd = tmp();
+  execFileSync('node', [CLI, 'new', 'q', '--pattern', 'decide'], { cwd });
+  execFileSync('node', [CLI, 'render', '--quiet', 'q'], { cwd });
+  const out = execFileSync('node', [CLI, 'say', 'q', 'Got', 'it.', '<b>no</b>'], { cwd, encoding: 'utf8' });
+  assert.match(out, /^said on q/);
+  const st = fold(readLog(path.join(cwd, '.cards/q')));
+  assert.deepEqual(st.says.map((m) => m.text), ['Got it. <b>no</b>']);
+  const html = fs.readFileSync(path.join(cwd, '.cards/q/board.html'), 'utf8');
+  assert.ok(html.includes('"who":"agent"'), 'the page carries the message');
+  assert.ok(!html.includes('<b>no</b>'), 'the message is data, never markup');
+  assert.throws(() => execFileSync('node', [CLI, 'say', 'q'], { cwd, stdio: 'pipe' }));
+});

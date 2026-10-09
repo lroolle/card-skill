@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE } from '../lib/board.mjs';
 import { lint, formatWarnings } from '../lib/lint.mjs';
 import { buildBoard, outline } from '../lib/compile.mjs';
-import { resolveBoard, listBoards, readLog, fold, unread, markRead, boardsRoot } from '../lib/store.mjs';
+import { resolveBoard, listBoards, readLog, fold, unread, markRead, boardsRoot, addSay } from '../lib/store.mjs';
 import { serve } from '../lib/serve.mjs';
 import '../runtime/digest.js';
 
@@ -24,6 +24,7 @@ const USAGE = `cards -- agent-native card boards
   cards serve [--port 4747]        live boards; replies are written to disk
   cards wait <board> [--timeout s] block until the human sends, then print it
   cards inbox [<board>] [--peek]   print unread replies and mark them read
+  cards say <board> "message"      answer the human in the board's chat
 
 A <board> is a name under .cards/, a directory, or a board.org path.
 An older board.md is read as well.
@@ -170,6 +171,20 @@ const commands = {
     let total = 0;
     for (const ref of refs) total += printUnread(ref, { peek: !!a.peek });
     if (!total && !a.quiet) console.log('no unread replies');
+  },
+
+  // The agent's side of the chat: a short message, shown in the chat box. It
+  // changes no card; anything the human should judge belongs on the board.
+  say(a) {
+    const ref = resolveBoard(a._[0]);
+    const text = a._.slice(1).join(' ').trim();
+    if (!text) die('cards say <board> "message"');
+    if (text.length > 2000) die('a chat message is 2000 characters at most; put longer content on the board', 1);
+    if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
+    addSay(ref.dir, text);
+    const r = buildBoard(ref, { cwd: process.cwd() });
+    if (r.errors.length) die(`said; but the board has errors, so board.html was not rebuilt:\n${formatErrors(r.errors, rel(ref.file))}`, 1);
+    console.log(`said on ${ref.id}. A served page shows it now; a file page shows it after a reload.`);
   },
 
   help() { console.log(USAGE); },

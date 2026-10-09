@@ -260,3 +260,26 @@ Rejected: free placement that the agent sees or that edits `board.org`; a
 force layout (it moves on every change); pixel zoom without semantic zoom
 (Claim, Gist and Full still change what a card shows).
 Tests: `test/e2e.test.mjs` "desk canvas".
+
+## D18. The board note becomes a direct chat with the agent
+
+2026-10-09. Accepted (the human asked: move it to the right, make it a direct
+chat). Supersedes the note-dock part of D17.
+A chat box in the bottom-right corner (`c`). Enter sends a message now, as
+its own round with one `note` item, apart from the card answers; Esc or Undo
+holds it back for 5 s, as with Send. The agent answers with `cards say
+<board> "..."`, a `say` event in `log.jsonl` that changes no card; a served
+page shows it at once, a file page after a reload. The thread shows your
+rounds, the agent's messages and each published revision, in time order. A
+new agent message puts a yellow-red dot on the closed box. Without a server,
+Send copies only the message.
+Why: a note about the whole board is a conversation, and it was hidden in a
+form field that waited for the batch Send. Card answers stay one batch
+(D1): judgments are batched, conversation is not.
+Cost: a chat round wakes `cards wait` while the human may still be marking
+cards; SKILL.md tells the agent to answer briefly with `cards say` and to put
+anything to judge on the board.
+Rejected: the agent replying by editing the board lede (it is not a
+conversation, and it would be a revision); a chat that also carries the card
+drafts (it would split the batch silently).
+Tests: `test/e2e.test.mjs` "chat", `test/review.test.mjs` "cards say".

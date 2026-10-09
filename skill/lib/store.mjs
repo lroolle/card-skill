@@ -82,7 +82,8 @@ export function append(dir, events) {
 
 // fold(events) -> the state the log describes
 export function fold(events) {
-  const st = { rev: 0, boardHash: null, cards: new Map(), gone: new Set(), nextN: 1, sends: [], read: 0 };
+  const st = { rev: 0, boardHash: null, cards: new Map(), gone: new Set(), nextN: 1, sends: [], read: 0, says: [], revs: [] };
+  const perRev = new Map();
   for (const e of events) {
     if (e.t === 'card') {
       const prev = st.cards.get(e.id);
@@ -93,11 +94,13 @@ export function fold(events) {
       st.cards.set(e.id, entry);
       st.gone.delete(e.id);
       st.nextN = Math.max(st.nextN, e.n + 1);
+      perRev.set(e.rev, (perRev.get(e.rev) || 0) + 1);
     } else if (e.t === 'gone') st.gone.add(e.id);
     else if (e.t === 'back') st.gone.delete(e.id);
-    else if (e.t === 'rev') { st.rev = e.rev; st.boardHash = e.hash; }
+    else if (e.t === 'rev') { st.rev = e.rev; st.boardHash = e.hash; st.revs.push({ rev: e.rev, at: e.at, cards: perRev.get(e.rev) || 0 }); }
     else if (e.t === 'send') st.sends.push(e);
     else if (e.t === 'read') st.read = Math.max(st.read, e.round);
+    else if (e.t === 'say') st.says.push({ at: e.at, text: e.text });
   }
   return st;
 }
@@ -152,6 +155,13 @@ export function addSend(dir, { rev, items, via = 'board' }) {
   const st = fold(readLog(dir));
   const round = st.sends.length + 1;
   const ev = { t: 'send', round, rev, at: now(), via, items };
+  append(dir, ev);
+  return ev;
+}
+
+// addSay(dir, text): the agent's message in the board's chat. It changes no card.
+export function addSay(dir, text) {
+  const ev = { t: 'say', at: now(), text: String(text) };
   append(dir, ev);
   return ev;
 }
