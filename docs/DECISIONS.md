@@ -627,3 +627,24 @@ Rejected: writing the ids during `render` (a render that changes its own
 input surprises the agent that holds the file open); a short one-line id
 syntax of our own (not Org).
 Tests: `test/loop.test.mjs` "ids".
+
+## D35. A tagged version is closed; the next change of the skill opens a new one
+
+2026-10-09. Built. Completes D25.
+Found on our own release. v0.1.0 was tagged, and then 8 commits changed 17
+files of `skill/` under the same number: three commands, the font, the
+address options. A board rendered by a copy of the tag and then by a copy
+of main got no note, because both copies said "cards 0.1.0". The update
+was silent again, which is what D25 was built to stop.
+Rule: once `v<VERSION>` is a tag, `skill/` stays as tagged. The first
+change after it raises VERSION and opens a section in `skill/CHANGES.md`.
+A test fails otherwise. CHANGES.md for 0.1.0 is again what the tag said;
+what came after is 0.2.0.
+Why a test and not a habit: the habit failed on the first release.
+Cost: CI fetches the whole history for the tags. Between two tags, two
+copies made from main at different commits still share one number, so a
+version should be tagged soon after it is opened.
+Rejected: a hash of `skill/` in the name of the build. It finds every
+change but cannot say what changed, and CHANGES.md is written by version.
+Tests: `test/loop.test.mjs` "version: skill/ does not change under a
+version that is already tagged".

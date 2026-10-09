@@ -20,8 +20,12 @@ jobs:
       CARDS_BROWSER: ${{ matrix.browser }}
       CARDS_EMACS: required
       CARDS_FONT: required
+      CARDS_GIT: required
     steps:
+      # The whole history, for the release tags: a test compares skill/ with the tag of its version.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22

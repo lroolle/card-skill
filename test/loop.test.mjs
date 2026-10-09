@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { parseBoard } from '../skill/lib/board.mjs';
 import { lint } from '../skill/lib/lint.mjs';
 import { buildBoard } from '../skill/lib/compile.mjs';
@@ -277,6 +277,21 @@ test('translations: sibling boards link to each other, and check says where one 
 
   fs.writeFileSync(zh.file, ZH.replace('#+translation_of: watch', '#+translation_of: nowhere'));
   assert.match(fails(cwd, ['check', 'watch-zh']), /#\+translation_of: nowhere names no other board next to this one/);
+});
+
+// A release is the tag v<VERSION>. From then on that number means skill/ as
+// tagged: a later change under the same number is an update that the note
+// below never reports. CI sets CARDS_GIT=required and fetches the tags.
+test('version: skill/ does not change under a version that is already tagged', (t) => {
+  const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  const tags = git(['tag', '-l', 'v*']);
+  if (tags.status !== 0 || !tags.stdout.trim()) {
+    if (process.env.CARDS_GIT === 'required') throw new Error('CARDS_GIT=required, but this checkout has no release tags');
+    return t.skip('no release tags in this checkout');
+  }
+  if (git(['rev-parse', '-q', '--verify', `refs/tags/v${VERSION}`]).status !== 0) return; // not released yet
+  const changed = git(['diff', '--name-only', `v${VERSION}`, '--', 'skill']).stdout.trim();
+  assert.equal(changed, '', `skill/ changed after v${VERSION} was tagged. Raise VERSION in skill/lib/version.mjs and open its section in skill/CHANGES.md.`);
 });
 
 test('version: one number everywhere, and a render by another build is said once', () => {

@@ -3,7 +3,7 @@ name: card-skill
 description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up. Not for one answer, one explanation, or chat.
 license: MIT
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # card-skill
@@ -19,7 +19,7 @@ Wherever this file or the CLI's own output says `cards`, run:
 node <skill>/bin/cards.mjs <command>
 ```
 
-This is cards 0.1.0. `cards render` ends with the version of the build
+This is cards 0.2.0. `cards render` ends with the version of the build
 that ran. If it names another version, this text is older than the code: a
 session keeps the SKILL.md it loaded at its start. Read `<skill>/SKILL.md`
 and `<skill>/CHANGES.md` again from disk. Do not edit this copy of the

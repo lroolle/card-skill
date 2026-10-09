@@ -15,3 +15,4 @@
 {"t":"card","id":"cutover","n":7,"v":2,"rev":3,"at":"2026-10-09T13:33:13.655Z","hash":"a29d3a41d0711c8a","src":"** 迁移到 NATS：先双写一周，再切换\n:PROPERTIES:\n:CUSTOM_ID: cutover\n:ASK: approve\n:NEEDS: pick-queue\n:END:\n这个方案是按 NATS 写的。如果你在上面选了别的队列，看板会暂缓这一项，等 Agent 重写方案。\n\n#+caption: 切换过程：两个队列同时接收全部消息，持续一周\n#+begin_src flow\n  生产者 -> 旧队列\n  生产者 -> NATS: 双写\n  旧队列 -> 消费者\n  NATS -> 比对: 持续一周\n  比对 -> 切换: 一致后\n#+end_src","fmt":"org"}
 {"t":"rev","rev":3,"at":"2026-10-09T13:33:13.655Z","hash":"b2e7c5c9b98bc448"}
 {"t":"font","v":"embedded","at":"2026-10-09T13:33:15.636Z"}
+{"t":"build","v":"0.2.0","at":"2026-10-09T17:52:12.810Z"}

@@ -4,6 +4,40 @@ For the agent that writes boards. Newest first. Each line says what is
 different for you, not how it was built. `cards --version` names this build;
 `cards check` says when a board was last rendered by another one.
 
+## 0.2.0
+
+New
+- `cards ids <board>` writes a `:CUSTOM_ID:` for every card that has none,
+  so you can write a card as a heading and its text. The id is written
+  once; it stays when the claim changes.
+- Each render writes `.cards/index.html`, the list of the project's boards
+  with their open asks; every board links back to it.
+- `cards hook` prints the lines for a Claude Code hook that hands you unread
+  replies with the human's next message. Show them; do not install them
+  yourself.
+- `cards export --home <url>` gives a published copy a "Back" link.
+- A Chinese, Japanese or Korean board carries a subset of an open font in
+  the page, when the machine has one and has fonttools. `cards render`
+  says once whether it does.
+- A page takes `?view=`, `?level=`, `?embed` (in a frame) and `?fresh` (a
+  sample; nothing is kept) in its address.
+- SKILL.md: when a board is in use, ask on the board and nowhere else; the
+  link is the hand-over.
+
+Changed
+- Figures are numbered in the order of the source, also a picture inside a
+  list or a quote. `cards check` warns when such a picture has no caption.
+- The size of an AVIF or SVG picture is read exactly.
+
+Fixed
+- On a touch screen, the reading view at Claim set each claim one letter
+  per line.
+- The Chinese buttons: 49 strings corrected by a second reader.
+
+Checked against Org itself
+- Every template passes `org-lint` in Emacs, and Emacs reads the same
+  cards from a board as `cards` does. The tests run both.
+
 ## 0.1.0
 
 The first public version. If you wrote boards with an earlier copy, these
@@ -34,16 +68,6 @@ New
   `:NEEDS: a=*` waits for any answer.
 - `cards render` ends with the version of the build, so you can tell when
   the SKILL.md in your context is older than the code.
-- SKILL.md: when a board is in use, ask on the board and nowhere else; the
-  link is the hand-over.
-- Each render writes `.cards/index.html`, the list of the project's boards
-  with their open asks; every board links back to it.
-- `cards hook` prints the lines for a Claude Code hook that hands you unread
-  replies with the human's next message. Show them; do not install them
-  yourself.
-- `cards export --home <url>` gives a published copy a "Back" link.
-- `cards ids <board>` writes a `:CUSTOM_ID:` for every card that has none,
-  so you can write a card as a heading and its text.
 - `cards ingest`: records a reply the human pasted, so the board shows the
   answers. `cards settle`: marks the answered asks DONE.
 - `cards export <board> --out <dir>`: a copy to publish, with no replies,
@@ -58,15 +82,6 @@ New
   `#+include: "f" src js :lines "10-40"` for an excerpt.
 - `cards check` warns about a `#+keyword:` or a block type this build does
   nothing with.
-- A Chinese, Japanese or Korean board carries a subset of an open font in
-  the page, when the machine has one and has fonttools. `cards render`
-  says once whether it does.
-- A page takes `?view=`, `?level=`, `?embed` (in a frame) and `?fresh` (a
-  sample; nothing is kept) in its address.
-
-Checked against Org itself
-- Every template passes `org-lint` in Emacs, and Emacs reads the same
-  cards from a board as `cards` does. The tests run both.
 
 The page
 - The desk opens at the most detail that fits the window at a readable size,
