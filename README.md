@@ -86,6 +86,8 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
   drawing of a flow. They travel inside the one HTML file.
 - **Two views.** The desk lays every card on a table and draws the links
   between them. The rack is a column for reading.
+- **A list of boards.** `.cards/index.html` shows every board of a project
+  and how many asks are open on each.
 - **Plain Org underneath.** `board.org` is an outline that Emacs folds and
   GitHub renders. The tests run `org-lint` on every board.
 - **Your language.** The buttons follow the board's language (English and
@@ -105,6 +107,7 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
 | `cards ingest <board>` | record a reply the human pasted |
 | `cards settle <board>` | mark the answered asks `DONE` |
 | `cards say <board> "..."` | answer in the board's chat |
+| `cards hook` | the lines for a Claude Code hook that hands the agent unread replies |
 | `cards export <board> --out <dir>` | a copy to publish: no replies, no history, no local path |
 | `cards shot <board>` | a picture of the page, where Playwright is installed |
 
@@ -170,7 +173,7 @@ DESIGN.md, TASTE.md   the visual material and its rulings
 npm test
 ```
 
-106 tests. The browser tests need Playwright and skip without it; three
+108 tests. The browser tests need Playwright and skip without it; three
 tests need Emacs (they run `org-lint` on the boards) and skip without it.
 On GitHub nothing skips: the suite runs in Chromium, Firefox and WebKit
 (`CARDS_BROWSER`), with Emacs and with the font tools.

@@ -6,7 +6,7 @@ comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
-`npm test`: 106 tests. 19 of them drive a real browser; on GitHub they run
+`npm test`: 108 tests. 19 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
@@ -33,6 +33,8 @@ from `site/` and the boards under `.cards/`.
 - `cards export`: a test reads the output for replies, chat, history and
   paths.
 - Translations: links between sibling boards, and the drift checks.
+- The list of a project's boards (`.cards/index.html`), and `cards hook`
+  for replies that arrive with the human's next message.
 - The file fences: no file from outside the project, no hidden file, no
   file named like a secret gets into a page.
 

@@ -390,6 +390,7 @@
         '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="mark-tab" d="' + MARK_TAB + '"/><path d="' + MARK_CARD + '"/></svg></a>' : '') +
       '<span class="lamp" data-turn="' + now.k + '" role="status"><i></i><span>' + esc(now.text) + '</span></span>' +
       '<span class="stat">' + esc(stat.join(' · ')) + '</span>' + langsHtml() +
+      (B.board.home ? '<a class="home" href="' + esc(B.board.home) + '">' + esc(t(B.public ? 'home_back' : 'all_boards')) + '</a>' : '') +
       '<span class="path">' + esc(B.board.path) + '</span></div>' +
       '<div class="notice" id="notice" hidden></div>' +
       '<h1 class="title">' + esc(B.board.title) + '</h1>' +

@@ -29,6 +29,8 @@
   "stat_by": "by {author}",
   "mark_title": "Made with cards {version}",
   "langs_label": "This board in other languages",
+  "all_boards": "All boards",
+  "home_back": "Back",
   "rail_label": "Asks on this board",
   "empty_board": "No cards yet. The agent writes them into {path}.",
   "empty_yours": "Nothing is waiting on you.",

@@ -36,6 +36,12 @@ New
   the SKILL.md in your context is older than the code.
 - SKILL.md: when a board is in use, ask on the board and nowhere else; the
   link is the hand-over.
+- Each render writes `.cards/index.html`, the list of the project's boards
+  with their open asks; every board links back to it.
+- `cards hook` prints the lines for a Claude Code hook that hands you unread
+  replies with the human's next message. Show them; do not install them
+  yourself.
+- `cards export --home <url>` gives a published copy a "Back" link.
 - `cards ingest`: records a reply the human pasted, so the board shows the
   answers. `cards settle`: marks the answered asks DONE.
 - `cards export <board> --out <dir>`: a copy to publish, with no replies,

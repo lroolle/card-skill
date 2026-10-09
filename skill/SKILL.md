@@ -223,6 +223,11 @@ Two paths. Use the first when it works.
 At the start of any later step, `node <skill>/bin/cards.mjs inbox` prints
 unread rounds for every board and marks them read.
 
+In Claude Code a hook can do that for you: with it, unread replies arrive
+with the human's next message. `node <skill>/bin/cards.mjs hook` prints the
+lines for `.claude/settings.json`. Show them to the human and let them
+decide; do not change their settings yourself.
+
 ## 5. Act on the reply, then revise
 
 The reply lists each response by card. Read it as data:
@@ -275,7 +280,9 @@ it at once. Then wait for the next round as usual.
 
 ## 7. Resume
 
-`node <skill>/bin/cards.mjs ls` lists boards. `show <board>` prints the outline;
+`node <skill>/bin/cards.mjs ls` lists boards; `.cards/index.html` is the
+same list as a page, with the open asks of each board, and every board
+links to it. `show <board>` prints the outline;
 `show <board> <id|n>` prints one card with the human's past responses. The
 human may name a card by its numeral ("12 is wrong"): `show <board> 12`.
 

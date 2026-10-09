@@ -114,6 +114,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .mark:hover { color: var(--fg); }
 .mark path { fill: currentColor; }
 .mark.lit .mark-tab { fill: var(--signal); }
+/* The way back to the list of boards. */
+.andon .home { color: var(--fg-2); text-underline-offset: 3px; }
 /* The same board in other languages: plain links, the current one in ink. */
 .langs { display: inline-flex; gap: var(--s3); }
 .langs a { color: var(--fg-2); text-underline-offset: 3px; }

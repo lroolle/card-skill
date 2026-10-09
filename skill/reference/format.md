@@ -352,6 +352,12 @@ A warning does not stop a render. Each one is a writing rule:
 | `board.org` | you | the only file you edit |
 | `log.jsonl` | the CLI and the server | append-only; one JSON event per line |
 | `board.html` | `cards render` | self-contained; safe to delete |
+| `../index.html` | `cards render` | the list of the project's boards, in `.cards/`; safe to delete |
+
+Each render also writes `.cards/index.html`: every board of the project
+with its title, its revision and its open asks, the boards with open asks
+first. A board page links back to it ("All boards"). `cards serve` shows the
+same list at `/`. A board outside a `.cards` directory gets no list.
 
 Each render compares the meaning of every card (its claim, attributes and
 rendered body) with its last recorded version. A changed meaning gets a new
@@ -414,7 +420,9 @@ a public page. The copy holds the board as it is now: no replies, no chat,
 no past versions of cards, no path on your disk. A file shown as a chip is
 copied to `<dir>/files/`. Boards that translate each other link as
 `../<board>/index.html`: export each one into a folder with its own name,
-side by side. The export records nothing in `log.jsonl`.
+side by side. The export records nothing in `log.jsonl`. `--home <url>`
+gives the copy a "Back" link to the page that links to it; without it a
+copy has none.
 
 ## A font in the page
 

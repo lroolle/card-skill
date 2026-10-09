@@ -34,9 +34,12 @@ const USAGE = `cards -- agent-native card boards
   cards ingest [<board>]           record a reply the human pasted (text on stdin, or --file)
   cards settle <board> [id ...]    mark answered asks DONE in board.org
   cards say <board> "message"      answer the human in the board's chat
+  cards hook                       the lines for a Claude Code hook that hands you
+                                   unread replies with the human's next message
 
   cards export <board> --out <dir> a copy to publish: <dir>/index.html, with no
                                    replies, no history and no local path
+                                   [--home <url>]: where its "Back" link goes
   cards shot <board> [--out f.png] a picture of the page as the human sees it
                                    [--view desk|rack] [--level claim|gist|full]
                                    [--width 1440] [--height 900] (needs playwright)
@@ -305,7 +308,7 @@ const commands = {
   // nothing else: no replies, no chat, no past versions, no path on this disk.
   export(a) {
     const ref = resolveBoard(a._[0]);
-    const out = typeof a.out === 'string' ? path.resolve(a.out) : die('cards export <board> --out <dir>');
+    const out = typeof a.out === 'string' ? path.resolve(a.out) : die('cards export <board> --out <dir> [--home <url>]');
     const copies = new Map(); // file on disk -> name beside the page
     const chipHref = (asset) => {
       if (asset.kind === 'dir') return null;
@@ -316,7 +319,8 @@ const commands = {
       }
       return `files/${encodeURIComponent(copies.get(asset.abs))}`;
     };
-    const r = buildBoard(ref, { publish: true, write: false, chipHref });
+    // --home: where the copy's "Back" link goes (the page that links to it); none without it.
+    const r = buildBoard(ref, { publish: true, write: false, chipHref, home: typeof a.home === 'string' ? a.home : null });
     if (r.errors.length) die(formatErrors(r.errors, rel(ref.file)), 1);
     fs.mkdirSync(out, { recursive: true });
     fs.writeFileSync(path.join(out, 'index.html'), r.html);
@@ -366,6 +370,18 @@ const commands = {
       console.log(`wrote ${rel(out)}: the ${/view-desk/.test(view.cls) ? 'desk' : 'rack'} at ${level}${/view-desk/.test(view.cls) ? `, ${Math.round(view.scale * 100)}%` : ''}.${view.hidden ? ` ${view.hidden} figure${view.hidden > 1 ? 's are' : ' is'} not shown at this level.` : ''}`);
       if (!/^en/i.test(r.data.board.lang)) console.log('If the text shows as boxes, this machine has no font for the language; the human\'s browser will have one.');
     } finally { await browser.close(); }
+  },
+
+  // Replies that arrive on their own: the lines for a Claude Code hook. The
+  // agent shows them to the human; it does not edit the human's settings itself.
+  hook() {
+    const command = `node ${JSON.stringify(path.join(SKILL, 'bin', 'cards.mjs'))} inbox --quiet`;
+    const snippet = { hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }] } };
+    console.log('With this hook, Claude Code runs `cards inbox` each time the human sends a message.');
+    console.log('Unread replies from every board under .cards/ then reach the agent with that message,');
+    console.log('and are marked read. Merge it into .claude/settings.json of the project (or of the user):\n');
+    console.log(JSON.stringify(snippet, null, 2));
+    console.log('\nIt prints nothing when no reply waits. Ask the human before you change their settings.');
   },
 
   version() { console.log(`cards ${VERSION}\n${HOME}\nWhat changed: ${path.join(SKILL, 'CHANGES.md')}`); },

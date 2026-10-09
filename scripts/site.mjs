@@ -50,7 +50,8 @@ function build(dir) {
   fs.cpSync(path.join(ROOT, 'site'), dir, { recursive: true });
   for (const id of BOARDS) {
     // Say which boards carry their own font: on a machine without one, the Chinese sample would not.
-    const font = cards('export', id, '--out', path.join(dir, id)).split('\n').find((l) => l.startsWith('font:'));
+    // Each board links back to the landing page in its own language.
+    const font = cards('export', id, '--out', path.join(dir, id), '--home', id === 'demo-zh' ? '../zh/index.html' : '../index.html').split('\n').find((l) => l.startsWith('font:'));
     if (font) console.log(`${id}: ${font}`);
   }
 

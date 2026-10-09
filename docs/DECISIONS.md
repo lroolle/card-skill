@@ -571,3 +571,40 @@ format that Org reads differently fails the build.
 Found by it: nothing, after D27. `org-lint` does flag the two faults our
 own check warns about (a blank line before a drawer, a link to a card that
 does not exist).
+
+## D32. A project has a list of its boards
+
+2026-10-09. Built. The human chose this in round 1 of the design review
+("a project index that links boards to each other").
+Each render writes `.cards/index.html`: every board with its title,
+revision and open asks, the boards with open asks first. Each board page
+links back ("All boards"). `cards serve` shows the same list at `/`. A
+published copy has no such link unless `cards export --home <url>` names
+the page that links to it.
+Why: with five boards nobody knows which one waits. The list is also the
+way back from a board, which a page opened from a link did not have.
+Cost: one more generated file in `.cards/`. It is rewritten on every
+render and never read by the tool.
+Rejected: a list only in the terminal (`cards ls`): the human is in the
+browser; a link from a published copy to a list on the writer's disk.
+This is the base of the roadmap's "agenda" direction, not the whole of it:
+the list counts asks per board; an agenda would list the asks themselves.
+Tests: `test/loop.test.mjs` "index".
+
+## D33. Replies can arrive on their own, by a hook the human installs
+
+2026-10-09. Built. The human chose this in round 1 ("a Claude Code hook that
+gives the agent unread replies").
+`cards hook` prints the lines for `.claude/settings.json`: a
+`UserPromptSubmit` hook that runs `cards inbox --quiet`. With it, replies
+that the human sent from a served board reach the agent with the human's
+next message, once, and print nothing when none waits.
+Why: the agent had to remember `cards wait` or `cards inbox`. A reply that
+nobody reads is the loop broken in silence.
+The agent prints the lines and the human decides: the tool does not edit
+settings, and SKILL.md tells the agent not to.
+Rejected: a command that writes the hook into the settings (an agent's tool
+must not change what runs on every message without the human's own hand);
+a Stop hook that blocks the agent until a reply arrives (it turns a
+question into a lock).
+Tests: `test/loop.test.mjs` "hook".

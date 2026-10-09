@@ -18,8 +18,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { buildBoard } from './compile.mjs';
 import { boardTitle, ID_RE } from './board.mjs';
-import { addSend, boardRef, listBoards, fold, readLog, unread } from './store.mjs';
+import { addSend, boardRef, boardsRoot } from './store.mjs';
 import { esc } from './md.mjs';
+import { indexRows, indexHtml } from './index.mjs';
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 const MAX_BODY = 256 * 1024;
@@ -175,18 +176,9 @@ export function serve({ cwd = process.cwd(), port = 4747, host = '127.0.0.1', lo
   });
 }
 
+// The same list that `cards render` writes to .cards/index.html, with live links.
 function indexPage(cwd) {
-  const rows = listBoards(cwd).filter((ref) => ID_RE.test(ref.id)).map((ref) => {
-    const st = fold(readLog(ref.dir));
-    const title = boardTitle(fs.readFileSync(ref.file, 'utf8'), ref.file) || ref.id;
-    const n = unread(st).length;
-    return `<li><a href="/b/${ref.id}">${esc(title)}</a><span>${esc(ref.id)} · rev ${st.rev}${n ? ` · ${n} unread` : ''}</span></li>`;
-  });
-  return `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>cards</title>
-<style>body{font:15px/1.5 system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1.5rem;color:#22252b;background:#eef0f2}
-h1{font-size:1.25rem;font-weight:600}ul{list-style:none;padding:0}li{display:flex;justify-content:space-between;gap:1rem;padding:.75rem 0;border-top:1px solid #d5d9de}
-a{color:inherit;font-weight:600}span{color:#5d6470;font-size:.875rem}</style>
-<h1>Boards</h1><ul>${rows.join('') || '<li>No boards yet. Run <code>cards new &lt;name&gt;</code>.</li>'}</ul>`;
+  return indexHtml(indexRows(boardsRoot(cwd)).filter((r) => ID_RE.test(r.id)), { live: true, name: 'Boards' });
 }
 
 function errorPage(id, errors) {

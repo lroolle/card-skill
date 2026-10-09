@@ -13,6 +13,7 @@ import { strings as uiStrings, t } from './i18n.mjs';
 import { family, translationChecks } from './siblings.mjs';
 import { VERSION, HOME } from './version.mjs';
 import { boardFont } from './font.mjs';
+import { writeIndex, isBoardsRoot } from './index.mjs';
 import '../runtime/digest.js';
 
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
@@ -80,7 +81,7 @@ function pastView(src, fmt, ctx) {
 // publish: the page leaves the machine (`cards export`). It then carries the
 // board as it is now and nothing else: no replies, no chat, no past versions,
 // no path on this disk.
-export function pageData(board, st, ref, { live = false, token = null, cwd = process.cwd(), publish = false, chipHref = null } = {}) {
+export function pageData(board, st, ref, { live = false, token = null, cwd = process.cwd(), publish = false, chipHref = null, home = null } = {}) {
   const byId = new Map(board.cards.map((c) => [c.id, c]));
   const nOf = (id) => st.cards.get(id)?.n ?? '?';
   const sx = syntaxOf(board.fmt);
@@ -149,6 +150,9 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       rev: st.rev,
       path: publish ? '' : displayPath(cwd, ref.file),
       generated: new Date().toISOString(),
+      // The way back: the list of this project's boards (lib/index.mjs), or for a
+      // published copy the page its publisher names (`cards export --home`).
+      home: publish ? (home || '') : live ? '/' : ref && ref.dir && isBoardsRoot(path.dirname(ref.dir)) ? '../index.html' : '',
       // The same board in other languages (lib/siblings.mjs).
       langs: family(ref, board).map((m) => ({ id: m.id, lang: m.lang, self: m.self, href: hrefOf(m.id) })),
     },
@@ -257,7 +261,7 @@ export function pageHtml(data, { fontCss = '' } = {}) {
 }
 
 // buildBoard(ref) -> { errors, warnings, data, html, sync }
-export function buildBoard(ref, { live = false, token = null, write = true, cwd = process.cwd(), publish = false, chipHref = null } = {}) {
+export function buildBoard(ref, { live = false, token = null, write = true, cwd = process.cwd(), publish = false, chipHref = null, home = null } = {}) {
   if (!fs.existsSync(ref.file)) {
     return { errors: [{ line: 0, msg: `no board at ${path.relative(cwd, ref.file)}`, fix: `cards new ${ref.id}` }], warnings: [] };
   }
@@ -281,7 +285,7 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
   const marked = write && !publish ? markBuild(ref.dir, VERSION) : null;
   const built = marked && before.rev > 0 ? { from: before.build } : null;
   const st = fold(publish ? [...readLog(ref.dir), ...syncRes.events] : readLog(ref.dir));
-  const data = pageData(board, st, ref, { live, token, cwd, publish, chipHref });
+  const data = pageData(board, st, ref, { live, token, cwd, publish, chipHref, home });
   // A Chinese, Japanese or Korean board carries a subset of an open font, when this machine can make one.
   const font = boardFont(board.lang, JSON.stringify([data.board, data.sections, data.cards, data.strings]));
   const html = pageHtml(data, { fontCss: font.css });
@@ -289,6 +293,8 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
     fs.writeFileSync(path.join(ref.dir, 'board.html'), html);
     // Said by the caller once, when it changes: the font is in the page, or it is not and why.
     if (font.state !== 'none' && markFont(ref.dir, font.state)) font.changed = true;
+    // The list of this project's boards moves with every render.
+    writeIndex(path.dirname(ref.dir));
   }
   return { board, errors: [], warnings, data, html, sync: syncRes, st, built, font };
 }

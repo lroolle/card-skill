@@ -398,3 +398,53 @@ test('review fixes: every command that writes the page says a new build once; a 
   fs.mkdirSync(path.join(cwd, '.cards', 'empty'));
   assert.match(cards(cwd, ['render', 'watch', '--quiet']), /^rev \d+/m);
 });
+
+test('index: every render writes the list of boards; a board links back to it; a published copy does not, unless told where', () => {
+  const { cwd, ref } = project();
+  const second = resolveBoard('plan', cwd);
+  fs.mkdirSync(second.dir, { recursive: true });
+  fs.writeFileSync(second.file, '#+title: A plan with <b>no</b> asks\n\n** DONE The first step is done\n:PROPERTIES:\n:CUSTOM_ID: one\n:END:\nGist.\n');
+  cards(cwd, ['render', 'watch', '--quiet']);
+  cards(cwd, ['render', 'plan', '--quiet']);
+  const index = fs.readFileSync(path.join(cwd, '.cards', 'index.html'), 'utf8');
+  // The board with open asks comes first; a title is text, never markup.
+  assert.ok(index.indexOf('Pick the band') < index.indexOf('A plan with'), 'what waits comes first');
+  assert.match(index, /<a href="watch\/board\.html" lang="en">Pick the band<\/a><span class="wait"><i><\/i>5 open asks<\/span><span class="meta">watch · rev 1 · 5 cards<\/span>/);
+  assert.match(index, /A plan with &lt;b&gt;no&lt;\/b&gt; asks<\/a><span class="idle">no open ask<\/span>/);
+  assert.match(index, /<title>\(5\) Boards of /);
+  // An answer on disk takes its ask off the count.
+  cards(cwd, ['ingest', 'watch'], 'cards: reply from the board "Pick the band" (watch)\nrev 1 · reply 0000bbbb\n\n  #4 verify   do   done\n');
+  cards(cwd, ['render', 'watch', '--quiet']);
+  assert.match(fs.readFileSync(path.join(cwd, '.cards', 'index.html'), 'utf8'), /4 open asks/);
+
+  const data = (html) => JSON.parse(html.match(/<script type="application\/json" id="board-data">([\s\S]*?)<\/script>/)[1]);
+  assert.equal(data(fs.readFileSync(path.join(ref.dir, 'board.html'), 'utf8')).board.home, '../index.html');
+  cards(cwd, ['export', 'watch', '--out', path.join(cwd, 'out', 'a')]);
+  assert.equal(data(fs.readFileSync(path.join(cwd, 'out', 'a', 'index.html'), 'utf8')).board.home, '', 'a published copy does not point at a list on your disk');
+  cards(cwd, ['export', 'watch', '--out', path.join(cwd, 'out', 'b'), '--home', '../index.html']);
+  assert.equal(data(fs.readFileSync(path.join(cwd, 'out', 'b', 'index.html'), 'utf8')).board.home, '../index.html');
+  assert.ok(!fs.existsSync(path.join(cwd, 'out', 'index.html')), 'an export writes no list');
+
+  // A board that lives outside a .cards directory gets no list written beside it.
+  const loose = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-loose-'));
+  fs.mkdirSync(path.join(loose, 'notes', 'b'), { recursive: true });
+  fs.writeFileSync(path.join(loose, 'notes', 'b', 'board.org'), '#+title: T\n\n** A claim that stands\n:PROPERTIES:\n:CUSTOM_ID: a\n:END:\nGist.\n');
+  cards(loose, ['render', 'notes/b', '--quiet']);
+  assert.ok(!fs.existsSync(path.join(loose, 'notes', 'index.html')));
+});
+
+test('hook: cards hook prints the settings lines that hand the agent unread replies', () => {
+  const { cwd, ref } = project();
+  const out = cards(cwd, ['hook']);
+  const snippet = JSON.parse(out.slice(out.indexOf('{'), out.lastIndexOf('}') + 1));
+  const command = snippet.hooks.UserPromptSubmit[0].hooks[0].command;
+  assert.match(command, /^node ".*bin\/cards\.mjs" inbox --quiet$/);
+  assert.match(out, /Ask the human before you change their settings\./);
+  // The command itself: silent with nothing to read, then the reply once.
+  cards(cwd, ['render', 'watch', '--quiet']);
+  const run = () => execFileSync('sh', ['-c', command], { cwd, encoding: 'utf8' });
+  assert.equal(run(), '');
+  addSend(ref.dir, { rev: 1, items: [{ card: 'verify', v: 1, kind: 'do', value: 'done' }] });
+  assert.match(run(), /reply from the board "Pick the band" \(watch\)[\s\S]*#4 verify\s+do\s+done/);
+  assert.equal(run(), '', 'read once');
+});

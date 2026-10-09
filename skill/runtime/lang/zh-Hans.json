@@ -29,6 +29,8 @@
   "stat_by": "作者：{author}",
   "mark_title": "由 cards {version} 生成",
   "langs_label": "这个看板的其他语言版本",
+  "all_boards": "全部看板",
+  "home_back": "返回",
   "rail_label": "等你处理的卡片",
   "empty_board": "还没有卡片。Agent 会把卡片写进 {path}。",
   "empty_yours": "没有等你处理的卡片。",
