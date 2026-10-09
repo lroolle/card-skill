@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { parseBoard, anatomy, syntaxOf, parseCard } from './board.mjs';
 import { lint } from './lint.mjs';
 import { esc, renderBlocks, parseFacts } from './md.mjs';
-import { renderFigure, isFigure, WIDE } from './figure.mjs';
+import { renderFigure, isFigure, figuresIn, WIDE } from './figure.mjs';
 import { resolveAssets, assetHtml, assetKey, imageFigure } from './assets.mjs';
 import { sync, fold, readLog, markBuild, markFont } from './store.mjs';
 import { strings as uiStrings, t } from './i18n.mjs';
@@ -52,12 +52,15 @@ function figureOf(b, label, ctx) {
 function cardView(card, ctx, n = '?') {
   const a = card.anatomy || anatomy(card);
   const inline = ctx.inline;
-  let k = 0;
+  // A figure's number is its place in the source, wherever the page shows it:
+  // a picture inside a list that comes first is Fig. n.1.
+  const place = new Map(figuresIn(a.blocks || []).map((b, k) => [b, k + 1]));
+  const label = (b) => `${n}.${place.get(b) || place.size + 1}`;
   const fctx = {
     ...ctx,
-    figure: (b) => (isFigure(b) ? figureOf(b, `${n}.${++k}`, ctx).html : null),
+    figure: (b) => (isFigure(b) ? figureOf(b, label(b), ctx).html : null),
   };
-  const fig = a.figure ? figureOf(a.figure, `${n}.${++k}`, ctx) : null;
+  const fig = a.figure ? figureOf(a.figure, label(a.figure), ctx) : null;
   return {
     title_html: inline(card.title, ctx),
     gist_html: a.gist ? `<p>${inline(a.gist.text, ctx)}</p>` : '',

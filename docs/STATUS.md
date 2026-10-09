@@ -6,7 +6,7 @@ comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
-`npm test`: 109 tests. 19 of them drive a real browser; on GitHub they run
+`npm test`: 110 tests. 19 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
@@ -56,8 +56,6 @@ from `site/` and the boards under `.cards/`.
 - The CJK font needs an open font and fonttools on the machine that
   renders; without them the page falls back to the system font and says so.
   Characters typed into a reply are not in the subset.
-- A picture inside a list gets no caption warning and no figure number.
-- The size of an AVIF or SVG picture is read approximately.
 - A published page has no way to send a reply except copy and paste.
 - A translation is written by hand, card by card; the tool only reports
   what fell behind.

@@ -85,15 +85,30 @@ export function imageSize(buf, ext) {
       if (chunk === 'VP8X') return [1 + buf.readUIntLE(24, 3), 1 + buf.readUIntLE(27, 3)];
     }
     if (ext === 'avif') {
-      const k = buf.indexOf('ispe');
-      if (k > 0) return [buf.readUInt32BE(k + 8), buf.readUInt32BE(k + 12)];
+      // An AVIF may hold more than one image (a thumbnail, an alpha plane), each with
+      // its own size box. The picture is the largest of them.
+      let best = null;
+      for (let k = buf.indexOf('ispe'); k > 0 && k + 16 <= buf.length; k = buf.indexOf('ispe', k + 4)) {
+        const [w, h] = [buf.readUInt32BE(k + 8), buf.readUInt32BE(k + 12)];
+        if (w > 0 && h > 0 && w < 65536 && h < 65536 && (!best || w * h > best[0] * best[1])) best = [w, h];
+      }
+      if (best) return best;
     }
     if (ext === 'svg') {
       const root = (buf.toString('utf8', 0, 4096).match(/<svg\b[^>]*>/i) || [''])[0];
-      const num = (name) => { const m = root.match(new RegExp(`\\s${name}\\s*=\\s*["']\\s*([\\d.]+)(px)?\\s*["']`, 'i')); return m ? +m[1] : null; };
+      // A length in CSS pixels. A percentage or a font-relative unit has no size of its own: the viewBox decides.
+      const PX = { '': 1, px: 1, pt: 96 / 72, pc: 16, in: 96, cm: 96 / 2.54, mm: 96 / 25.4 };
+      const num = (name) => {
+        const m = root.match(new RegExp(`\\s${name}\\s*=\\s*["']\\s*([\\d.]+)\\s*([a-z%]*)\\s*["']`, 'i'));
+        return m && m[2].toLowerCase() in PX ? +m[1] * PX[m[2].toLowerCase()] : null;
+      };
       const vb = root.match(/viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
-      const w = num('width') ?? (vb ? +vb[1] : null);
-      const h = num('height') ?? (vb ? +vb[2] : null);
+      let w = num('width');
+      let h = num('height');
+      // One side given: the other follows the viewBox's proportion.
+      if (vb && w && !h) h = w * +vb[2] / +vb[1];
+      if (vb && h && !w) w = h * +vb[1] / +vb[2];
+      if (vb && !w && !h) [w, h] = [+vb[1], +vb[2]];
       if (w && h) return [Math.round(w), Math.round(h)];
     }
   } catch { /* a short or odd header: no size */ }

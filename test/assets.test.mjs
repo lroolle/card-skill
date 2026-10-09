@@ -190,4 +190,38 @@ test('imageSize reads png, gif, jpeg, webp and svg headers', () => {
   assert.deepEqual(imageSize(webp, 'webp'), [100, 50]);
   assert.deepEqual(imageSize(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80">'), 'svg'), [120, 80]);
   assert.deepEqual(imageSize(Buffer.from('<svg width="30px" height="20" viewBox="0 0 120 80">'), 'svg'), [30, 20]);
+  // SVG lengths in real units; a percentage leaves the size to the viewBox; one side follows the other.
+  assert.deepEqual(imageSize(Buffer.from('<svg width="1in" height="25.4mm">'), 'svg'), [96, 96]);
+  assert.deepEqual(imageSize(Buffer.from('<svg width="100%" height="100%" viewBox="0 0 300 150">'), 'svg'), [300, 150]);
+  assert.deepEqual(imageSize(Buffer.from('<svg width="60" viewBox="0 0 120 80">'), 'svg'), [60, 40]);
+  assert.equal(imageSize(Buffer.from('<svg width="10em" height="5em">'), 'svg'), null);
+  // An AVIF with a thumbnail before the picture: the picture is the larger image.
+  const ispe = (w, h) => { const b = Buffer.alloc(20); b.writeUInt32BE(20, 0); b.write('ispe', 4); b.writeUInt32BE(w, 12); b.writeUInt32BE(h, 16); return b; };
+  assert.deepEqual(imageSize(Buffer.concat([Buffer.from('....ftypavif'), ispe(160, 90), ispe(1920, 1080), ispe(1920, 1080)]), 'avif'), [1920, 1080]);
+});
+
+test('figures are numbered in the order of the source, also inside a list; a picture in a list needs its caption too', async () => {
+  const { lint } = await import('../skill/lib/lint.mjs');
+  const p = project(`** The page changed in two places
+:PROPERTIES:
+:CUSTOM_ID: two
+:END:
+The header and the footer changed.
+
+- The header, before the change:
+
+  [[file:../../shots/desk.png]]
+
+#+caption: The footer
+[[file:../../shots/desk.png]]
+`);
+  const r = buildBoard(p.ref, { cwd: p.root });
+  assert.deepEqual(r.errors, []);
+  const card = r.data.cards.two;
+  // The picture in the list comes first in the source: it is Fig. 1.1, and the one under the gist is Fig. 1.2.
+  assert.match(card.depth_html, /<b>Fig\. 1\.1<\/b>/);
+  assert.match(card.figure_html, /<b>Fig\. 1\.2<\/b> The footer/);
+  const ws = lint(r.board).map((w) => [w.line, w.msg]);
+  assert.deepEqual(ws.filter(([, m]) => /has no caption/.test(m)).length, 1, 'the picture in the list has no caption, and that is said');
+  assert.equal(ws.find(([, m]) => /has no caption/.test(m))[0], 11, 'at the line of the list');
 });

@@ -612,7 +612,7 @@ function crossChecks(board) {
 export function anatomy(card) {
   const sx = syntaxOf(card.fmt);
   const blocks = sx.blocks(card.body);
-  const out = { gist: null, figure: null, facts: null, options: [], depth: [], refs: [] };
+  const out = { gist: null, figure: null, facts: null, options: [], depth: [], refs: [], blocks };
   let rest = blocks;
   if (rest[0]?.type === 'paragraph') { out.gist = rest[0]; rest = rest.slice(1); }
   for (const b of rest) {

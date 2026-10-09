@@ -3,7 +3,7 @@
 // Errors stop a render. Warnings do not; they are the writing rules from
 // SKILL.md made checkable, so an agent hears them at the moment it can act.
 
-import { LIMITS as FIG, parseFlow, sketchLines, cols, isFigure } from './figure.mjs';
+import { LIMITS as FIG, parseFlow, sketchLines, cols, isFigure, figuresIn } from './figure.mjs';
 import { syntaxOf } from './board.mjs';
 
 export const LIMITS = {
@@ -107,9 +107,12 @@ function steWarnings(c, warn, sx) {
 }
 
 function figureWarnings(c, warn0, sx) {
-  for (const b of sx.blocks(c.body)) {
-    if (!isFigure(b)) continue;
-    const warn = (_line, msg) => warn0(lineOf(c, b), msg);
+  const blocks = sx.blocks(c.body);
+  // A figure inside a list or a quote is checked as well; its warning points at the list.
+  const lineOfTop = new Map();
+  for (const top of blocks) for (const f of figuresIn([top])) lineOfTop.set(f, top);
+  for (const b of figuresIn(blocks)) {
+    const warn = (_line, msg) => warn0(lineOf(c, lineOfTop.get(b) || b), msg);
     if (b.type === 'file') {
       if (!b.info) warn(c.line, `the image ${b.path} has no caption; put "#+caption: What it shows" on the line above it`);
       continue;

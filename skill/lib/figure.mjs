@@ -24,6 +24,16 @@ export const IMAGE_EXT = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpe
 export const extOf = (p) => (String(p).match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
 export const isImage = (p) => extOf(p) in IMAGE_EXT;
 export const isFigure = (b) => (b.type === 'code' && FIGURE_LANGS.includes(b.lang)) || (b.type === 'file' && isImage(b.path));
+// figuresIn(blocks) -> every figure of a card in the order of its source,
+// also the ones inside a list or a quote.
+export function figuresIn(blocks, acc = []) {
+  for (const b of blocks || []) {
+    if (isFigure(b)) acc.push(b);
+    else if (b.type === 'list') b.items.forEach((it) => figuresIn(it.blocks, acc));
+    else if (b.type === 'quote') figuresIn(b.blocks, acc);
+  }
+  return acc;
+}
 export const LIMITS = { sketchCols: 72, flowBoxes: 12 };
 
 const CH = 7.2;     // advance of one column of 12px monospace
