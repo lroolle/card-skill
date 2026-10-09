@@ -101,7 +101,6 @@ docs/STATUS.md        where the work is and what is next
 docs/DECISIONS.md     every design decision, with its reason and alternatives
 docs/research/        the research behind the decisions
 DESIGN.md, TASTE.md   the visual material and its rulings
-vault/                Karpathy's posts on agent output (verbatim sources)
 ```
 
 ## Test
