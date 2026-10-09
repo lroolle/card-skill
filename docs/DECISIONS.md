@@ -227,8 +227,8 @@ Rejected: keeping markdown as the format agents write; JSON (D2).
 
 ## D17. The desk is a canvas: zoom, your own layout, typed lines, a note dock
 
-2026-10-09. Accepted as the human's request; five choices inside it are the
-agent's and wait on ask card `ask-canvas`.
+2026-10-09. Accepted as the human's request; five choices inside it were the
+agent's and waited on ask card `ask-canvas`. The human approved them (round 2).
 - Opens on the desk at Fit: the whole board, scaled to the window. Fit, 50%
   and 100% presets (`z`), Ctrl or Cmd with the wheel or a pinch zooms at the
   pointer. Focusing a card below 75% zooms to it at 100%; Esc goes back.

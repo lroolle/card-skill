@@ -3,3 +3,7 @@ CLAUDE.local.md
 node_modules/
 .cards/*/board.html
 .cards/*/log.jsonl
+# The design-review board is the built-in example: its log (the version
+# history) and its rendered page are kept, so the repo opens as a working board.
+!.cards/design-review/board.html
+!.cards/design-review/log.jsonl

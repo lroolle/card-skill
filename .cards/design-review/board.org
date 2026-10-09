@@ -1,6 +1,6 @@
 #+title: card-skill design, round 2
 
-Round 2. You chose the desk as the first view, approved the look, and asked for Org, a desk canvas, and line types. This board shows them; boards are now written in Org. Two asks wait: approve the canvas, and name a real task.
+Round 2. You chose the desk as the first view, approved the look, and asked for Org, a desk canvas, line types and a chat. This board shows them; boards are now written in Org. You approved the canvas. One ask waits: name a real task.
 
 * The desk canvas
 
@@ -99,13 +99,12 @@ The note about the whole board is now a chat. Press =c=, write, and press Enter:
 - On a file page there is no server, so Send copies the message for you to paste.
 - The thread shows your rounds, the agent's messages and each revision that the agent published, in time order.
 
-** Approve the desk canvas as built?
+** DONE The desk canvas is approved as built, with its five choices
 :PROPERTIES:
 :CUSTOM_ID: ask-canvas
-:ASK: approve
 :FROM: opt-desk opt-free desk-rules desk-note
 :END:
-Five choices in the canvas are mine, not yours. Approve them all, or reject and reply with the number of the choice to change.
+You approved it in round 2, and D17 records it. The five choices stay as built.
 
 1. Fit, 50% and 100% replace 10%.
 2. The top strip of a card is the drag handle.

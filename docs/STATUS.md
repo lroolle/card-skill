@@ -13,9 +13,14 @@ Then the human asked to move the note to the right as a direct chat (D18):
 a chat box in the bottom-right corner; a message goes at once as its own
 round; the agent answers with `cards say`.
 
-The board `.cards/design-review/board.org` is rev 10 (27 cards). Two asks
-wait: `ask-canvas` (approve four choices the agent made inside D17) and
-`ask-dogfood` (a real task; the round-1 answer was a test).
+The board `.cards/design-review/board.org` is the built-in example, committed
+with its log and its rendered page. Round 2 is answered: the canvas and its
+five choices are approved (D17). One ask stays open: `ask-dogfood` (a real
+task; it was untouched in round 2, and untouched is not consent).
+
+The skill is installed as a real copy at `~/.claude/skills/card-skill`
+(2026-10-09). The copy does not follow the repo: after a change, copy it
+again (`rm -rf ~/.claude/skills/card-skill && cp -R skill ~/.claude/skills/card-skill`).
 
 ## What works, verified
 
@@ -92,8 +97,8 @@ found 9 of 13 resolved, the rest P2, and one new P1 (selecting text opened or
 closed the card), now fixed with a test. Its verdict: ship after that fix.
 Open P2s from round 3: a few flow labels still touch a line; four arrowheads
 crowd one numeral when four lines meet one card; on a phone, a wide figure
-scrolls inside its frame with only a faint shade as the hint. Do not call the
-design shipped until a human approves `ask-visual`.
+scrolls inside its frame with only a faint shade as the hint. The human approved
+`ask-visual` (round 1) and the canvas (round 2).
 
 Mac check (2026-10-09, ego lite = Chromium 152 on macOS, through the
 deva-ego bridge, on an isolated copy of the board): sketches stay exact in
@@ -152,10 +157,10 @@ comment in `board.js`).
 
 ## Next, in order
 
-1. Read the reply to rev 7 (`ask-canvas`, `ask-dogfood`). If the human names a
-   real task, build the first real board on it.
-2. Install step: copy `skill/` to `~/.claude/skills/card-skill`; a
-   `UserPromptSubmit` hook running `cards inbox --quiet` (round 1 pick).
+1. The first real board, on a task the human names (`ask-dogfood`).
+2. The reply hook: a Claude Code `UserPromptSubmit` hook that runs
+   `cards inbox --quiet`, so the agent sees unread rounds without asking.
+   (The install step is done.)
 3. An embedded CJK font subset for Chinese boards (round 1 pick).
 4. A project index that links boards to each other (round 1 pick).
 5. A capability URL for `cards serve`, if the human wants the served loop

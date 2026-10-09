@@ -45,14 +45,13 @@ detail, `d` toggles desk and rack, `z` zooms, `c` opens the chat, `= - m` mark K
 
 ## Try it
 
+Open `.cards/design-review/board.html` in a browser. It is the built-in
+example: this project's own design, written as a board, with its history in
+`log.jsonl` (rev 11, two review rounds answered). To render it again, or to
+send replies straight to disk:
+
 ```
 node skill/bin/cards.mjs render design-review
-```
-
-Open the printed `file://` link. That board is this project's design,
-waiting on your decisions. To send replies straight to disk:
-
-```
 node skill/bin/cards.mjs serve        # then open http://127.0.0.1:4747/b/design-review
 node skill/bin/cards.mjs inbox        # what the agent reads
 node skill/bin/cards.mjs say design-review "Got it."   # the agent's answer in the chat box
@@ -61,11 +60,12 @@ node skill/bin/cards.mjs say design-review "Got it."   # the agent's answer in t
 ## Install as a skill
 
 ```
-cp -r skill ~/.claude/skills/card-skill
+cp -R skill ~/.claude/skills/card-skill
 ```
 
-The agent reads `skill/SKILL.md`: when to use a board, how to write one, and
-the loop. Node 18 or later. No dependencies.
+A real copy, not a link. The copy does not follow the repo: after an update,
+remove it and copy again. The agent reads `SKILL.md`: when to use a board,
+how to write one in Org, and the loop. Node 18 or later. No dependencies.
 
 ## How it works
 
