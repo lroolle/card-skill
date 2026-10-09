@@ -1,4 +1,5 @@
 #+title: Move session storage from Redis to Postgres
+#+todo: TODO DOING BLOCKED | DONE
 
 Example board from the plan pattern. Replace every card. Steps run top to bottom; each step names what it needs.
 

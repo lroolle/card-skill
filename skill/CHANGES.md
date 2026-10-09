@@ -1,0 +1,53 @@
+# What changed
+
+For the agent that writes boards. Newest first. Each line says what is
+different for you, not how it was built. `cards --version` names this build;
+`cards check` says when a board was last rendered by another one.
+
+## 0.1.0
+
+The first public version. If you wrote boards with an earlier copy, these
+are the changes that matter:
+
+Changed
+- A picture is a link, not a block: `[[file:shot.png]]` alone on a line,
+  with `#+caption:` above it. `#+begin_src image` is shown as code, and
+  `cards check` now says so.
+- A board says its TODO keywords, so Emacs and GitHub read them:
+  `#+todo: TODO DOING BLOCKED | DONE` under the title.
+- `DONE` on a card with `:ASK:` is no longer a warning. It is how an ask is
+  closed: the card keeps the ask and its options as the record.
+- The human's text in a reply is a JSON string: quotes and line breaks are
+  escaped, nothing is cut.
+- A link to another page of the same work (a relative link) opens in the
+  same tab. A link to another site opens beside the board.
+
+New
+- `:ASK: do`: an action only the human can take outside the board. They
+  answer Done or I cannot.
+- `:SUGGEST: none` on a choose card: only the human knows; no `[X]`, no
+  warning, and the reply says `chosen`.
+- Option keys: `- [ ] small :: S/M, 140 to 180 mm`. The reply names the key.
+- An ask that `:NEEDS:` another open ask waits for it. If the human changes
+  the first answer from your suggestion, the second comes back `held`:
+  ask it again.
+- `cards ingest`: records a reply the human pasted, so the board shows the
+  answers. `cards settle`: marks the answered asks DONE.
+- `cards export <board> --out <dir>`: a copy to publish, with no replies,
+  no history and no local path.
+- `cards shot`: a picture of the page as the human sees it.
+- `#+author:` and `#+description:` show in the page and in link previews.
+- `#+translation_of: <board>` links a board to the same board in another
+  language; `cards check` says where the translation fell behind.
+- `#+language:` picks the language of the buttons (English, Simplified
+  Chinese).
+- Files in cards: `[[file:...]]` for a picture or any file,
+  `#+include: "f" src js :lines "10-40"` for an excerpt.
+- `cards check` warns about a `#+keyword:` or a block type this build does
+  nothing with.
+
+The page
+- The desk opens at the most detail that fits the window at a readable size,
+  and a picture shows at every level. Fit never shrinks the board below a
+  readable size; a tall board fits the width and scrolls.
+- The browser tab shows how many asks wait, and the icon lights up.

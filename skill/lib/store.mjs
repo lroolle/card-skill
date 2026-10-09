@@ -2,7 +2,7 @@
 //
 //   .cards/<board>/board.org   the agent's current intent (source of truth;
 //                              an older board.md is read too)
-//   .cards/<board>/log.jsonl   append-only memory: card versions, sends, reads
+//   .cards/<board>/log.jsonl   append-only memory: card versions, sends, reads, the build
 //   .cards/<board>/board.html  compiled, discardable
 //
 // The agent never writes history. `sync` diffs board.md against the log on
@@ -82,7 +82,7 @@ export function append(dir, events) {
 
 // fold(events) -> the state the log describes
 export function fold(events) {
-  const st = { rev: 0, boardHash: null, cards: new Map(), gone: new Set(), nextN: 1, sends: [], read: 0, says: [], revs: [] };
+  const st = { rev: 0, boardHash: null, cards: new Map(), gone: new Set(), nextN: 1, sends: [], read: 0, says: [], revs: [], build: null };
   const perRev = new Map();
   for (const e of events) {
     if (e.t === 'card') {
@@ -101,6 +101,7 @@ export function fold(events) {
     else if (e.t === 'send') st.sends.push(e);
     else if (e.t === 'read') st.read = Math.max(st.read, e.round);
     else if (e.t === 'say') st.says.push({ at: e.at, text: e.text });
+    else if (e.t === 'build') st.build = e.v;
   }
   return st;
 }
@@ -155,12 +156,23 @@ function sameMeaning(prev, card) {
   return !!before && canonical(before) === canonical(card);
 }
 
-export function addSend(dir, { rev, items, via = 'board' }) {
+// via: 'board' (the served page posted it) or 'paste' (`cards ingest`). A
+// pasted reply carries the key the page gave it, so one paste is one round.
+export function addSend(dir, { rev, items, via = 'board', key = null }) {
   const st = fold(readLog(dir));
   const round = st.sends.length + 1;
-  const ev = { t: 'send', round, rev, at: now(), via, items };
+  const ev = { t: 'send', round, rev, at: now(), via, ...(key ? { key } : {}), items };
   append(dir, ev);
   return ev;
+}
+
+// markBuild(dir, version): which build rendered this board last. A render by
+// another build is said once, so an update of the skill is never silent.
+export function markBuild(dir, version) {
+  const st = fold(readLog(dir));
+  if (st.build === version) return null;
+  append(dir, { t: 'build', v: version, at: now() });
+  return { from: st.build, fresh: st.rev === 0 || (st.build === null && st.revs.length <= 1) };
 }
 
 // addSay(dir, text): the agent's message in the board's chat. It changes no card.

@@ -1,4 +1,5 @@
 #+title: card-skill design, round 2
+#+todo: TODO DOING BLOCKED | DONE
 
 Round 2. You chose the desk as the first view, approved the look, and asked for Org, a desk canvas, line types and a chat. This board shows them; boards are now written in Org. You approved the canvas. One ask waits: name a real task.
 

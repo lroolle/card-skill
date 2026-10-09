@@ -12,6 +12,7 @@ import { lint } from '../skill/lib/lint.mjs';
 
 const BOARD = `#+title: Pick a queue
 #+language: en
+#+todo: TODO DOING BLOCKED | DONE
 
 Lede with a [[#nats]] reference.
 

@@ -8,8 +8,10 @@ import { lint } from './lint.mjs';
 import { esc, renderBlocks, parseFacts } from './md.mjs';
 import { renderFigure, isFigure, WIDE } from './figure.mjs';
 import { resolveAssets, assetHtml, assetKey, imageFigure } from './assets.mjs';
-import { sync, fold, readLog } from './store.mjs';
+import { sync, fold, readLog, markBuild } from './store.mjs';
 import { strings as uiStrings, t } from './i18n.mjs';
+import { family, translationChecks } from './siblings.mjs';
+import { VERSION, HOME } from './version.mjs';
 import '../runtime/digest.js';
 
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
@@ -17,12 +19,13 @@ const HISTORY_KEEP = 4;
 
 // The render context of one board: its format's inline renderer, and card
 // references drawn as numeral + claim (or the link text the author gave).
-function refCtx(byId, nOf, sx, table, assets = null) {
+function refCtx(byId, nOf, sx, table, assets = null, chipHref = null) {
   const ctx = {
     inline: sx.inline,
     plain: sx.plain,
     t: (key, vars) => t(table, key, vars),
     assets,
+    chipHref,
     asset: (b) => assetHtml(b, assets, ctx),
     ref(id, label) {
       const c = byId.get(id);
@@ -72,17 +75,21 @@ function pastView(src, fmt, ctx) {
   return { title_html: v.title_html, gist_html: v.gist_html };
 }
 
-export function pageData(board, st, ref, { live = false, token = null, cwd = process.cwd() } = {}) {
+// publish: the page leaves the machine (`cards export`). It then carries the
+// board as it is now and nothing else: no replies, no chat, no past versions,
+// no path on this disk.
+export function pageData(board, st, ref, { live = false, token = null, cwd = process.cwd(), publish = false, chipHref = null } = {}) {
   const byId = new Map(board.cards.map((c) => [c.id, c]));
   const nOf = (id) => st.cards.get(id)?.n ?? '?';
   const sx = syntaxOf(board.fmt);
   const ui = uiStrings(board.lang);
-  const ctx = refCtx(byId, nOf, sx, ui.strings, board.assets || null);
+  const ctx = refCtx(byId, nOf, sx, ui.strings, board.assets || null, chipHref);
+  const hrefOf = (id) => (publish ? `../${id}/` : live ? `/b/${id}` : `../${id}/board.html`);
   const cards = {};
   for (const c of board.cards) {
     const v = cardView(c, ctx, nOf(c.id));
     const rec = st.cards.get(c.id);
-    const past = rec ? rec.history.slice(0, -1).slice(-HISTORY_KEEP).reverse() : [];
+    const past = rec && !publish ? rec.history.slice(0, -1).slice(-HISTORY_KEEP).reverse() : [];
     cards[c.id] = {
       id: c.id,
       n: nOf(c.id),
@@ -102,6 +109,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
         value: o.value,
         ref: o.ref,
         default: !!o.default,
+        label_text: o.ref ? (byId.has(o.ref) ? sx.plain(byId.get(o.ref).title) : o.ref) : sx.plain(o.text),
         label_html: o.ref
           ? `<span class="ref-n">${nOf(o.ref)}</span>${byId.has(o.ref) ? sx.inline(byId.get(o.ref).title, ctx) : esc(o.ref)}${o.text ? ' <span class="opt-note">' + sx.inline(o.text, ctx) + '</span>' : ''}`
           : sx.inline(o.text, ctx),
@@ -114,6 +122,7 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       refs: c.anatomy.refs,
       tags: c.tags,
       multi: c.multi,
+      suggest: c.suggest || null,
       progress: c.progress,
       history: past.map((h) => ({ v: h.v, rev: h.rev, at: h.at, ...pastView(h.src, h.fmt, ctx) })),
     };
@@ -124,11 +133,18 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       id: board.id,
       title: board.title,
       lang: board.lang,
+      author: board.author || '',
+      description: board.description || '',
       lede_html: renderBlocks(sx.blocks(board.lede), ctx),
+      lede_text: sx.plain(board.lede).slice(0, 300),
       rev: st.rev,
-      path: displayPath(cwd, ref.file),
+      path: publish ? '' : displayPath(cwd, ref.file),
       generated: new Date().toISOString(),
+      // The same board in other languages (lib/siblings.mjs).
+      langs: family(ref, board).map((m) => ({ id: m.id, lang: m.lang, self: m.self, href: hrefOf(m.id) })),
     },
+    build: { version: VERSION, home: HOME },
+    public: publish,
     sections: board.sections.map((s) => ({
       id: s.id,
       title: s.title,
@@ -139,9 +155,9 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
     cards,
     // The chrome speaks the board's language (lib/i18n.mjs).
     strings: ui.strings,
-    sends: st.sends.map((s) => ({ round: s.round, rev: s.rev, at: s.at, items: s.items })),
-    chat: chatOf(st),
-    read: st.read,
+    sends: publish ? [] : st.sends.map((s) => ({ round: s.round, rev: s.rev, at: s.at, items: s.items, ...(s.key ? { key: s.key } : {}) })),
+    chat: publish ? [] : chatOf(st),
+    read: publish ? 0 : st.read,
     live,
     token,
   };
@@ -154,7 +170,7 @@ function chatOf(st) {
   const out = [];
   for (const s of st.sends) {
     const note = s.items.find((it) => it.kind === 'note');
-    const others = s.items.filter((it) => it.kind !== 'note' && it.state !== 'untouched').length;
+    const others = s.items.filter((it) => it.kind !== 'note' && it.state !== 'untouched' && it.state !== 'held').length;
     out.push({ who: 'you', at: s.at, round: s.round, text: note ? note.text : '', responses: others, read: s.round <= st.read });
   }
   for (const m of st.says || []) out.push({ who: 'agent', at: m.at, text: m.text });
@@ -181,10 +197,33 @@ function readRuntime(name) {
   return fs.readFileSync(path.join(RUNTIME, name), 'utf8');
 }
 
+// The mark: a card with its tab. In a browser tab it is the page icon; the
+// tab of the mark lights while an ask waits (runtime/board.js swaps it).
+export const MARK = (lit = false) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><style>.i{fill:#2a2d34}.t{fill:${lit ? '#d9480f' : '#2a2d34'}}@media(prefers-color-scheme:dark){.i{fill:#e9e9e6}.t{fill:${lit ? '#ff8a4c' : '#e9e9e6'}}}</style><path class="t" d="M1.5 3A1.5 1.5 0 0 1 3 1.5h3.5A1.5 1.5 0 0 1 8 3v2.5H1.5z"/><path class="i" d="M1.5 5h11.5A1.5 1.5 0 0 1 14.5 6.5v6.5a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z"/></svg>`;
+const dataUri = (svg) => `data:image/svg+xml,${encodeURIComponent(svg)}`;
+
+// What a link preview and a browser tab show. A board has no public URL of
+// its own, so there is no og:url and no og:image; the text is enough for a card.
+function headTags(data) {
+  const b = data.board;
+  const desc = b.description || b.lede_text || '';
+  const tags = [
+    `<meta name="generator" content="cards ${esc(data.build.version)}">`,
+    b.author && `<meta name="author" content="${esc(b.author)}">`,
+    desc && `<meta name="description" content="${esc(desc)}">`,
+    `<meta property="og:type" content="article">`,
+    `<meta property="og:title" content="${esc(b.title)}">`,
+    desc && `<meta property="og:description" content="${esc(desc)}">`,
+    `<meta name="twitter:card" content="summary">`,
+    `<link rel="icon" type="image/svg+xml" href="${dataUri(MARK(false))}">`,
+  ];
+  return tags.filter(Boolean).join('\n');
+}
+
 export function pageHtml(data) {
   const json = JSON.stringify(data).replace(/</g, '\\u003c')
     .split(String.fromCharCode(0x2028)).join('\\u2028').split(String.fromCharCode(0x2029)).join('\\u2029');
-  const fill = { lang: esc(data.board.lang), title: esc(data.board.title), css: readRuntime('board.css'),
+  const fill = { lang: esc(data.board.lang), title: esc(data.board.title), css: readRuntime('board.css'), head: headTags(data),
     noscript: esc(t(data.strings, 'noscript')),
     digest: readRuntime('digest.js'), js: readRuntime('board.js'), data: json };
   // Replace with a function: the payloads contain `$` sequences that must stay literal.
@@ -192,7 +231,7 @@ export function pageHtml(data) {
 }
 
 // buildBoard(ref) -> { errors, warnings, data, html, sync }
-export function buildBoard(ref, { live = false, token = null, write = true, cwd = process.cwd() } = {}) {
+export function buildBoard(ref, { live = false, token = null, write = true, cwd = process.cwd(), publish = false, chipHref = null } = {}) {
   if (!fs.existsSync(ref.file)) {
     return { errors: [{ line: 0, msg: `no board at ${path.relative(cwd, ref.file)}`, fix: `cards new ${ref.id}` }], warnings: [] };
   }
@@ -204,12 +243,18 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
   warnings.push(...board.assets.warnings);
   warnings.sort((x, y) => x.line - y.line);
   if (board.assets.errors.length) return { board, errors: board.assets.errors, warnings };
-  const syncRes = sync(ref.dir, board);
+  const tr = translationChecks(ref, board);
+  warnings.push(...tr.warnings);
+  warnings.sort((x, y) => x.line - y.line);
+  if (tr.errors.length) return { board, errors: tr.errors, warnings };
+  // A page that leaves the machine is a copy: it records nothing.
+  const syncRes = publish ? { rev: fold(readLog(ref.dir)).rev, changed: [], removed: [] } : sync(ref.dir, board);
+  const built = write && !publish ? markBuild(ref.dir, VERSION) : null;
   const st = fold(readLog(ref.dir));
-  const data = pageData(board, st, ref, { live, token, cwd });
+  const data = pageData(board, st, ref, { live, token, cwd, publish, chipHref });
   const html = pageHtml(data);
-  if (write) fs.writeFileSync(path.join(ref.dir, 'board.html'), html);
-  return { board, errors: [], warnings, data, html, sync: syncRes, st };
+  if (write && !publish) fs.writeFileSync(path.join(ref.dir, 'board.html'), html);
+  return { board, errors: [], warnings, data, html, sync: syncRes, st, built };
 }
 
 // outline(data) -> the board as terminal text. Useful when nobody opens the page.
@@ -223,7 +268,9 @@ export function outline(data) {
     for (const id of s.cards) {
       const c = data.cards[id];
       const tag = [c.ask, c.status !== 'open' ? c.status : null].filter(Boolean).join(' ');
-      lines.push(`    #${String(c.n).padEnd(3)} ${c.id.padEnd(18)} ${tag.padEnd(14)} ${c.title_text}`);
+      // What the card carries besides words: the page shows a picture at every level, a drawing from Gist up.
+      const has = /data-kind="image"/.test(c.figure_html) ? '  [picture]' : c.figure_html ? '  [figure]' : '';
+      lines.push(`    #${String(c.n).padEnd(3)} ${c.id.padEnd(18)} ${tag.padEnd(14)} ${c.title_text}${has}`);
     }
   }
   return lines.join('\n');

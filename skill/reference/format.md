@@ -2,9 +2,10 @@
 
 A board is a directory with one `board.org`. The file is plain Org: `*`
 starts a section, `**` starts a card, and a property drawer under a card
-holds its attributes. Nothing is invented on top of Org; the board reads
-correctly in Emacs, on GitHub and in any text editor. `cards check`
-validates everything below and prints a corrected example for each error.
+holds its attributes. Every construct is Org's own syntax, so the file
+opens as an outline in Emacs and renders on GitHub. Our parser reads the
+subset below; it does not run Emacs. `cards check` validates everything
+below and prints a corrected example for each error.
 
 An older `board.md` (the markdown dialect) still renders; new boards are Org.
 
@@ -12,8 +13,21 @@ An older `board.md` (the markdown dialect) still renders; new boards are Org.
 
 ```
 #+title: Pick a queue for the ingest service      required
+#+todo: TODO DOING BLOCKED | DONE                 declares the card states to Emacs and GitHub
 #+language: en                                    optional; zh-Hans, ja, ... sets the page language
+#+author: Claude, for Eric                        optional; shown beside the revision
+#+description: Three queues, one decision.        optional; the line a link preview shows
+#+translation_of: pick-a-queue                    optional; this board is that board in another language
 ```
+
+`#+todo:` changes nothing on the page: the four keywords are fixed. It is
+there because Org knows only `TODO` and `DONE` by default; without the line,
+Emacs and GitHub read `DOING` as the first word of the claim. `cards check`
+asks for it when a card uses `DOING` or `BLOCKED`.
+
+Org's own settings for Emacs (`#+startup:`, `#+options:`, `#+filetags:`,
+`#+property:` and the like) pass without a word. Any other keyword before
+the first heading gets a warning that it does nothing here.
 
 `#+language:` names the language you write the board in, as a BCP 47 tag.
 The page chrome (buttons, labels, help) follows it: `en` and `zh-Hans`
@@ -23,6 +37,14 @@ human's language. The reply that comes back to you stays English.
 
 Text between the keywords and the first heading is the lede: one or two
 sentences under the title.
+
+`#+translation_of: <board>` names the board next to this one that it
+translates. Keep the card ids and the option keys of the source. Both pages
+then show a link to the other language, an answer names the same card and
+key on either page, and `cards inbox <source>` also prints the replies sent
+from a translation. `cards check` on a translation warns about a card that
+the source does not have, a card of the source that is missing, an ask or
+option keys that differ, and a card that the source changed later.
 
 ## Sections
 
@@ -59,16 +81,20 @@ The gist: one paragraph, under 60 words.
 | `[3/8]` or `[40%]` cookie | at the end of the heading | a thin progress meter |
 | `:tag:` at the end | lowercase slug | free label; searchable |
 | `:CUSTOM_ID:` | lowercase letters, digits, dashes; max 48 | required; stable across revisions |
-| `:ASK:` | `choose`, `approve`, `answer` | what the card asks of the human; at most one |
+| `:ASK:` | `choose`, `approve`, `answer`, `do` | what the card asks of the human; at most one |
 | `:MULTI:` | `t` | with `choose`: any number of options |
+| `:SUGGEST:` | `none` | with `choose`: only the human knows; you recommend no option |
 | `:BASIS:` | `fact`, `inference`, `guess` | how you know the claim |
 | `:FROM:` | ids, space-separated | this card exists because of those cards |
 | `:NEEDS:` | ids, space-separated | this card waits on those cards |
 
-The drawer comes right after the heading. Unknown properties are errors, so
-a typo cannot silently do nothing. `:ID:` (an Emacs org-id) is allowed and
-ignored. A third-level heading (`***`) inside a card is a subheading in its
-depth.
+The drawer comes right after the heading, with no blank line between: that
+is where Org reads it. A planning line that Emacs writes (`CLOSED:`,
+`SCHEDULED:`, `DEADLINE:`) may stand between the two. Unknown properties
+are errors, so a typo cannot silently do nothing; the properties Emacs
+writes on its own (`:ID:`, `:VISIBILITY:`, `:ARCHIVE_TIME:`, ...) and a
+`:LOGBOOK:` drawer are allowed and ignored. A third-level heading (`***`)
+inside a card is a subheading in its depth.
 
 ## Card anatomy
 
@@ -102,14 +128,46 @@ NATS meets both needs at the lowest cost.
 
 - `choose`: options are the first checkbox list. `[X]` marks your
   recommendation, shown as "Suggested". It is not selected until the human
-  picks it. An option that starts with `[[#id]]` shows that card's numeral
-  and claim, and its value is the id. Single choice allows one `[X]`; add
-  `:MULTI: t` for more.
+  picks it. Single choice allows one `[X]`; add `:MULTI: t` for more. When
+  only the human can know, mark none and add `:SUGGEST: none`; the reply
+  then says `chosen`, not `confirmed` or `changed`.
+- An option has a value, which is what the reply names:
+  - `- [X] [[#nats]]` shows that card's numeral and claim; the value is the id.
+  - `- [ ] small :: S/M, 140 to 180 mm` has the key `small`; the words after
+    `::` are shown. The key stays when the words change or are translated.
+  - `- [ ] Wait for the load test` has no key; the value is the sentence.
 - `approve`: Approve and Reject buttons. The claim is the question.
 - `answer`: a text box. The gist says what you need and why only the human
   knows it.
+- `do`: an action only the human can take, away from the board (pass an
+  identity check, pay, plug in a device). The claim says what to do. The
+  buttons are Done and I cannot.
 
 Every card, ask or not, also takes Keep, Drop, More and a free reply.
+
+An ask that depends on another ask says so with `:NEEDS:`:
+
+```
+** Which size fits your wrist?
+:PROPERTIES:
+:CUSTOM_ID: pick-size
+:ASK: choose
+:SUGGEST: none
+:NEEDS: pick-band
+:END:
+```
+
+While `pick-band` has no answer, the page shows this ask with its controls
+off ("Answer 1 first"). When the human answers `pick-band` as you
+suggested, it opens. When they answer it another way, this ask was written
+for a premise that no longer holds: the page holds it back, and the reply
+says `held: #1 changed from your suggestion`. The human may press "Answer
+anyway"; the answer then comes with `[answered after #1 changed]`. A held
+ask is not an answer. Rewrite it for the new answer and ask again.
+
+`DONE` on an ask card closes the ask. The card keeps its ask and options as
+the record, and shows what the human answered. `cards settle <board>` sets
+the keyword on every ask that has an answer on disk.
 
 ## Links
 
@@ -254,8 +312,14 @@ A warning does not stop a render. Each one is a writing rule:
 
 - A claim over 110 characters, or under 3 words on a card with no ask.
 - A body that does not start with a one-paragraph gist; a gist over 60 words.
-- A choose card with no `[X]` recommendation.
-- An ask on a `DONE` card.
+- A choose card with no `[X]` recommendation and no `:SUGGEST: none`.
+- An option whose `key ::` is not a slug.
+- `DOING` or `BLOCKED` with no `#+todo:` line; a blank line before a
+  `:PROPERTIES:` drawer.
+- Syntax that does nothing here: a `#+keyword:` this build does not read; a
+  block type with no look of its own; a `#+begin_src` language that names a
+  drawing this build does not draw (`image`, `mermaid`, `chart`, ...).
+- On a translation: the differences from its source (see File keywords).
 - More than 7 cards in a section, more than 30 on a board, more than 5 open asks.
 - A figure or an image with no caption; a sketch over 72 columns; a flow over 12 boxes;
   a flow line that points a box at itself; a figure in the lede or a note;
@@ -289,16 +353,51 @@ Log events:
 {"t":"gone","id":"sqs","rev":4,"at":"..."}
 {"t":"rev","rev":4,"at":"...","hash":"..."}
 {"t":"send","round":2,"rev":4,"at":"...","via":"board","items":[...]}
+{"t":"send","round":3,...,"via":"paste","key":"3fa9c1d2","items":[...]}   recorded by cards ingest
 {"t":"read","round":2,"at":"..."}
 {"t":"say","at":"...","text":"Got it."}          the agent's chat message (cards say)
+{"t":"build","v":"0.1.0","at":"..."}             the build that rendered the board last
 ```
 
 Send items: `mark` (keep, drop, more), `choose` (value, default, state:
-confirmed, changed or untouched), `approve` (approve, reject or untouched),
-`answer`, `reply`, `order` (section, value), `note`. Each card item carries
-the card version `v` the human saw. A round with only a `note` was sent from
-the chat box; the page shows the rounds, the `say` messages and each
-revision as one chat thread.
+confirmed, changed or chosen), `approve` (approve, reject), `do` (done,
+cannot), `answer`, `reply`, `order` (section, value), `note`. An ask item
+with no answer has the state `untouched`, or `held` with `needs` (the asks
+it waits for) and `why` (`open` or `changed`). An answer given after an ask
+it needs changed carries `after`. Each card item carries the card version
+`v` the human saw. A round with only a `note` was sent from the chat box;
+the page shows the rounds, the `say` messages and each revision as one chat
+thread.
+
+## The reply as text
+
+`cards inbox`, `cards wait` and the page's Send (when no server runs) print
+the same text:
+
+```
+cards: reply from the board "Pick the band" (watch)
+.cards/watch/board.org · rev 2 · 2026-10-09 04:00 · reply 3fa9c1d2
+
+  #1 pick-band    choose   changed: link  (you suggested sport)
+  #2 pick-size    choose   held: #1 changed from your suggestion; ...
+  #4 verify       do       done
+  #5 engraving    answer   "For \"E\"\nline two"
+```
+
+A line is the card, the kind, and the response. The human's words are JSON
+strings: quotes and line breaks are escaped and nothing is cut. `reply
+3fa9c1d2` is the key of a copied reply: `cards ingest` records the text as
+a round once, however often it is pasted, and the page then knows its
+copied answers arrived.
+
+## A copy to publish
+
+`cards export <board> --out <dir>` writes `<dir>/index.html` for a link or
+a public page. The copy holds the board as it is now: no replies, no chat,
+no past versions of cards, no path on your disk. A file shown as a chip is
+copied to `<dir>/files/`. Boards that translate each other link as
+`../<board>/`: export each one into a folder with its own name, side by
+side. The export records nothing in `log.jsonl`.
 
 ## The older markdown dialect
 

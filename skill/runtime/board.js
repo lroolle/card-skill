@@ -30,12 +30,12 @@
   }
 
   // Label tables hold string keys; t() turns them into words at render time.
-  var ASK_LABEL = { choose: 'ask_choose', approve: 'ask_approve', answer: 'ask_answer' };
+  var ASK_LABEL = { choose: 'ask_choose', approve: 'ask_approve', answer: 'ask_answer', do: 'ask_do' };
   var BASIS = { fact: 'basis_fact', inference: 'basis_inference', guess: 'basis_guess' };
   var MARKS = ['keep', 'drop', 'more'];
   var MARK_LABEL = { keep: 'mark_keep', drop: 'mark_drop', more: 'mark_more' };
   var MARK_STAMP = { keep: 'mark_kept', drop: 'mark_dropped', more: 'mark_more_asked' };
-  var ASK_DONE = { choose: 'ask_chosen', approve: 'ask_approved', reject: 'ask_rejected', answer: 'ask_answered' };
+  var ASK_DONE = { choose: 'ask_chosen', approve: 'ask_approved', reject: 'ask_rejected', answer: 'ask_answered', done: 'ask_did', cannot: 'ask_could_not' };
   // One relation vocabulary for both views: [type, label in the focused card's list,
   // label on the lit card ({card} is the focused card's numeral)].
   var REL = [
@@ -51,7 +51,17 @@
     grip: '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><g fill="currentColor"><circle cx="4" cy="2.5" r="1.1"/><circle cx="8" cy="2.5" r="1.1"/><circle cx="4" cy="6" r="1.1"/><circle cx="8" cy="6" r="1.1"/><circle cx="4" cy="9.5" r="1.1"/><circle cx="8" cy="9.5" r="1.1"/></g></svg>',
     search: '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></g></svg>',
   };
+  // The mark: a card with its tab. It stands at the head of the page and in the
+  // browser tab; its tab lights while an ask waits on you.
+  var MARK_TAB = 'M1.5 3A1.5 1.5 0 0 1 3 1.5h3.5A1.5 1.5 0 0 1 8 3v2.5H1.5z';
+  var MARK_CARD = 'M1.5 5h11.5A1.5 1.5 0 0 1 14.5 6.5v6.5a1.5 1.5 0 0 1-1.5 1.5H3A1.5 1.5 0 0 1 1.5 13z';
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // ?view=rack&level=gist opens the page that way once, for a link or a picture; nothing is saved.
+  var ASKED = (function () {
+    var q = {};
+    try { new URLSearchParams(location.search).forEach(function (v, k) { q[k] = v; }); } catch (e) { /* an old browser: no options */ }
+    return { view: /^(desk|rack)$/.test(q.view) ? q.view : null, alt: /^(claim|gist|full)$/.test(q.level) ? q.level : null };
+  })();
 
   // ---------- persistence ----------
 
@@ -62,16 +72,23 @@
     try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) { /* private mode: drafts live for this tab */ }
   }
   function emptyDrafts() { return { cards: {}, order: {}, note: '', sentRev: 0 }; }
+  function arrived(key) { return !!key && (B.sends || []).some(function (b) { return b.key === key; }); }
 
   // The board opens on the desk (D15): the cards laid out with their links, zoomed to fit.
   // A phone opens on the rack: at phone width the whole desk fits only as a minimap.
   var NARROW = window.matchMedia('(max-width: 720px)').matches;
-  var S = { view: load('view', NARROW ? 'rack' : 'desk'), alts: { rack: load('alt', 'gist'), desk: load('deskAlt', 'claim') }, filter: 'all', sort: 'board', q: '', focus: null, hover: null, open: new Set(), replyOpen: new Set(),
+  // The desk has no level of its own until you pick one: the first view takes the
+  // most detail that still fits the window at a readable size (firstView, below).
+  var deskAltSet = load('deskAlt', null);
+  var S = { view: ASKED.view || load('view', NARROW ? 'rack' : 'desk'), alts: { rack: load('alt', 'gist'), desk: deskAltSet || 'gist' }, filter: 'all', sort: 'board', q: '', focus: null, hover: null, open: new Set(), replyOpen: new Set(),
     zoom: load('zoom', 'fit'), scale: 1, back: null, chatOpen: false };
+  if (ASKED.alt) S.alts[S.view] = ASKED.alt;
   S.alt = S.alts[S.view];
   var D = load('drafts', null) || emptyDrafts();
-  // Without a server, copied drafts stay visible until the agent publishes a new rev.
-  if (D.sentRev && B.board.rev > D.sentRev) D = emptyDrafts();
+  // Without a server, copied drafts stay visible until the agent publishes a new
+  // rev, or records the pasted reply (`cards ingest`): then they are on disk.
+  if (D.sentRev && (B.board.rev > D.sentRev || arrived(D.sentKey))) D = emptyDrafts();
+  if (D.chatCopied) D.chatCopied = D.chatCopied.filter(function (m) { return !arrived(m.key); });
   reconcileDrafts();
   var changed = new Set();
   var seen = load('seen', null);
@@ -120,7 +137,7 @@
       var d = D.cards[id];
       var c = B.cards[id];
       if (!c) { delete D.cards[id]; return; }
-      if (d.v && d.v !== c.v) { delete d.choice; delete d.approve; }
+      if (d.v && d.v !== c.v) { delete d.choice; delete d.approve; delete d.done; delete d.anyway; }
     });
     saveDrafts();
   }
@@ -130,10 +147,67 @@
     if (!d) return false;
     if (c.ask === 'choose') return !!(d.choice && d.choice.length);
     if (c.ask === 'approve') return !!d.approve;
+    if (c.ask === 'do') return !!d.done;
     if (c.ask === 'answer') return !!(d.answer && d.answer.trim());
     return false;
   }
-  function sentAnswer(c) { return ANS.has(c.id + '@' + c.v) || (!!D.sentRev && hasDraftAnswer(c)); }
+  function sentAnswer(c) { return ANS.has(c.id + '@' + c.v) || (!!D.sentRev && hasDraftAnswer(c) && !held(c)); }
+
+  // ---- asks that depend on asks ----
+  //
+  // An ask that :NEEDS: another open ask is written for an answer the human has
+  // not given yet. So it waits: locked until the other ask is answered, and held
+  // back if that answer is not the one the agent suggested, because its own
+  // options may no longer fit. The human can still answer it anyway; the reply
+  // then says so. Either way the agent learns which answers rest on which.
+
+  function defaultsOf(c) { return c.options.filter(function (o) { return o.default; }).map(function (o) { return o.value; }); }
+  function sameSet(a, b) { return a.length === b.length && a.every(function (v) { return b.indexOf(v) >= 0; }); }
+  function sentItem(c) {
+    for (var i = B.sends.length - 1; i >= 0; i--) {
+      var it = B.sends[i].items.filter(function (x) { return x.card === c.id && x.v === c.v && x.kind === c.ask && x.state !== 'untouched' && x.state !== 'held'; })[0];
+      if (it) return it;
+    }
+    return null;
+  }
+  // How an ask stands for the asks that need it: 'open' (no answer), 'ok' (as suggested), 'changed'.
+  function standing(c, seen) {
+    if (gate(c, seen) && !overridden(c)) return 'open';
+    var d = D.cards[c.id] || {};
+    if (hasDraftAnswer(c)) {
+      if (c.ask === 'choose') { var def = defaultsOf(c); return def.length && !sameSet(d.choice, def) ? 'changed' : 'ok'; }
+      if (c.ask === 'approve') return d.approve === 'approve' ? 'ok' : 'changed';
+      if (c.ask === 'do') return d.done === 'done' ? 'ok' : 'changed';
+      return 'ok';
+    }
+    var it = sentItem(c);
+    if (!it) return 'open';
+    if (c.ask === 'choose') return it.state === 'changed' ? 'changed' : 'ok';
+    if (c.ask === 'approve') return it.value === 'approve' ? 'ok' : 'changed';
+    if (c.ask === 'do') return it.value === 'done' ? 'ok' : 'changed';
+    return 'ok';
+  }
+  // gate(c) -> null, or { why: 'open' | 'changed', needs: [ids] }
+  function gate(c, seen) {
+    if (!isOpenAsk(c) || !c.needs.length) return null;
+    seen = seen || {};
+    if (seen[c.id]) return null; // two asks that need each other: neither waits
+    seen[c.id] = true;
+    var open = [];
+    var moved = [];
+    c.needs.forEach(function (id) {
+      var u = B.cards[id];
+      if (!u || !isOpenAsk(u)) return;
+      var st = standing(u, seen);
+      if (st === 'open') open.push(id); else if (st === 'changed') moved.push(id);
+    });
+    seen[c.id] = false;
+    return open.length ? { why: 'open', needs: open } : moved.length ? { why: 'changed', needs: moved } : null;
+  }
+  function overridden(c) { var g = gate(c); return !!g && g.why === 'changed' && !!(D.cards[c.id] || {}).anyway; }
+  // Held: the ask cannot be answered now, or its answer does not go out as one.
+  function held(c) { var g = gate(c); return !!g && !(g.why === 'changed' && (D.cards[c.id] || {}).anyway); }
+  function nums(ids) { return ids.map(function (id) { return '#' + B.cards[id].n; }).join(t('list_sep')); }
   // "Yours": an open ask whose answer has not left the page.
   function unsent(c) { return isOpenAsk(c) && !sentAnswer(c); }
 
@@ -186,14 +260,13 @@
   // What the human did on an ask, drafted or sent: 'choose' | 'approve' | 'reject' | 'answer' | null.
   function answerOf(c) {
     var d = D.cards[c.id] || {};
-    if (hasDraftAnswer(c)) return c.ask === 'approve' ? d.approve : c.ask;
-    for (var i = B.sends.length - 1; i >= 0; i--) {
-      var it = B.sends[i].items.filter(function (x) { return x.card === c.id && x.v === c.v && x.kind === c.ask && x.state !== 'untouched'; })[0];
-      if (it) return c.ask === 'approve' ? it.value : c.ask;
-    }
+    if (hasDraftAnswer(c)) return c.ask === 'approve' ? d.approve : c.ask === 'do' ? d.done : c.ask;
+    var it = sentItem(c);
+    if (it) return c.ask === 'approve' || c.ask === 'do' ? it.value : c.ask;
     return null;
   }
   function tabLabel(c) {
+    if (held(c)) return t('ask_held', { card: nums(gate(c).needs) });
     var a = answerOf(c);
     return t(a ? ASK_DONE[a] : ASK_LABEL[c.ask]);
   }
@@ -206,13 +279,19 @@
       var d = D.cards[c.id] || {};
       var base = { card: c.id, v: d.v || c.v };
       if (d.mark) items.push(Object.assign({ kind: 'mark', value: d.mark }, base));
-      if (c.ask === 'choose' && d.choice && d.choice.length) {
-        var def = c.options.filter(function (o) { return o.default; }).map(function (o) { return o.value; });
-        var same = d.choice.length === def.length && d.choice.every(function (v) { return def.indexOf(v) >= 0; });
-        items.push(Object.assign({ kind: 'choose', value: d.choice, default: def, state: same ? 'confirmed' : 'changed' }, base));
+      // A held answer does not go out as an answer (see the second pass). One the
+      // human gave anyway carries `after`: the asks that changed under it.
+      var go = isOpenAsk(c) && hasDraftAnswer(c) && !held(c);
+      var g = go ? gate(c) : null;
+      var ans = g ? Object.assign({ after: g.needs }, base) : base;
+      if (go && c.ask === 'choose') {
+        var def = defaultsOf(c);
+        // No suggestion means nothing to confirm or change: the answer is "chosen".
+        items.push(Object.assign({ kind: 'choose', value: d.choice, default: def, state: !def.length ? 'chosen' : sameSet(d.choice, def) ? 'confirmed' : 'changed' }, ans));
       }
-      if (c.ask === 'approve' && d.approve) items.push(Object.assign({ kind: 'approve', value: d.approve }, base));
-      if (c.ask === 'answer' && d.answer && d.answer.trim()) items.push(Object.assign({ kind: 'answer', text: d.answer.trim() }, base));
+      if (go && c.ask === 'approve') items.push(Object.assign({ kind: 'approve', value: d.approve }, ans));
+      if (go && c.ask === 'do') items.push(Object.assign({ kind: 'do', value: d.done }, ans));
+      if (go && c.ask === 'answer') items.push(Object.assign({ kind: 'answer', text: d.answer.trim() }, ans));
       if (d.reply && d.reply.trim()) items.push(Object.assign({ kind: 'reply', text: d.reply.trim() }, base));
     });
     B.sections.forEach(function (s) {
@@ -221,14 +300,18 @@
     });
     if (withUntouched && items.length) {
       cards().forEach(function (c) {
-        if (unsent(c) && !hasDraftAnswer(c)) items.push({ card: c.id, v: c.v, kind: c.ask, state: 'untouched' });
+        if (!unsent(c)) return;
+        var g = held(c) ? gate(c) : null;
+        if (g) items.push({ card: c.id, v: c.v, kind: c.ask, state: 'held', needs: g.needs, why: g.why });
+        else if (!hasDraftAnswer(c)) items.push(Object.assign({ card: c.id, v: c.v, kind: c.ask, state: 'untouched' }, c.ask === 'choose' && !defaultsOf(c).length ? { default: [] } : {}));
       });
     }
     return items;
   }
 
+  // Asks you can answer now and have not. A held ask is not one of them.
   function waitingCount() {
-    return cards().filter(function (c) { return unsent(c) && !hasDraftAnswer(c); }).length;
+    return cards().filter(function (c) { return unsent(c) && !held(c) && !hasDraftAnswer(c); }).length;
   }
 
   function turn() {
@@ -251,9 +334,10 @@
     switch (it.kind) {
       case 'choose': return t('thread_chose', { options: it.value.map(function (v) {
         var o = c.options.filter(function (p) { return p.value === v; })[0];
-        return o && o.ref && B.cards[o.ref] ? B.cards[o.ref].title_text : v;
+        return o && o.label_text ? o.label_text : v;
       }).join(t('list_sep')) });
       case 'approve': return t(it.value === 'approve' ? 'ask_approved' : 'ask_rejected');
+      case 'do': return t(it.value === 'done' ? 'ask_did' : 'ask_could_not');
       case 'mark': return MARK_LABEL[it.value] ? t(MARK_LABEL[it.value]) : it.value;
       default: return it.text || '';
     }
@@ -267,11 +351,15 @@
     var now = turn();
     var stat = [t('stat_rev', { rev: B.board.rev }), t('stat_cards', { n: n })];
     if (B.live) stat.push(t('stat_live'));
+    if (B.board.author) stat.push(t('stat_by', { author: B.board.author }));
+    var build = B.build || {};
     var html = [];
     html.push('<div class="page board view-' + S.view + ' alt-' + S.alt + '">');
     html.push('<header><div class="andon">' +
+      (build.home ? '<a class="mark" href="' + esc(build.home) + '" target="_blank" rel="noopener noreferrer" title="' + esc(t('mark_title', { version: build.version })) + '" aria-label="' + esc(t('mark_title', { version: build.version })) + '">' +
+        '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="mark-tab" d="' + MARK_TAB + '"/><path d="' + MARK_CARD + '"/></svg></a>' : '') +
       '<span class="lamp" data-turn="' + now.k + '" role="status"><i></i><span>' + esc(now.text) + '</span></span>' +
-      '<span class="stat">' + esc(stat.join(' · ')) + '</span>' +
+      '<span class="stat">' + esc(stat.join(' · ')) + '</span>' + langsHtml() +
       '<span class="path">' + esc(B.board.path) + '</span></div>' +
       '<div class="notice" id="notice" hidden></div>' +
       '<h1 class="title">' + esc(B.board.title) + '</h1>' +
@@ -292,6 +380,21 @@
     watchSizes();
   }
 
+  // The same board in other languages: a plain link each, in the language's own name.
+  function langName(tag) {
+    try { return new Intl.DisplayNames([tag], { type: 'language' }).of(tag) || tag; } catch (e) { return tag; }
+  }
+  function langsHtml() {
+    var list = B.board.langs || [];
+    if (list.length < 2) return '';
+    return '<nav class="langs" aria-label="' + esc(t('langs_label')) + '">' + list.map(function (m) {
+      return m.self ? '<b aria-current="page">' + esc(langName(m.lang)) + '</b>' : '<a href="' + esc(m.href) + '" lang="' + esc(m.lang) + '">' + esc(langName(m.lang)) + '</a>';
+    }).join('') + '</nav>';
+  }
+
+  // Rows of a compare shelf hold the same count where they can: six options are 3 + 3, not 4 + 2.
+  function compareCols(n) { return n <= 4 ? Math.max(n, 1) : Math.ceil(n / Math.ceil(n / 4)); }
+
   function sectionHtml(s) {
     var ids = sortedIds(s);
     var keys = s.layout === 'compare' ? factKeys(ids) : null;
@@ -301,7 +404,7 @@
     var colW = figW ? ' style="--col-w:' + Math.min(560, figW + 34) + 'px"' : '';
     var top = head || s.note_html ? '<div class="shelf-top">' + head + (s.note_html ? '<div class="shelf-note">' + s.note_html + '</div>' : '') + '</div>' : '';
     return '<section class="shelf" data-section="' + esc(s.id) + '"' + colW + '>' + top +
-      '<div class="slots" data-layout="' + s.layout + '" style="--cols:' + Math.min(Math.max(ids.length, 1), 4) + '">' +
+      '<div class="slots" data-layout="' + s.layout + '" style="--cols:' + compareCols(ids.length) + '">' +
       ids.map(function (id) { return cardHtml(B.cards[id], keys); }).join('') + '</div></section>';
   }
 
@@ -324,32 +427,56 @@
     return '<dl class="facts">' + rows.join('') + '</dl>';
   }
 
+  // The line over a gated ask: what it waits for, and the way out.
+  function gateHtml(c) {
+    var g = gate(c);
+    if (!g) return '';
+    var who = g.needs.map(function (id) {
+      return '<button class="link" data-goto="' + esc(id) + '" title="' + esc(B.cards[id].title_text) + '"><span class="ref-n">' + B.cards[id].n + '</span></button>';
+    }).join(' ');
+    var say = function (key) { return esc(t(key)).replace(/\{card\}/g, who); };
+    if (g.why === 'open') return '<p class="gate-note">' + say('gate_open') + '</p>';
+    return overridden(c)
+      ? '<p class="gate-note">' + say('gate_after') + ' <button class="link" data-act="hold">' + esc(t('gate_hold')) + '</button></p>'
+      : '<p class="gate-note">' + say('gate_changed') + ' <button class="link" data-act="anyway">' + esc(t('gate_anyway')) + '</button></p>';
+  }
+
   function askHtml(c, d) {
     if (!isOpenAsk(c)) return '';
+    // Held controls are shown and off, not hidden: you see what will be asked.
+    var off = held(c) ? ' disabled' : '';
+    var note = gateHtml(c);
     if (c.ask === 'choose') {
       var chosen = d.choice || [];
       var type = c.multi ? 'checkbox' : 'radio';
-      return '<div class="ask" role="group" aria-label="' + esc(t(c.multi ? 'ask_choose_any' : 'ask_choose_one')) + '">' + c.options.map(function (o) {
+      var none = c.suggest === 'none' ? '<p class="ask-note">' + esc(t('ask_no_suggestion')) + '</p>' : '';
+      return '<div class="ask' + (off ? ' held' : '') + '" role="group" aria-label="' + esc(t(c.multi ? 'ask_choose_any' : 'ask_choose_one')) + '">' + note + none + c.options.map(function (o) {
         var on = chosen.indexOf(o.value) >= 0;
         var hint = o.default ? esc(t(on ? 'ask_suggested_chosen' : 'ask_suggested')) : '';
         return '<label class="opt' + (on ? ' on' : '') + (o.default ? ' suggested' : '') + '"' + (c.multi ? ' data-multi' : '') + '>' +
-          '<input type="' + type + '" name="o-' + esc(c.id) + '" value="' + esc(o.value) + '" data-opt' + (on ? ' checked' : '') + '>' +
+          '<input type="' + type + '" name="o-' + esc(c.id) + '" value="' + esc(o.value) + '" data-opt' + (on ? ' checked' : '') + off + '>' +
           '<span class="dot"></span><span class="lbl">' + o.label_html + '</span><span class="hint">' + hint + '</span></label>';
       }).join('') + '</div>';
     }
     if (c.ask === 'approve') {
-      return '<div class="ask gate" role="group" aria-label="' + esc(t('ask_approve_or_reject')) + '">' +
-        '<button class="btn" data-approve="approve" aria-pressed="' + (d.approve === 'approve') + '">' + esc(t('ask_approve')) + '</button>' +
-        '<button class="btn reject" data-approve="reject" aria-pressed="' + (d.approve === 'reject') + '">' + esc(t('ask_reject')) + '</button></div>';
+      return '<div class="ask gate' + (off ? ' held' : '') + '" role="group" aria-label="' + esc(t('ask_approve_or_reject')) + '">' + note +
+        '<button class="btn" data-approve="approve" aria-pressed="' + (d.approve === 'approve') + '"' + off + '>' + esc(t('ask_approve')) + '</button>' +
+        '<button class="btn reject" data-approve="reject" aria-pressed="' + (d.approve === 'reject') + '"' + off + '>' + esc(t('ask_reject')) + '</button></div>';
     }
-    return '<div class="ask"><textarea data-field="answer" rows="2" placeholder="' + esc(t('ask_answer_placeholder')) + '" aria-label="' + esc(t('ask_answer_label', { card: c.n })) + '">' + esc(d.answer || '') + '</textarea></div>';
+    // do: something only you can do, away from the board. You say when it is done.
+    if (c.ask === 'do') {
+      return '<div class="ask gate' + (off ? ' held' : '') + '" role="group" aria-label="' + esc(t('ask_do_group')) + '">' + note +
+        '<button class="btn" data-done="done" aria-pressed="' + (d.done === 'done') + '"' + off + '>' + esc(t('ask_do_done')) + '</button>' +
+        '<button class="btn reject" data-done="cannot" aria-pressed="' + (d.done === 'cannot') + '"' + off + '>' + esc(t('ask_do_cannot')) + '</button></div>';
+    }
+    return '<div class="ask' + (off ? ' held' : '') + '">' + note + '<textarea data-field="answer" rows="2" placeholder="' + esc(t('ask_answer_placeholder')) + '" aria-label="' + esc(t('ask_answer_label', { card: c.n })) + '"' + off + '>' + esc(d.answer || '') + '</textarea></div>';
   }
 
   function threadHtml(c) {
     var out = [];
     B.sends.forEach(function (b) {
       b.items.forEach(function (it) {
-        if (it.card === c.id && it.state !== 'untouched') out.push('<div class="said"><b>' + esc(t('thread_you', { round: b.round })) + '</b><span>' + esc(describe(it, c)) + '</span></div>');
+        if (it.card === c.id && it.state !== 'untouched' && it.state !== 'held') out.push('<div class="said"><b>' + esc(t('thread_you', { round: b.round })) + '</b><span>' + esc(describe(it, c)) + '</span></div>');
       });
     });
     return out.length ? '<div class="thread">' + out.join('') + '</div>' : '';
@@ -421,8 +548,8 @@
     B.sections.forEach(function (s) { orderedIds(s).forEach(function (id) { if (isOpenAsk(B.cards[id])) asks.push(B.cards[id]); }); });
     rail.hidden = !asks.length;
     var html = asks.map(function (c) {
-      var done = sentAnswer(c) || hasDraftAnswer(c);
-      return '<button class="rail-tab" data-goto="' + esc(c.id) + '" data-open' + (done ? ' data-answered' : '') +
+      var done = sentAnswer(c) || (hasDraftAnswer(c) && !held(c));
+      return '<button class="rail-tab" data-goto="' + esc(c.id) + '" data-open' + (done ? ' data-answered' : '') + (held(c) ? ' data-held' : '') +
         ' title="' + esc(c.title_text) + '"><span class="ref-n">' + c.n + '</span>' + esc(tabLabel(c)) + '</button>';
     }).join('');
     if (rail.innerHTML !== html) rail.innerHTML = html;
@@ -482,8 +609,9 @@
       el.classList.toggle('lit', rel.has(c.id));
       el.classList.toggle('open', S.open.has(c.id));
       el.querySelector('.rel').textContent = rel.has(c.id) ? t(REL_LIT[rel.get(c.id)], { card: fn }) : '';
-      var answered = sentAnswer(c) || hasDraftAnswer(c);
+      var answered = sentAnswer(c) || (hasDraftAnswer(c) && !held(c));
       if (answered) el.setAttribute('data-answered', ''); else el.removeAttribute('data-answered');
+      if (held(c)) el.setAttribute('data-held', ''); else el.removeAttribute('data-held');
       var tab = el.querySelector('.tab');
       if (tab) tab.textContent = tabLabel(c);
     });
@@ -502,9 +630,26 @@
     lamp.dataset.turn = now.k;
     if (lamp.lastChild.textContent !== now.text) lamp.lastChild.textContent = now.text;
     renderRail();
+    setIcon(waiting);
     $$('.grip').forEach(function (g) { g.disabled = S.sort !== 'board'; g.title = t(S.sort === 'board' ? 'grip_title' : 'grip_title_sorted'); });
     alignCompare();
     layoutDesk();
+  }
+
+  // The browser tab says it too: a count before the title, and the lit tab of the mark.
+  var iconState = null;
+  function setIcon(waiting) {
+    var state = (waiting ? 1 : 0) + ':' + waiting + ':' + B.board.title;
+    if (state === iconState) return;
+    iconState = state;
+    document.title = (waiting ? '(' + waiting + ') ' : '') + B.board.title;
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><style>.i{fill:#2a2d34}.t{fill:' + (waiting ? '#d9480f' : '#2a2d34') + '}@media(prefers-color-scheme:dark){.i{fill:#e9e9e6}.t{fill:' + (waiting ? '#ff8a4c' : '#e9e9e6') + '}}</style>' +
+      '<path class="t" d="' + MARK_TAB + '"/><path class="i" d="' + MARK_CARD + '"/></svg>';
+    var link = document.querySelector('link[rel="icon"]');
+    if (!link) { link = document.createElement('link'); link.rel = 'icon'; link.type = 'image/svg+xml'; document.head.appendChild(link); }
+    link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+    var mark = $('.mark');
+    if (mark) mark.classList.toggle('lit', !!waiting);
   }
 
   // In a compare shelf, claims and gists share a height so facts line up row by row.
@@ -828,14 +973,36 @@
     var cs = getComputedStyle(box);
     return parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
   }
-  function fitScale() {
+  // Fit shows the whole board with empty table around it. Claim is the map
+  // level: there Fit always shows every card, however small, and a click on a
+  // card zooms to it. Gist and Full are for reading: there Fit never goes
+  // below a readable size; a board too tall fits the window's width instead
+  // and the table scrolls down.
+  var READABLE = 0.5;  // below this a claim is under 8px
+  var TABLE = 0.84;    // the cards take this share of each side: about 30% of the table stays empty
+  function fitParts() {
     var box = deskBox();
     var plane = $('.plane');
     var r = box.getBoundingClientRect();
     var cs = getComputedStyle(box);
     var w = r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
     var h = r.height - padY(box);
-    return clamp(Math.min(w / plane.offsetWidth, h / plane.offsetHeight), 0.15, 1);
+    return { wide: TABLE * w / plane.offsetWidth, all: TABLE * Math.min(w / plane.offsetWidth, h / plane.offsetHeight) };
+  }
+  function fitScale() {
+    var f = fitParts();
+    return clamp(S.alt === 'claim' || f.all >= READABLE ? f.all : Math.max(f.wide, READABLE), 0.15, 1);
+  }
+  // The first view of a board, when you have not picked a level for the desk:
+  // Gist if every section then fits the window's width and the board is at
+  // most two windows tall; else Claim, the whole board at once, each card
+  // with its claim and its picture.
+  function firstView() {
+    if (deskAltSet || ASKED.alt || !deskOn()) return;
+    deskAltSet = 'auto';
+    var box = deskBox();
+    var big = fitParts().wide < READABLE || $('.plane').offsetHeight * fitScale() > 2 * (box.clientHeight - padY(box));
+    if (S.alt === 'gist' && big) { S.alt = S.alts.desk = 'claim'; applyView(); }
   }
   function syncSizer() {
     var plane = $('.plane');
@@ -1018,6 +1185,7 @@
   }
   function setAlt(a) {
     S.alt = S.alts[S.view] = a;
+    if (S.view === 'desk') deskAltSet = a;
     save(S.view === 'desk' ? 'deskAlt' : 'alt', a);
     applyView();
     if (S.focus && S.view === 'desk') reveal(S.focus);
@@ -1029,6 +1197,7 @@
     S.back = null;
     save('view', S.view);
     render();
+    firstView();
     if (S.focus && cardEl(S.focus)) {
       cardEl(S.focus).focus({ preventScroll: true });
       if (S.view === 'desk') reveal(S.focus); else cardEl(S.focus).scrollIntoView({ block: 'nearest' });
@@ -1124,8 +1293,10 @@
     var text = (D.note || '').trim();
     if (!text || pendingChat) return;
     if (!B.live) {
-      openCopy(window.cardsDigest({ board: { id: ID, title: B.board.title, path: B.board.path }, rev: B.board.rev, at: new Date().toISOString(), items: [{ kind: 'note', text: text }] }, cardIndex()), function (msg) {
-        D.chatCopied = (D.chatCopied || []).concat([{ at: new Date().toISOString(), text: text }]).slice(-20);
+      var note = { board: { id: ID, title: B.board.title, path: B.board.path }, rev: B.board.rev, at: new Date().toISOString(), items: [{ kind: 'note', text: text }], pasted: !B.public };
+      note.key = window.cardsReplyKey(note);
+      openCopy(window.cardsDigest(note, cardIndex()), function (msg) {
+        D.chatCopied = (D.chatCopied || []).concat([{ at: new Date().toISOString(), text: text, key: note.key }]).slice(-20);
         D.note = '';
         saveDrafts();
         toggleChat(true);
@@ -1180,10 +1351,18 @@
     var keys = s && s.layout === 'compare' ? factKeys(s.cards) : null;
     var wasFocus = document.activeElement === el;
     el.outerHTML = cardHtml(B.cards[id], keys);
+    // An answer here opens, locks or holds the asks that need this one.
+    if (B.cards[id].ask && !refreshing) {
+      refreshing = true;
+      cards().forEach(function (c) { if (c.id !== id && isOpenAsk(c) && c.needs.length && cardEl(c.id) && document.activeElement !== cardEl(c.id).querySelector('textarea')) refreshCard(c.id); });
+      refreshing = false;
+    }
+    if (refreshing) return;
     applyView();
     watchSizes();
     if (wasFocus) cardEl(id).focus({ preventScroll: true });
   }
+  var refreshing = false;
 
   // ---------- focus ----------
 
@@ -1273,7 +1452,12 @@
   var UNDO_MS = 5000;
   function send() {
     if (pendingSend || !buildItems(false).length || D.sentRev) return;
-    if (!B.live) { openCopy(window.cardsDigest({ board: { id: ID, title: B.board.title, path: B.board.path }, rev: B.board.rev, at: new Date().toISOString(), items: buildItems(true) }, cardIndex())); return; }
+    if (!B.live) {
+      var batch = { board: { id: ID, title: B.board.title, path: B.board.path }, rev: B.board.rev, at: new Date().toISOString(), items: buildItems(true), pasted: !B.public };
+      batch.key = window.cardsReplyKey(batch);
+      openCopy(window.cardsDigest(batch, cardIndex()), null, null, batch.key);
+      return;
+    }
     // Undo over confirmation: the round leaves after a short hold.
     var back = document.activeElement;
     pendingSend = setTimeout(function () { post(); restoreFocus(back); }, UNDO_MS);
@@ -1316,9 +1500,9 @@
     });
   }
 
-  function openCopy(text, after, title) {
+  function openCopy(text, after, title, key) {
     var dlg = document.createElement('dialog');
-    dlg.innerHTML = '<h2>' + esc(title || t('send_copy_title')) + '</h2><p>' + tHtml('send_copy_body', { cmd: '<code>cards serve</code>' }) + '</p>' +
+    dlg.innerHTML = '<h2>' + esc(title || t('send_copy_title')) + '</h2><p>' + (B.public ? esc(t('send_copy_body_public')) : tHtml('send_copy_body', { cmd: '<code>cards serve</code>' })) + '</p>' +
       '<textarea readonly aria-label="' + esc(t('send_copy_label')) + '">' + esc(text) + '</textarea>' +
       '<div class="row"><button class="btn" data-close>' + esc(t('close')) + '</button><button class="send" data-copy>' + esc(t('copy')) + '</button></div>';
     document.body.appendChild(dlg);
@@ -1327,6 +1511,7 @@
       dlg.close();
       if (after) { after(msg); return; }
       D.sentRev = B.board.rev;
+      D.sentKey = key || '';
       saveDrafts();
       applyView();
       toast(msg);
@@ -1349,8 +1534,9 @@
       ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['z', t('keys_zoom')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
       ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')], ['Ctrl + Enter', t('send')], ['Esc', t('keys_undo_send')]];
     var dlg = document.createElement('dialog');
+    var made = B.build ? '<a class="made" href="' + esc(B.build.home) + '" target="_blank" rel="noopener noreferrer">' + esc(t('mark_title', { version: B.build.version })) + '</a>' : '';
     dlg.innerHTML = '<h2>' + esc(t('keys_title')) + '</h2><dl class="keys">' + keys.map(function (k) { return '<dt>' + esc(k[0]) + '</dt><dd>' + esc(k[1]) + '</dd>'; }).join('') + '</dl>' +
-      '<div class="row"><button class="btn" data-close>' + esc(t('close')) + '</button></div>';
+      '<div class="row">' + made + '<button class="btn" data-close>' + esc(t('close')) + '</button></div>';
     document.body.appendChild(dlg);
     dlg.querySelector('[data-close]').addEventListener('click', function () { dlg.close(); });
     dlg.addEventListener('close', function () { dlg.remove(); });
@@ -1410,6 +1596,7 @@
     });
     changed.forEach(function (id) { if (!B.cards[id]) changed.delete(id); });
     saveSeen();
+    if (D.sentRev && arrived(D.sentKey)) D = emptyDrafts();
     reconcileDrafts();
     notice('');
     rerender(moved);
@@ -1509,6 +1696,21 @@
     if (ap && card) {
       var d = draft(card.dataset.id);
       d.approve = d.approve === ap.dataset.approve ? undefined : ap.dataset.approve;
+      touchDrafts();
+      refreshCard(card.dataset.id);
+      return;
+    }
+    var dn = t.closest('[data-done]');
+    if (dn && card) {
+      var dd = draft(card.dataset.id);
+      dd.done = dd.done === dn.dataset.done ? undefined : dn.dataset.done;
+      touchDrafts();
+      refreshCard(card.dataset.id);
+      return;
+    }
+    var gt = t.closest('[data-act="anyway"], [data-act="hold"]');
+    if (gt && card) {
+      draft(card.dataset.id).anyway = gt.dataset.act === 'anyway' ? true : undefined;
       touchDrafts();
       refreshCard(card.dataset.id);
       return;
@@ -1788,6 +1990,7 @@
   // ---------- boot ----------
 
   render();
+  firstView();
   var resizeTimer;
   window.addEventListener('resize', function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(function () { alignCompare(); watchSizes(); scheduleWires(); }, 120); });
   var hash = location.hash.replace(/^#c-/, '');

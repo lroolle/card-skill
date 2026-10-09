@@ -93,3 +93,4 @@
 {"t":"rev","rev":10,"at":"2026-10-09T10:17:41.814Z","hash":"fe4ffedfe36b8431"}
 {"t":"card","id":"ask-canvas","n":34,"v":4,"rev":11,"at":"2026-10-09T10:24:02.157Z","hash":"456a483a74154b1a","src":"** DONE The desk canvas is approved as built, with its five choices\n:PROPERTIES:\n:CUSTOM_ID: ask-canvas\n:FROM: opt-desk opt-free desk-rules desk-note\n:END:\nYou approved it in round 2, and D17 records it. The five choices stay as built.\n\n1. Fit, 50% and 100% replace 10%.\n2. The top strip of a card is the drag handle.\n3. Your layout stays in this browser.\n4. A card that the agent adds goes to a new column at the right.\n5. A phone opens on the rack.","fmt":"org"}
 {"t":"rev","rev":11,"at":"2026-10-09T10:24:02.157Z","hash":"9285c9325e2bf0bf"}
+{"t":"build","v":"0.1.0","at":"2026-10-09T12:21:17.872Z"}

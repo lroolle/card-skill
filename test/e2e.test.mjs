@@ -201,7 +201,7 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?level=claim');
     assert.ok((await page.getAttribute('.board', 'class')).includes('view-desk'), 'the board opens on the desk');
     assert.equal(await page.getAttribute('[data-act="desk"]', 'aria-pressed'), 'true');
     // option a->g, option f->g, needs c->f, from a->c, from c->d. The mention e->a draws only in focus.
@@ -244,7 +244,7 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     assert.deepEqual(behind, []);
 
     // Lines follow the cards when the level of detail changes.
-    // The desk keeps its own level of detail: it opened at Claim; the rack stays at Gist.
+    // The desk keeps its own level of detail: this page was opened at Claim (?level=claim); the rack stays at Gist.
     assert.ok((await page.getAttribute('.board', 'class')).includes('alt-claim'));
     const before = await page.getAttribute('.wires .wire[data-a="c"][data-b="d"] .ln', 'd');
     await page.keyboard.press('Escape');
@@ -409,7 +409,7 @@ test('desk canvas: zoom presets, zoom to a card and back, drag to place, Arrange
     const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?level=claim');
     const scale = () => page.evaluate(() => { const p = document.querySelector('.plane'); return Math.round(100 * p.getBoundingClientRect().width / p.offsetWidth); });
     const pressed = () => page.$$eval('[data-zoom][aria-pressed="true"]', (b) => b.map((x) => x.dataset.zoom));
     // Zoom animates; wait for the scale itself, not for a fixed time.
@@ -565,6 +565,266 @@ test('chat in file mode: Send copies just the message', { skip: !chromium && 'pl
     const text = await page.inputValue('dialog textarea');
     assert.match(text, /note\s+"Can SQS replay at all\?"/);
     assert.doesNotMatch(text, /pick-queue/, 'only the message, not the card answers');
+  } finally {
+    await browser.close();
+  }
+});
+
+// ---------- the loop around the board ----------
+
+const WATCH = `#+title: Pick the band
+#+author: Claude
+#+todo: TODO DOING BLOCKED | DONE
+
+* Decisions
+
+** Which band goes with the watch?
+:PROPERTIES:
+:CUSTOM_ID: pick-band
+:ASK: choose
+:END:
+The sport band is the lighter one.
+
+- [X] sport :: Sport band, 140 to 190 mm
+- [ ] link :: Magnetic link, 140 to 180 mm
+
+** Which size fits your wrist?
+:PROPERTIES:
+:CUSTOM_ID: pick-size
+:ASK: choose
+:SUGGEST: none
+:NEEDS: pick-band
+:END:
+Only you can measure your wrist.
+
+- [ ] s-m :: S/M
+- [ ] m-l :: M/L
+
+** Put the watch in the bag
+:PROPERTIES:
+:CUSTOM_ID: bag
+:ASK: approve
+:NEEDS: pick-size
+:END:
+The order is not placed before you approve.
+
+** Pass the identity check at checkout
+:PROPERTIES:
+:CUSTOM_ID: verify
+:ASK: do
+:END:
+The store asks for a code that only your phone receives.
+`;
+
+function watch() {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const ref = resolveBoard('watch', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  fs.writeFileSync(ref.file, WATCH);
+  return { cwd, ref };
+}
+
+test('asks that depend on asks: one waits, is held when the first answer changes, and the reply says which', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = watch();
+  buildBoard(ref, { cwd });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack');
+    await page.waitForSelector('.board.view-rack.alt-gist');
+    const tab = (id) => page.textContent(`#c-${id} .tab`);
+    const off = (id) => page.$$eval(`#c-${id} .ask :is(input, button.btn)`, (els) => els.every((e) => e.disabled));
+    const reply = async () => {
+      await page.keyboard.press('Control+Enter');
+      const text = await page.inputValue('dialog textarea');
+      await page.click('dialog [data-close]');
+      return text;
+    };
+
+    // At the start two asks can be answered; the other two wait, shown and off.
+    assert.match(await page.textContent('.lamp'), /2 waiting on you/);
+    assert.equal(await tab('pick-size'), 'Waits for #1');
+    assert.ok(await off('pick-size'));
+    assert.match(await page.textContent('#c-pick-size .gate-note'), /Answer 1 first\. This one depends on it\./);
+    assert.match(await page.textContent('#c-pick-size .ask-note'), /Only you know/);
+    assert.equal(await tab('bag'), 'Waits for #2');
+    assert.equal(await page.getAttribute('.rail-tab[data-goto="bag"]', 'data-held'), '');
+
+    // The suggested band opens the size; the size opens the bag.
+    await page.click('#c-pick-band .opt:has(input[value="sport"])');
+    assert.equal(await tab('pick-size'), 'Choose');
+    assert.ok(!(await off('pick-size')));
+    await page.click('#c-pick-size .opt:has(input[value="s-m"])');
+    assert.ok(!(await off('bag')));
+    await page.click('#c-bag [data-approve="approve"]');
+    await page.click('#c-verify [data-done="done"]');
+    assert.equal(await tab('verify'), 'Done');
+    let text = await reply();
+    assert.match(text, /#1 pick-band\s+choose\s+confirmed: sport/);
+    assert.match(text, /#2 pick-size\s+choose\s+chosen: s-m/);
+    assert.match(text, /#3 bag\s+approve\s+approved/);
+    assert.match(text, /#4 verify\s+do\s+done/);
+
+    // The band changes: the size was written for the suggestion, so it is held, and the bag with it.
+    await page.click('#c-pick-band .opt:has(input[value="link"])');
+    assert.equal(await tab('pick-size'), 'Waits for #1');
+    assert.ok(await off('pick-size'));
+    assert.match(await page.textContent('#c-pick-size .gate-note'), /written for the suggestion in 1, and you changed 1\. The agent will ask this again\./);
+    assert.equal(await tab('bag'), 'Waits for #2');
+    text = await reply();
+    assert.match(text, /#1 pick-band\s+choose\s+changed: link {2}\(you suggested sport\)/);
+    assert.match(text, /#2 pick-size\s+choose\s+held: #1 changed from your suggestion/);
+    assert.match(text, /#3 bag\s+approve\s+held: waits for #2/);
+    assert.doesNotMatch(text, /chosen: s-m|approved/, 'a held answer does not go out as an answer');
+
+    // The human may answer anyway; the reply then says what changed under the answer.
+    await page.click('#c-pick-size [data-act="anyway"]');
+    assert.ok(!(await off('pick-size')));
+    assert.equal(await tab('pick-size'), 'Chosen');
+    assert.equal(await tab('bag'), 'Approved');
+    text = await reply();
+    assert.match(text, /#2 pick-size\s+choose\s+chosen: s-m {2}\[answered after #1 changed\]/);
+    assert.match(text, /#3 bag\s+approve\s+approved/);
+    await page.click('#c-pick-size [data-act="hold"]');
+    assert.ok(await off('pick-size'));
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a pasted reply, recorded with cards ingest, shows on the page as answered and clears the copied drafts', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { execFileSync } = await import('node:child_process');
+  const cli = (args, input) => execFileSync('node', [path.join(SKILL, 'bin', 'cards.mjs'), ...args], { cwd, input, encoding: 'utf8' });
+  const { cwd, ref } = watch();
+  buildBoard(ref, { cwd });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const url = pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack';
+    await page.goto(url);
+    assert.equal(await page.title(), '(2) Pick the band', 'the browser tab counts the asks that wait');
+    assert.match(decodeURIComponent(await page.getAttribute('link[rel="icon"]', 'href')), /\.t\{fill:#d9480f\}/, 'and the icon lights its tab');
+    assert.ok(await page.$('.mark.lit'));
+    assert.match(await page.getAttribute('.mark', 'title'), /^Made with cards \d+\.\d+\.\d+$/);
+    assert.match(await page.textContent('.andon .stat'), /by Claude/);
+
+    await page.click('#c-pick-band .opt:has(input[value="link"])');
+    await page.click('#c-verify [data-done="cannot"]');
+    await page.keyboard.press('Control+Enter');
+    const text = await page.inputValue('dialog textarea');
+    assert.match(text, /This reply is not on disk yet\. Record it first: cards ingest watch/);
+    await page.click('dialog [data-copy]');
+    await page.waitForSelector('dialog', { state: 'detached' });
+    assert.match(await page.textContent('.lamp'), /reply copied/);
+    assert.equal(await page.title(), 'Pick the band', 'nothing waits: the two asks left are held');
+
+    // The agent records the paste; no card is edited. A reload shows the round.
+    assert.match(cli(['ingest'], text), /recorded round 1 of watch: 4 responses, 2 asks answered, 2 held/);
+    cli(['render', 'watch', '--quiet']);
+    await page.goto(url);
+    assert.equal(await page.textContent('#c-pick-band .tab'), 'Chosen');
+    assert.equal(await page.textContent('#c-verify .tab'), 'Cannot');
+    assert.match(await page.textContent('#c-pick-band .thread'), /Chose Magnetic link, 140 to 180 mm/, 'the thread shows the words of the option, not its key');
+    assert.match(await page.textContent('.lamp'), /round 1 read/);
+    assert.equal(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem(Object.keys(localStorage).find((k) => k.endsWith(':drafts')))).cards).length), 0, 'the copied drafts are on disk now, so the page drops them');
+
+    // DONE closes an ask; the card keeps what was asked and what you said.
+    cli(['settle', 'watch']);
+    cli(['render', 'watch', '--quiet']);
+    await page.goto(url);
+    assert.equal(await page.getAttribute('#c-pick-band', 'data-status'), 'done');
+    assert.equal(await page.$('#c-pick-band .tab'), null);
+    assert.match(await page.textContent('#c-pick-band .thread'), /Chose Magnetic link/);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('first view: the most detail that fits and reads; pictures at every level; Fit never unreadable', { skip: !chromium && 'playwright not installed' }, async () => {
+  const scaleOf = (page) => page.evaluate(() => { const m = getComputedStyle(document.querySelector('.plane')).transform; return m === 'none' ? 1 : Number(m.match(/matrix\(([\d.]+)/)[1]); });
+  const browser = await chromium.launch();
+  try {
+    // A small board opens with its gists.
+    const small = watch();
+    buildBoard(small.ref, { cwd: small.cwd });
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.goto(pathToFileURL(path.join(small.ref.dir, 'board.html')).href);
+    await page.waitForSelector('.board.view-desk.alt-gist');
+    assert.ok(await scaleOf(page) >= 0.5);
+    // Fit leaves empty table around the cards.
+    const wide = setup();
+    buildBoard(wide.ref, { cwd: wide.cwd });
+    await page.goto(pathToFileURL(path.join(wide.ref.dir, 'board.html')).href + '?level=claim');
+    await page.waitForSelector('.board.view-desk.alt-claim');
+    const fill = await page.evaluate(() => { const p = document.querySelector('.plane').getBoundingClientRect(); const b = document.querySelector('.shelves').getBoundingClientRect(); return Math.max(p.width / b.width, p.height / b.height); });
+    assert.ok(fill <= 0.86, `the cards take ${Math.round(fill * 100)}% of the table`);
+
+    // A board of long cards with pictures: Gist would be a map nobody reads, so it opens at Claim.
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+    const ref = resolveBoard('bands', cwd);
+    fs.mkdirSync(ref.dir, { recursive: true });
+    fs.writeFileSync(path.join(cwd, 'band.png'), png(600, 400));
+    const para = 'This band is light and it dries fast. '.repeat(6);
+    const card = (s, k) => `** Band ${s}${k} holds the watch on a wet wrist\n:PROPERTIES:\n:CUSTOM_ID: b${s}${k}\n:END:\n${para}\n\n#+caption: Band ${s}${k}\n[[file:../../band.png]]\n`;
+    fs.writeFileSync(ref.file, `#+title: Bands\n\n${[1, 2, 3].map((s) => `* Group ${s}  :compare:\n\n${[1, 2, 3, 4, 5, 6].map((k) => card(s, k)).join('\n')}`).join('\n')}`);
+    const r = buildBoard(ref, { cwd });
+    assert.deepEqual(r.errors, []);
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await page.waitForSelector('.board.view-desk.alt-claim');
+    const thumb = await page.locator('#c-b11 .fig img').boundingBox();
+    assert.ok(thumb && thumb.height > 20, 'a picture shows on the Claim tile');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#c-b11 .gist')).display), 'none');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#c-b11 figcaption')).display), 'none');
+
+    // At Gist, Fit takes the width and the table scrolls down; it does not shrink to a map.
+    await page.keyboard.press('2');
+    await page.waitForTimeout(400);
+    assert.ok(await scaleOf(page) >= 0.5, `Fit at Gist is ${await scaleOf(page)}`);
+    const scroll = await page.evaluate(() => { const b = document.querySelector('.shelves'); return [b.scrollWidth <= b.clientWidth + 1, b.scrollHeight > b.clientHeight]; });
+    assert.deepEqual(scroll, [true, true], 'the width fits; the height scrolls');
+
+    // On the rack, six options sit 3 + 3, not 4 + 2.
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack&level=gist');
+    await page.waitForSelector('.board.view-rack.alt-gist');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.slots[data-layout="compare"]')).gridTemplateColumns.split(' ').length), 3);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('translations and published copies: a language link in the same tab; a copy says where the reply goes', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { execFileSync } = await import('node:child_process');
+  const { cwd, ref } = watch();
+  const zh = resolveBoard('watch-zh', cwd);
+  fs.mkdirSync(zh.dir, { recursive: true });
+  fs.writeFileSync(zh.file, `#+title: 选表带\n#+language: zh-Hans\n#+translation_of: watch\n\n* 决定\n\n** 通过结账时的身份验证\n:PROPERTIES:\n:CUSTOM_ID: verify\n:ASK: do\n:END:\n商店会发一个只有你的手机能收到的验证码。\n`);
+  buildBoard(ref, { cwd });
+  buildBoard(zh, { cwd });
+  const out = path.join(cwd, 'site');
+  for (const id of ['watch', 'watch-zh']) execFileSync('node', [path.join(SKILL, 'bin', 'cards.mjs'), 'export', id, '--out', path.join(out, id)], { cwd });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack');
+    assert.equal(await page.textContent('.langs b'), 'English');
+    assert.equal(await page.getAttribute('.langs a', 'target'), null);
+    await page.click('.langs a');
+    await page.waitForSelector('#c-verify');
+    assert.match(page.url(), /watch-zh\/board\.html$/);
+    assert.equal(await page.getAttribute('html', 'lang'), 'zh-Hans');
+    assert.equal(await page.textContent('#c-verify [data-done="done"]'), '办好了');
+
+    // The published copy: no path, no past rounds, and Send explains itself to a reader who has no agent.
+    await page.goto(pathToFileURL(path.join(out, 'watch', 'index.html')).href + '?view=rack');
+    assert.equal(await page.textContent('.andon .path'), '');
+    assert.match(await page.getAttribute('.langs a', 'href'), /^\.\.\/watch-zh\/$/);
+    await page.click('#c-verify [data-done="done"]');
+    await page.keyboard.press('Control+Enter');
+    assert.match(await page.textContent('dialog p'), /published copy of the board\. Copy your reply and send it to the person who shared it\./);
+    assert.doesNotMatch(await page.inputValue('dialog textarea'), /cards ingest/);
   } finally {
     await browser.close();
   }

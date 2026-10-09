@@ -181,7 +181,7 @@ test('compile: one self-contained file; data escapes </script>', () => {
   const r = buildBoard(ref, { cwd });
   assert.deepEqual(r.errors, []);
   assert.ok(!/<script>x\(\)/.test(r.html));
-  assert.ok(!/<link |src="http/.test(r.html), 'no external assets');
+  assert.ok(!/<link (?!rel="icon" type="image\/svg\+xml" href="data:)|src="http|href="http[^"]*\.(css|js)"/.test(r.html), 'no external assets: the page icon is a data URI');
   const json = r.html.match(/<script type="application\/json" id="board-data">([\s\S]*?)<\/script>/)[1];
   const data = JSON.parse(json);
   assert.equal(data.cards.a.n, 1);

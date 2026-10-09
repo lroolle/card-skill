@@ -1,4 +1,5 @@
 #+title: Why the nightly build got slower in September
+#+todo: TODO DOING BLOCKED | DONE
 
 Example board from the brief pattern. Replace every card. Claims first; open a card for the evidence.
 

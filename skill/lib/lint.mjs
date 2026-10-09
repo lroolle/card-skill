@@ -130,9 +130,51 @@ function figureWarnings(c, warn0, sx) {
   }
 }
 
+const slugKey = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'key';
+
+// Blocks this build shows as something else than the writer meant. A src
+// language that names a drawing we do not draw is shown as code; a block type
+// we do not know shows its content as plain text. Both are silent on the
+// page, so they are said here.
+const DRAWS = ['sketch', 'flow'];
+const WIDGETS = ['tradeoffs', 'diff', 'facts'];
+const DRAW_LIKE = ['image', 'img', 'picture', 'photo', 'figure', 'fig', 'chart', 'graph', 'plot', 'diagram', 'mermaid', 'dot', 'graphviz', 'plantuml', 'ditaa', 'svg', 'canvas', 'bars', 'table'];
+const BLOCKS = ['src', 'example', 'quote', 'comment', 'center', 'verse'];
+function blockWarnings(c, warn) {
+  let inside = null;
+  String(c.body).split('\n').forEach((line, k) => {
+    const at = (c.bodyLine || c.line) + k;
+    if (inside) { if (new RegExp(`^\\s*#\\+end_${inside}\\s*$`, 'i').test(line)) inside = null; return; }
+    const m = line.match(/^\s*#\+begin_(\w+)(?:\s+(\S+))?/i);
+    if (!m) return;
+    const kind = m[1].toLowerCase();
+    const lang = (m[2] || '').toLowerCase();
+    if (kind === 'src' || kind === 'example' || kind === 'comment' || kind === 'export') inside = m[1];
+    if (kind === 'export') warn(at, '#+begin_export is not shown: a board never passes raw markup through');
+    else if (!BLOCKS.includes(kind)) warn(at, `#+begin_${kind} has no look of its own here; its content shows as plain text (blocks: ${BLOCKS.join(', ')})`);
+    else if (kind === 'src' && DRAW_LIKE.includes(lang)) {
+      warn(at, `#+begin_src ${lang} is shown as code, not drawn. Drawn kinds: ${DRAWS.join(', ')}; widgets: ${WIDGETS.join(', ')}. For a picture, put [[file:shot.png]] alone on a line`);
+    }
+  });
+}
+
 export function lint(board) {
   const out = [];
   const warn = (line, msg) => out.push({ line, msg });
+  // What keeps the file valid Org for Emacs and GitHub, not only for this build.
+  const custom = board.cards.find((c) => c.keyword === 'DOING' || c.keyword === 'BLOCKED');
+  if (board.fmt === 'org' && custom && !/\bDOING\b/.test(board.todo || '')) {
+    warn(custom.line, `${custom.keyword} is not a TODO keyword to Emacs or GitHub until the board says so; add near the title: #+todo: TODO DOING BLOCKED | DONE`);
+  }
+  if (board.todo && /[A-Z]/.test(board.todo.replace(/\([^)]*\)/g, '').replace(/\b(TODO|DOING|BLOCKED|DONE)\b|\|/g, ''))) {
+    warn(1, '#+todo: names keywords this build does not know; a card state is TODO, DOING, BLOCKED or DONE');
+  }
+  for (const c of board.cards) {
+    if (c.drawerGap) warn(c.line + 1, 'a blank line before :PROPERTIES:; Emacs reads the drawer as the card\'s properties only when it follows the heading directly');
+  }
+  for (const u of board.unknown || []) {
+    warn(u.line, `${u.what} does nothing in this build (read before the first heading: #+title, #+language, #+author, #+description, #+translation_of)`);
+  }
   const english = /^en\b/i.test(board.lang || 'en');
   const sx = syntaxOf(board.fmt);
   plain = sx.plain;
@@ -151,12 +193,15 @@ export function lint(board) {
     if (a.gist && wordish(a.gist.text) > LIMITS.gistWords) {
       warn(c.line, `gist is ${wordish(a.gist.text)} words; keep it under ${LIMITS.gistWords} and move the rest below it`);
     }
-    if (c.ask === 'choose' && a.options.length && !a.options.some((o) => o.default)) {
-      warn(c.line, `no recommended option; mark the one you would pick with - [${sx.fmt === 'org' ? 'X' : 'x'}]`);
+    if (c.ask === 'choose' && a.options.length && !a.options.some((o) => o.default) && c.suggest !== 'none') {
+      warn(c.line, sx.fmt === 'org'
+        ? 'no recommended option; mark the one you would pick with - [X], or say that only the human knows: :SUGGEST: none'
+        : 'no recommended option; mark the one you would pick with - [x]');
     }
-    if (c.ask && c.status === 'done') {
-      warn(c.line, `${sx.fmt === 'org' ? ':ASK:' : 'ask='} ${c.ask} on a done card; drop the ask once it is answered`);
+    for (const o of a.options) {
+      if (o.badKey) warn(c.line, `option key "${o.badKey}" must be lowercase letters, digits and dashes to come back as a key: - [ ] ${slugKey(o.badKey)} :: ${o.badKey} ...`);
     }
+    if (sx.fmt === 'org') blockWarnings(c, warn);
     figureWarnings(c, warn, sx);
     if (english) steWarnings(c, warn, sx);
   }

@@ -1,4 +1,5 @@
 #+title: Review of the retry change in payments-client
+#+todo: TODO DOING BLOCKED | DONE
 
 Example board from the review pattern. Replace every card. One finding per card, worst first. The gate at the end asks before anything changes.
 

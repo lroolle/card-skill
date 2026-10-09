@@ -1,4 +1,5 @@
 #+title: Search reindex, status
+#+todo: TODO DOING BLOCKED | DONE
 
 Example board from the status pattern. Replace every card. Work in flight first; done work recedes; blocked work names what it waits on.
 

@@ -1,4 +1,5 @@
 #+title: Pick a queue for the ingest service
+#+todo: TODO DOING BLOCKED | DONE
 
 Example board from the decide pattern; the numbers are illustrative. Replace every card. Needs first, then options side by side, then one decision.
 

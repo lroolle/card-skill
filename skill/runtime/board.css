@@ -1,6 +1,6 @@
 /* board.css -- the card-skill design language. Every value is a token.
  *
- * Materials (provenance in DESIGN.md): galvanized steel rack, card stock,
+ * Materials (provenance in DESIGN.md, in the source repo): galvanized steel rack, card stock,
  * one printed ink, JIS Z 9103 safety colors for meaning only:
  * yellow-red = the agent is waiting on you; blue = your own act and focus.
  */
@@ -103,6 +103,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lamp[data-turn="agent"] i { border-color: var(--fg-3); }
 .andon .stat { color: var(--fg-3); }
 .andon .path { font-family: var(--mono); font-size: var(--t-xs); color: var(--fg-3); }
+/* The mark: a card with its tab, at the head of the page. Its tab takes the
+   signal color while an ask waits on you, as the browser tab's icon does. */
+.mark { display: inline-flex; order: 9; margin-left: auto; color: var(--fg-2); }
+.mark:hover { color: var(--fg); }
+.mark path { fill: currentColor; }
+.mark.lit .mark-tab { fill: var(--signal); }
+/* The same board in other languages: plain links, the current one in ink. */
+.langs { display: inline-flex; gap: var(--s3); }
+.langs a { color: var(--fg-2); text-underline-offset: 3px; }
+.langs b { color: var(--fg); font-weight: var(--w-strong); }
 .notice {
   margin-top: var(--s3); padding: var(--s2) var(--s3); border-radius: var(--r);
   background: var(--surface-2); color: var(--danger); font-size: var(--t-s);
@@ -179,6 +189,8 @@ h1.title {
   border-radius: var(--r) var(--r) 0 0;
 }
 .card[data-answered] .tab { background: var(--surface); color: var(--accent); border-color: var(--accent); }
+/* A held ask is not yours yet: its tab is paper with a dashed edge, not the signal. */
+.card[data-held] .tab, .rail-tab[data-held] { background: var(--surface); color: var(--fg-2); border-color: var(--line-strong); border-style: dashed; }
 .card.focused .tab { border-color: var(--accent); }
 .card[data-answered].focused .tab { border-color: var(--accent); }
 
@@ -237,7 +249,13 @@ dl.facts .blank { color: var(--fg-3); }
 .opt .hint { font-size: var(--t-xs); color: var(--fg-3); padding-top: 3px; }
 .opt.on .hint { color: var(--accent); }
 
-.ask.gate { flex-direction: row; gap: var(--s2); }
+.ask.gate { flex-direction: row; flex-wrap: wrap; gap: var(--s2); }
+/* An ask that waits for another ask: the reason in words, the controls shown and off. */
+.gate-note, .ask-note { flex: 1 0 100%; margin: 0 0 var(--s1); font-size: var(--t-s); color: var(--fg-2); }
+.gate-note .ref-n { vertical-align: baseline; }
+.ask.held :is(.opt, .btn, textarea) { opacity: 0.5; cursor: not-allowed; }
+.ask.held .opt:hover { background: none; }
+button.link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: var(--w-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .btn {
   min-height: 32px; padding: 0 var(--s3);
   border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface);
@@ -440,6 +458,11 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 
 .alt-claim .card:not(.open) :is(.gist, .fig, .facts, .ask, .depth, .thread, .history, .meter) { display: none; }
 .alt-gist .card:not(.open) :is(.depth, .history) { display: none; }
+/* On the desk a picture shows at every level: at Claim it is a thumbnail under
+   the claim, so a board made to look and pick opens on what there is to see. */
+.view-desk.alt-claim .card:not(.open):not([data-status="done"]) > .fig[data-kind="image"] { display: flex; margin-top: var(--s2); }
+.view-desk.alt-claim .card:not(.open) > .fig[data-kind="image"] figcaption { display: none; }
+.view-desk.alt-claim .card:not(.open) > .fig[data-kind="image"] img { max-height: 132px; width: auto; }
 .card:not(.focused) .context { display: none; }
 
 /* Claim altitude on the rack is an index: one ruled row per card, so density really changes.
@@ -478,11 +501,11 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 }
 .view-desk > header { flex: none; }
 /* On the desk the header is compact, so the table gets the height: a smaller
-   title, and the lede on one line until you click it. */
+   title, and the lede on two lines until you click it. */
 .view-desk h1.title { margin-top: var(--s2); font-size: var(--t-xl); }
 .view-desk .lede {
   margin-top: var(--s1); cursor: pointer;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
 .view-desk .lede.full { display: block; }
 .view-desk .lede p { margin: 0; }
@@ -610,7 +633,7 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 .chat-hint { margin: 0; padding: var(--s1) var(--s3) var(--s2); font-size: var(--t-xs); color: var(--fg-3); }
 
 /* Where the toolbar reaches the right corner, the closed box sits above it. */
-@media (max-width: 1180px) {
+@media (max-width: 1440px) {
   .chat { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
 }
 }
@@ -665,7 +688,8 @@ dialog::backdrop { background: oklch(0.2 0.01 260 / 0.25); }
 dialog h2 { margin: 0 0 var(--s2); font-size: var(--t-l); font-weight: var(--w-strong); }
 dialog p { margin: 0 0 var(--s3); color: var(--fg-2); font-size: var(--t-s); }
 dialog textarea { min-height: 220px; font-family: var(--mono); font-size: var(--t-xs); }
-dialog .row { display: flex; justify-content: flex-end; gap: var(--s2); margin-top: var(--s3); }
+dialog .row { display: flex; justify-content: flex-end; align-items: center; gap: var(--s2); margin-top: var(--s3); }
+dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
 .keys { display: grid; grid-template-columns: auto 1fr; gap: var(--s1) var(--s4); font-size: var(--t-s); margin: 0; }
 .keys dt { font-family: var(--mono); color: var(--fg); }
 .keys dd { margin: 0; color: var(--fg-2); }

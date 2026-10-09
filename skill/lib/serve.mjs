@@ -34,14 +34,24 @@ const isVer = (v) => Number.isInteger(v) && v > 0 && v < 1e6;
 const strList = (v, max = 50) => Array.isArray(v) && v.length <= max && v.every((x) => typeof x === 'string' && x.length <= 500);
 const only = (it, keys) => Object.keys(it).every((k) => keys.includes(k));
 
+// An ask is answered, untouched, or held. Held: it depends on another ask
+// (:NEEDS:) that has no answer yet (why: open) or that the human changed from
+// the suggestion (why: changed). `after` marks an answer the human gave anyway.
+const idList = (v) => Array.isArray(v) && v.length <= 20 && v.every(isId);
+const ASK_KEYS = ['kind', 'card', 'v', 'state', 'needs', 'why', 'after'];
+const ask = (it, keys, answered) => only(it, [...ASK_KEYS, ...keys]) && isId(it.card) && isVer(it.v) &&
+  (it.after === undefined || idList(it.after)) &&
+  (it.state === 'held' ? idList(it.needs) && it.needs.length > 0 && ['open', 'changed'].includes(it.why) && it.value === undefined && it.text === undefined
+    : it.needs === undefined && it.why === undefined && (it.state === 'untouched' ? it.value === undefined && it.text === undefined : answered(it)));
+
 const ITEM = {
   mark: (it) => only(it, ['kind', 'card', 'v', 'value']) && isId(it.card) && isVer(it.v) && ['keep', 'drop', 'more'].includes(it.value),
-  choose: (it) => only(it, ['kind', 'card', 'v', 'value', 'default', 'state']) && isId(it.card) && isVer(it.v) &&
-    (it.state === 'untouched' ? it.value === undefined : ['confirmed', 'changed'].includes(it.state) && strList(it.value) && it.value.length > 0 && strList(it.default ?? [])),
-  approve: (it) => only(it, ['kind', 'card', 'v', 'value', 'state']) && isId(it.card) && isVer(it.v) &&
-    (it.state === 'untouched' ? it.value === undefined : it.state === undefined && ['approve', 'reject'].includes(it.value)),
-  answer: (it) => only(it, ['kind', 'card', 'v', 'text', 'state']) && isId(it.card) && isVer(it.v) &&
-    (it.state === 'untouched' ? it.text === undefined : it.state === undefined && isText(it.text)),
+  // chosen: the agent suggested nothing (:SUGGEST: none), so there was no default to keep or change.
+  choose: (it) => ask(it, ['value', 'default'], (x) => ['confirmed', 'changed', 'chosen'].includes(x.state) && strList(x.value) && x.value.length > 0 && strList(x.default ?? []) && (x.state !== 'chosen' || !(x.default || []).length)) &&
+    (it.default === undefined || strList(it.default)),
+  approve: (it) => ask(it, ['value'], (x) => x.state === undefined && ['approve', 'reject'].includes(x.value)),
+  do: (it) => ask(it, ['value'], (x) => x.state === undefined && ['done', 'cannot'].includes(x.value)),
+  answer: (it) => ask(it, ['text'], (x) => x.state === undefined && isText(x.text)),
   reply: (it) => only(it, ['kind', 'card', 'v', 'text']) && isId(it.card) && isVer(it.v) && isText(it.text),
   order: (it) => only(it, ['kind', 'section', 'value']) && typeof it.section === 'string' && it.section.length <= 64 && strList(it.value, 200) && it.value.every(isId),
   note: (it) => only(it, ['kind', 'text']) && isText(it.text),

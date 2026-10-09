@@ -9,6 +9,7 @@
 //   #+begin_src flow ... #+end_src     code; `sketch` and `flow` are figures
 //   #+begin_src tradeoffs | diff       widgets
 //   #+begin_example / #+begin_quote    code / quote
+//   #+begin_comment                    not shown
 //   - key :: value               a description list; at top level, the facts
 //   - [X] option / - [ ] option  checkboxes: the options of an ask
 //   | a | b |  |---+---|         a table; the rule ends the head
@@ -65,8 +66,10 @@ export function parseOrgBlocks(src, { top = true } = {}) {
         blocks.push({ type: 'code', lang, info: caption, text: blockText(body), line: start });
       } else if (kind === 'quote') {
         blocks.push({ type: 'quote', blocks: parseOrgBlocks(body.join('\n'), { top: false }), line: start });
-      } else {
-        // Any other special block (center, verse, ...) shows its content as ordinary blocks.
+      } else if (kind !== 'comment' && kind !== 'export') {
+        // A comment block is not shown, as in Org; an export block is raw markup, which a
+        // board never passes through. Any other special block (center, verse, ...) shows
+        // its content as ordinary blocks.
         blocks.push(...parseOrgBlocks(body.join('\n'), { top: false }).map((b) => ({ ...b, line: start })));
       }
       caption = '';
@@ -111,7 +114,8 @@ export function parseOrgBlocks(src, { top = true } = {}) {
     if (LIST_RE.test(line)) {
       const [block, next] = parseList(lines, i);
       // A description list at the top of a card body is key-value data: the facts widget.
-      if (top && !block.ordered && block.items.length && block.items.every((it) => it.term !== undefined)) {
+      // ("- [ ] key :: words" is not data: it is an option of an ask, with its key.)
+      if (top && !block.ordered && block.items.length && block.items.every((it) => it.term !== undefined && it.task === null)) {
         const text = block.items.map((it) => `${it.term}: ${it.blocks.map((b) => b.text || '').join(' ').trim()}`).join('\n');
         blocks.push({ type: 'code', lang: 'facts', info: '', text, line: start });
       } else blocks.push(block);

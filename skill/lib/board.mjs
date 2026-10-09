@@ -18,7 +18,9 @@ import { parseBlocks, plain, fenceOpen, fenceCloses, inline, renderBlocks, esc }
 import { parseOrgBlocks, orgInline, orgPlain, orgRefs } from './org.mjs';
 import { FIGURE_LANGS, parseFlow, sketchLines, isFigure } from './figure.mjs';
 
-export const ASKS = ['choose', 'approve', 'answer'];
+// do: an action only the human can take outside the board (a login, a payment);
+// the answer is done or cannot.
+export const ASKS = ['choose', 'approve', 'answer', 'do'];
 export const STATUSES = ['open', 'doing', 'done', 'blocked'];
 export const BASES = ['fact', 'inference', 'guess'];
 export const LAYOUTS = ['grid', 'compare', 'list'];
@@ -114,6 +116,7 @@ function parseMdBoard(src, id) {
     fmt: 'md',
     title: meta?.title || id,
     lang: meta?.lang || 'en',
+    author: '', description: '', translationOf: '', unknown: [],
     lede: '',
     sections: [],
     cards: [],
@@ -211,6 +214,7 @@ function parseMdBoard(src, id) {
       needs: list(kv.needs),
       tags: attrs.tags,
       multi,
+      suggest: null,
       progress,
       body: text,
       bodyLine: c.line + 2 + Math.max(0, c.lines.findIndex((l) => l.trim())),
@@ -234,7 +238,18 @@ function parseMdBoard(src, id) {
 // ---- board.org ----
 
 const TODO = { TODO: 'open', DOING: 'doing', BLOCKED: 'blocked', DONE: 'done' };
-const ORG_CARD_PROPS = ['CUSTOM_ID', 'ASK', 'MULTI', 'BASIS', 'FROM', 'NEEDS', 'ID'];
+const ORG_CARD_PROPS = ['CUSTOM_ID', 'ASK', 'MULTI', 'SUGGEST', 'BASIS', 'FROM', 'NEEDS', 'ID'];
+// The keywords before the first heading that this build reads. Any other is
+// valid Org and does nothing here; lint says so, because an agent that wrote
+// one expected an effect.
+export const ORG_KEYWORDS = ['title', 'language', 'lang', 'author', 'description', 'translation_of'];
+// Org's own settings for Emacs (how the file folds, exports, cycles its TODO
+// keywords). They are for the editor, so they pass without a word.
+const ORG_SETTINGS = ['todo', 'seq_todo', 'typ_todo', 'startup', 'options', 'filetags', 'tags', 'property', 'priorities', 'columns',
+  'archive', 'link', 'setupfile', 'category', 'macro', 'select_tags', 'exclude_tags', 'bibliography', 'cite_export'];
+// Properties Emacs writes into a drawer on its own. They are not ours and not errors.
+const ORG_OWNED = /^(ID|VISIBILITY|ORDERED|NOBLOCKING|COOKIE_DATA|LOGGING|CATEGORY|ARCHIVE|DIR|ATTACH_DIR|EFFORT|STYLE|LAST_REPEAT|CREATED|ARCHIVE_\w+|EXPORT_\w+|\w+_ALL)$/;
+const PLANNING_RE = /^\s*(CLOSED|SCHEDULED|DEADLINE):\s/;
 const orgList = (v) => (v ? v.split(/[\s,]+/).map((x) => x.replace(/^#/, '')).filter(Boolean) : []);
 
 // A heading line: * or ** stars, then [TODO] [#A] Title [3/7] :tag:tag:
@@ -257,10 +272,15 @@ function orgHead(text) {
 }
 
 // The property drawer right after a heading -> { props, start, end } (line offsets in `lines`).
+// A planning line (CLOSED: SCHEDULED: DEADLINE:) may stand between the two,
+// where Emacs writes it; it is not card text.
 function drawer(lines) {
   let i = 0;
   while (i < lines.length && !lines[i].trim()) i++;
-  if (lines[i]?.trim().toUpperCase() !== ':PROPERTIES:') return { props: {}, rest: lines, at: [] };
+  const gap = i > 0;
+  const planned = PLANNING_RE.test(lines[i] || '');
+  if (planned) i++;
+  if (lines[i]?.trim().toUpperCase() !== ':PROPERTIES:') return { props: {}, rest: planned ? lines.slice(i) : lines, at: [] };
   const props = {};
   const at = [];
   let j = i + 1;
@@ -268,14 +288,14 @@ function drawer(lines) {
     const m = lines[j].match(/^\s*:([\w-]+):\s*(.*?)\s*$/);
     if (m) { props[m[1].toUpperCase()] = m[2]; at.push([m[1].toUpperCase(), j]); }
   }
-  return { props, rest: lines.slice(j + 1), at, open: j >= lines.length };
+  return { props, rest: lines.slice(j + 1), at, open: j >= lines.length, gap };
 }
 
 function parseOrgBoard(src, id) {
   const lines = String(src).replace(/\r\n?/g, '\n').split('\n');
   const errors = [];
   const err = (line, msg, fix) => errors.push({ line: line + 1, msg, fix });
-  const board = { id, fmt: 'org', title: id, lang: 'en', lede: '', sections: [], cards: [], errors };
+  const board = { id, fmt: 'org', title: id, lang: 'en', author: '', description: '', translationOf: '', unknown: [], todo: null, lede: '', sections: [], cards: [], errors };
 
   // Split into heading chunks (levels 1 and 2), ignoring headings inside blocks.
   // Deeper headings stay in the card body as subheadings.
@@ -294,12 +314,19 @@ function parseOrgBoard(src, id) {
 
   // Before the first heading: #+keywords and the lede.
   const lede = [];
-  chunks[0].lines.forEach((line) => {
+  chunks[0].lines.forEach((line, k) => {
     const m = line.match(/^#\+(\w+):\s*(.*?)\s*$/);
     if (m) {
       const key = m[1].toLowerCase();
       if (key === 'title') board.title = m[2];
       else if (key === 'language' || key === 'lang') board.lang = m[2] || 'en';
+      else if (key === 'author') board.author = m[2];
+      else if (key === 'description') board.description = m[2];
+      else if (key === 'translation_of') {
+        board.translationOf = m[2];
+        if (!ID_RE.test(m[2])) err(k, `#+translation_of: "${m[2]}" must be the name of a board`, '#+translation_of: pick-a-queue');
+      } else if (key === 'todo' || key === 'seq_todo' || key === 'typ_todo') board.todo = `${board.todo || ''} ${m[2]}`;
+      else if (!ORG_SETTINGS.includes(key)) board.unknown.push({ line: k + 1, what: `#+${m[1]}:` });
     } else lede.push(line);
   });
   board.lede = lede.join('\n').trim();
@@ -334,7 +361,7 @@ function parseOrgBoard(src, id) {
       }
       if (h.todo || h.cookie) err(c.line, 'a section takes no TODO keyword or [n/m] cookie', `* ${h.title}`);
       for (const [k, at] of d.at) {
-        if (k !== 'CUSTOM_ID') err(c.line + 1 + at, `sections take only :CUSTOM_ID:, not :${k}:`, `* ${h.title}  :list:`);
+        if (k !== 'CUSTOM_ID' && !ORG_OWNED.test(k)) err(c.line + 1 + at, `sections take only :CUSTOM_ID:, not :${k}:`, `* ${h.title}  :list:`);
       }
       section = { id: d.props.CUSTOM_ID || sectionId(h.title), title: h.title, note: text, layout, line: c.line + 1, cards: [] };
       board.sections.push(section);
@@ -352,9 +379,9 @@ function parseOrgBoard(src, id) {
       err(c.line, `id "${cid}" must be lowercase letters, digits and dashes`, `:CUSTOM_ID: ${slug(cid)}`);
     }
     for (const [k, at] of d.at) {
-      if (!ORG_CARD_PROPS.includes(k)) {
+      if (!ORG_CARD_PROPS.includes(k) && !ORG_OWNED.test(k)) {
         const hint = k === 'STATUS' ? '; status is the TODO keyword: ** DOING The claim' : k === 'PROGRESS' ? '; progress is a cookie: ** The claim [3/7]' : '';
-        err(c.line + 1 + at, `unknown property :${k}:`, `allowed: CUSTOM_ID, ASK, MULTI, BASIS, FROM, NEEDS${hint}`);
+        err(c.line + 1 + at, `unknown property :${k}:`, `allowed: CUSTOM_ID, ASK, MULTI, SUGGEST, BASIS, FROM, NEEDS${hint}`);
       }
     }
     const enumCheck = (key, value, allowed) => {
@@ -368,6 +395,10 @@ function parseOrgBoard(src, id) {
     enumCheck('BASIS', basis, BASES);
     const multi = p.MULTI !== undefined && /^(t|yes|true)$/i.test(p.MULTI);
     if (multi && ask !== 'choose') err(c.line, ':MULTI: only applies to :ASK: choose', ':ASK: choose\n:MULTI: t');
+    // :SUGGEST: none -- only the human knows; the agent recommends no option.
+    const suggest = p.SUGGEST?.toLowerCase();
+    enumCheck('SUGGEST', suggest, ['none']);
+    if (suggest && ask !== 'choose') err(c.line, ':SUGGEST: only applies to :ASK: choose', ':ASK: choose\n:SUGGEST: none');
     if (h.progress && (h.progress.total === 0 || h.progress.done > h.progress.total)) {
       err(c.line, `progress cookie ${h.cookie} must be done/total`, `** ${h.title} [3/7]`);
     }
@@ -387,11 +418,14 @@ function parseOrgBoard(src, id) {
       needs: orgList(p.NEEDS),
       tags: h.tags,
       multi,
+      suggest: suggest === 'none' ? 'none' : null,
       progress: h.progress && h.progress.total > 0 && h.progress.done <= h.progress.total ? h.progress : null,
       body: text,
       bodyLine: c.line + 2 + (c.lines.length - d.rest.length) + Math.max(0, d.rest.findIndex((l) => l.trim())),
       src: [headLine, ...c.lines].join('\n').trim(),
       fmt: 'org',
+      keyword: h.todo,
+      drawerGap: !!d.gap,
     };
     card.anatomy = anatomy(card);
     if (card.ask === 'choose') {
@@ -399,6 +433,12 @@ function parseOrgBoard(src, id) {
       const ex = `** ${h.title}\n:PROPERTIES:\n:CUSTOM_ID: ${card.id}\n:ASK: choose\n:END:\n- [X] The option you recommend\n- [ ] Another option`;
       if (opts.length < 2) err(c.line, ':ASK: choose needs at least two options written as checkboxes', ex);
       if (!multi && opts.filter((o) => o.default).length > 1) err(c.line, 'single choice has more than one [X]; add :MULTI: t or keep one', ex);
+      if (card.suggest === 'none' && opts.some((o) => o.default)) err(c.line, ':SUGGEST: none with an option marked [X]; keep one of the two', '- [ ] The option');
+      const seen = new Set();
+      for (const o of opts) {
+        if (seen.has(o.value)) err(c.line, `two options answer "${o.value}"; give each its own key`, '- [ ] small :: S/M, 140 to 180 mm\n- [ ] large :: M/L, 160 to 210 mm');
+        seen.add(o.value);
+      }
     }
     board.cards.push(card);
     s.cards.push(card.id);
@@ -430,6 +470,7 @@ export function canonical(card) {
   return JSON.stringify([
     sx.inline(card.title, ctx), card.ask, card.status, card.basis, card.from, card.needs, card.tags, card.multi, card.progress,
     renderBlocks(sx.blocks(card.body), ctx).replace(/\s+/g, ' '),
+    ...(card.suggest ? [card.suggest] : []),
   ]);
 }
 
@@ -492,7 +533,12 @@ export function anatomy(card) {
         const text = it.blocks[0]?.type === 'paragraph' ? it.blocks[0].text : '';
         // An option that starts with a card reference: [[id]] (md) or [[#id]] (org).
         const rm = text.match(/^\[\[#?([a-z0-9][a-z0-9-]*)\](?:\[[^\]]*\])?\]\s*(.*)$/);
-        return { value: rm ? rm[1] : sx.plain(text), ref: rm ? rm[1] : null, text: rm ? rm[2] : text, default: it.task };
+        if (rm) return { value: rm[1], ref: rm[1], key: null, text: rm[2], default: it.task };
+        // "- [ ] small :: S/M, 140 to 180 mm": the term is a key that stays the
+        // same when the words change or the board is translated.
+        if (it.term !== undefined && ID_RE.test(it.term)) return { value: it.term, ref: null, key: it.term, text, default: it.task };
+        const whole = it.term !== undefined ? `${it.term} :: ${text}` : text;
+        return { value: sx.plain(whole), ref: null, key: null, text: whole, badKey: it.term !== undefined ? it.term : null, default: it.task };
       });
       continue;
     }

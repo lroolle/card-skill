@@ -177,7 +177,7 @@ function resolveOne(b, { boardDir, root, rootReal, fail, warn }) {
     return fail(`${what}: refusing to put a hidden file, or one that may hold secrets, into the page`, 'quote the part you need as text, with the secrets removed');
   }
   const st = fs.statSync(real);
-  const base = { path: written, rel, name: path.basename(real), size: st.size, ext: extOf(real) };
+  const base = { path: written, rel, abs: real, name: path.basename(real), size: st.size, ext: extOf(real) };
   if (st.isDirectory() && b.type === 'file') return { ...base, kind: 'dir', size: 0, sha: 'dir' };
   if (!st.isFile()) return fail(`${what} is not a file`, 'name one file');
 
@@ -257,8 +257,14 @@ export function chipHtml(a, ctx = {}) {
   // A relative URL, each part encoded: a file named "javascript:..." stays a file.
   const href = a.path.split('/').map((p) => (p === '.' || p === '..' ? p : encodeURIComponent(p))).join('/');
   const size = a.kind === 'dir' ? '' : `<span class="file-size">${esc(mb(a.size))}</span>`;
-  return `<p class="file"><a class="file-chip" href="${/^\.{0,2}\//.test(href) ? '' : './'}${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(a.rel)}">` +
-    `<span class="file-ext">${esc(kind)}</span><span class="file-name">${esc(a.name)}</span>${size}</a></p>`;
+  const inner = `<span class="file-ext">${esc(kind)}</span><span class="file-name">${esc(a.name)}</span>${size}`;
+  // A published page is away from the project: `cards export` copies the file
+  // beside the page and names the copy here; a folder stays a name with no link.
+  if (ctx.chipHref) {
+    const to = ctx.chipHref(a);
+    return to ? `<p class="file"><a class="file-chip" href="${esc(to)}" target="_blank" rel="noopener noreferrer">${inner}</a></p>` : `<p class="file"><span class="file-chip">${inner}</span></p>`;
+  }
+  return `<p class="file"><a class="file-chip" href="${/^\.{0,2}\//.test(href) ? '' : './'}${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(a.rel)}">${inner}</a></p>`;
 }
 
 // The HTML for a file block, or a plain chip naming the path when the file
