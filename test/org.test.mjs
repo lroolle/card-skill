@@ -44,7 +44,7 @@ Gist.
 :ASK: choose
 :FROM: nats kafka
 :END:
-Why.
+NATS meets the peak; a wrong pick means a second migration.
 
 - [X] [[#nats]]
 - [ ] [[#kafka]] if replay matters

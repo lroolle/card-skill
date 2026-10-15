@@ -254,7 +254,7 @@ of them leaves state in the file that another tool can read.
 
 * Your call
 
-** Which directions come first after 0.1?
+** Proofs, a record in the card, and the agenda come first after 0.1
 :PROPERTIES:
 :CUSTOM_ID: pick-directions
 :ASK: choose

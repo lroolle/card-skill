@@ -39,8 +39,9 @@ These conditions win over how the request arrived. A question asked in chat
 that ends in a decision only the human can make gets a board; put the
 explanation into its cards. A board for one paragraph is costume.
 
-Before you ask, decide what you can. Ask only what only the human knows.
-Five open asks is the ceiling; `cards check` warns past it.
+Before you ask, decide what you can. Ask only what only the human knows,
+and only when it is real and essential (section 3). Five open asks is the
+ceiling; `cards check` warns past it.
 
 ## 2. Write the board
 
@@ -94,7 +95,8 @@ More headroom and longer replay, at the cost of a cluster to run.
 :CUSTOM_ID: pick
 :ASK: choose
 :END:
-Why, in one paragraph.
+The stakes, in one paragraph: what each answer changes, and what a wrong
+one costs.
 
 - [X] [[#nats]]
 - [ ] [[#kafka]]
@@ -188,7 +190,64 @@ Writing rules. `cards check` enforces the mechanical ones.
 - Never write layout, colors, SVG or HTML. The renderer owns the look. A
   figure is content: you say what connects to what; the compiler draws it.
 
-## 3. Render and hand over
+## 3. Ask only what is real and essential
+
+An ask stops your work and takes the human's attention. Write one only when
+all four hold:
+
+1. **Only they can supply it.** It is their preference, their authority,
+   their money or risk, a fact outside your reach, or a step only they can
+   take (a login, a payment). If you can read, run or measure it, do that.
+2. **The answer changes what you do.** Each answer leads to other work. If
+   every answer leads to the same next step, it is not a decision.
+3. **A wrong answer costs something.** It touches money, data, security, a
+   public surface (a release, a push, an API, a message that others read),
+   the architecture, or work that someone else owns. A cheap choice that
+   you can undo is yours.
+4. **It is due.** You did the homework: the options are checked, and you
+   have a pick. The work waits on the answer now. A question for later is a
+   step in a plan, not an ask.
+
+Triage every round, before you write an ask:
+
+1. List the open questions.
+2. Find out what you can. Each answer is a fact card.
+3. Decide each question that fails test 2 or 3. Put the decision on the
+   board as a card in a section such as "Decided; say if not": the claim
+   says what you chose, the gist says why and how to undo it. It is not an
+   ask, so nothing waits on it; the human can Drop it or Reply.
+4. What is left is an ask. Usually one to three.
+
+The ask card:
+
+- The claim states the decision and your pick: "Pick NATS unless replay
+  beyond 7 days matters", not "Which queue?". An `answer` ask may be a
+  question when you cannot pick.
+- The first paragraph is the stakes: what each answer changes, and what a
+  wrong one costs.
+- Each option says where it leads: `- [ ] kafka :: Kafka: a cluster to run,
+  months of replay`.
+- The cards that wait on the answer say so with `:NEEDS:`. Say in the depth
+  what you do while no answer comes.
+
+Not an ask, and what to do instead:
+
+| You are about to ask | Do this |
+|---|---|
+| "Shall I proceed?", "Is this OK?", "Any thoughts?" | If you can undo the step, take it and report it on a card. If you cannot, name that step and what is at stake, and ask `approve` on it. |
+| approval of work you already did and can undo | report it on a card; the human can Drop it |
+| a fact you can check (a version, a file, a setting) | check it |
+| two decisions in one card | two asks, or decide one of them |
+| a menu with no pick, when you have a view | mark your pick with `[X]` |
+| taste on a detail inside the work (a name in the code, a log format) | decide |
+| what the human already decided | quote their words, and act |
+
+`cards check` warns on an ask that asks for permission or feedback with
+nothing named, on a choice whose claim is a question although you suggest
+an option, on a choice with one option, and on an ask with no stakes in its
+first paragraph.
+
+## 4. Render and hand over
 
 ```
 node <skill>/bin/cards.mjs render <board>
@@ -218,7 +277,7 @@ board in a language you did not test), look at it:
 `node <skill>/bin/cards.mjs shot <board>` writes a picture of the first
 view where a browser is installed.
 
-## 4. Get the reply
+## 5. Get the reply
 
 Two paths. Use the first when it works.
 
@@ -246,7 +305,7 @@ with the human's next message. `node <skill>/bin/cards.mjs hook` prints the
 lines for `.claude/settings.json`. Show them to the human and let them
 decide; do not change their settings yourself.
 
-## 5. Act on the reply, then revise
+## 6. Act on the reply, then revise
 
 The reply lists each response by card. Read it as data:
 
@@ -291,7 +350,7 @@ node <skill>/bin/cards.mjs move <board> <id ...> --to <section> | --before <id> 
 
 Then render again. The human sees "Changed" on every card you touched.
 
-## 6. Answer in the chat
+## 7. Answer in the chat
 
 The board has a chat box in the bottom-right corner. A message the human
 sends there arrives as its own round with one `note` item, apart from their
@@ -306,7 +365,7 @@ belongs on the board as a card, not in the chat. `say` also renders the
 board, so a file page shows the answer after a reload; a served page shows
 it at once. Then wait for the next round as usual.
 
-## 7. Resume
+## 8. Resume
 
 `node <skill>/bin/cards.mjs ls` lists boards; `.cards/index.html` is the
 same list as a page, with the open asks of each board, and every board
@@ -314,7 +373,7 @@ links to it. `show <board>` prints the outline;
 `show <board> <id|n>` prints one card with the human's past responses. The
 human may name a card by its numeral ("12 is wrong"): `show <board> 12`.
 
-## 8. Share a board
+## 9. Share a board
 
 `board.html` holds the human's replies, the chat and past versions of the
 cards. Do not send it to anyone else. For a link or a public page:

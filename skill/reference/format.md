@@ -441,6 +441,10 @@ A warning does not stop a render. Each one is a writing rule:
   drawing this build does not draw (`image`, `mermaid`, `plot`, ...).
 - On a translation: the differences from its source (see File keywords).
 - More than 7 cards in a section, more than 30 on a board, more than 5 open asks.
+- An ask that is not a real decision (SKILL.md, section 3): it asks for
+  permission or feedback with nothing named ("Shall I proceed?"); it is a
+  choice whose claim is a question although you suggest an option; it is a
+  choice with one option; its first paragraph does not give the stakes.
 - A figure or an image with no caption; a sketch over 72 columns; a flow over 12 boxes
   or 4 groups; a flow line that points a box at itself; a box in two groups; a
   sequence over 6 parts or 16 messages; a chart cell that is not a number; a

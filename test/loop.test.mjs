@@ -27,12 +27,12 @@ const WATCH = `#+title: Pick the band
 
 * Decisions
 
-** Which band goes with the watch?
+** The sport band goes with the watch
 :PROPERTIES:
 :CUSTOM_ID: pick-band
 :ASK: choose
 :END:
-The sport band is the lighter one.
+The sport band is the lighter one. A wrong band means a return and a second order.
 
 - [X] sport :: Sport band, 140 to 190 mm
 - [ ] link :: Magnetic link, 140 to 180 mm
@@ -44,7 +44,7 @@ The sport band is the lighter one.
 :SUGGEST: none
 :NEEDS: pick-band
 :END:
-Only you can measure your wrist.
+Only you can measure your wrist. A wrong size does not close.
 
 - [ ] s-m :: S/M
 - [ ] m-l :: M/L
@@ -69,7 +69,7 @@ The store asks for a code that only your phone receives.
 :CUSTOM_ID: engraving
 :ASK: answer
 :END:
-One line, 20 characters at most.
+One line, 20 characters at most. The store cannot change it after the order.
 `;
 
 function project(src = WATCH, id = 'watch') {
@@ -193,7 +193,7 @@ test('ingest: a pasted reply becomes a round, once; the asks show as answered; s
   // settle: one keyword per answered ask; the ask and its options stay as the record.
   assert.match(cards(cwd, ['settle', 'watch']), /DONE: pick-band, verify, engraving/);
   const src = fs.readFileSync(ref.file, 'utf8');
-  assert.match(src, /^\*\* DONE Which band goes with the watch\?$/m);
+  assert.match(src, /^\*\* DONE The sport band goes with the watch$/m);
   assert.match(src, /^\*\* Which size fits your wrist\?$/m);
   const after = parseBoard(src, { fmt: 'org' });
   assert.deepEqual(lint(after), [], 'an ask on a done card is the record, not a mistake');

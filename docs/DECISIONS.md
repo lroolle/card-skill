@@ -952,3 +952,39 @@ list of arrows; the drawing scrolls in its frame and zooms on the desk).
 Cost: `figure.mjs` grows to about 900 lines and `chart.mjs` is new.
 Tests: `test/figure.test.mjs` (routes, checks, groups over 300 generated
 flows, sequence, chart, lint, versions).
+
+## D41. An ask is real and essential, or it is not an ask
+
+2026-10-15. Built. The human asked for "better guidelines and workflow for
+the waiting for humans sections; the decisions should be like real and
+essential".
+What was wrong: SKILL.md said "ask only what only the human knows" and
+capped open asks at five. That is one test of four, and the cap counts
+asks, not their worth. Our own boards show the gap: this project's
+progress board put four asks through in one day that were the agent's to
+settle or already settled elsewhere, and the templates modelled asks as
+questions ("Can I make the search API read-only ...?", "Apply the three
+fixes ...?") with the stakes left out.
+What is built:
+- SKILL.md section 3. An ask needs all four: only the human can supply it;
+  the answer changes what the agent does; a wrong answer costs something
+  (money, data, security, a public surface, the architecture, someone
+  else's work); it is due, with the homework done and a pick made. A
+  triage each round: find out what you can, decide what fails the second
+  or third test and put it on the board as a card ("Decided; say if not"),
+  ask the rest. The shape of an ask card: the claim states the decision and
+  the pick, the first paragraph the stakes, each option where it leads.
+  A table of non-asks with what to do instead.
+- `cards check` warns on the tells it can see: a request for permission or
+  feedback with nothing named (English boards), a choice whose claim is a
+  question although an option is suggested, a choice with one option, an
+  ask with no stakes in its first paragraph.
+- The templates' asks are rewritten in that shape, and the roadmap's open
+  ask states its pick.
+Why a section of cards for the agent's own decisions, and not a new ask
+kind: an ask stops the work and a decision should not. Keep, Drop and Reply
+already let the human overrule a card, so no new syntax is needed.
+Rejected: a lower cap on open asks (it counts, it does not judge); a
+required "if no answer" field (language-bound keys; the depth carries it).
+The permission tell reads English only, as the writing checks do (D14).
+Tests: `test/figure.test.mjs` "lint: an ask that is not a real decision".

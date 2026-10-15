@@ -18,12 +18,14 @@ Each shard takes about the same time. No errors so far.
 :END:
 It starts when the import card is done.
 
-** Can I make the search API read-only for 10 minutes at 02:00 UTC?
+** Freeze writes on the search API for 10 minutes at 02:00 UTC
 :PROPERTIES:
 :CUSTOM_ID: read-only
 :ASK: approve
 :END:
-The final swap needs a write freeze. Reads keep working. 02:00 UTC is the lowest-traffic window this week.
+The final swap needs a write freeze. Reads keep working, but nobody can save a search for those minutes. 02:00 UTC is the lowest-traffic window this week.
+
+Without your approval the swap waits for the next low-traffic window, and the old index keeps serving.
 
 * Done
 

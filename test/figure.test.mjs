@@ -249,6 +249,30 @@ test('lint: in a compare section, draw every option or none', () => {
   assert.ok(m.some((x) => x.includes('1 of 2 options have a figure')));
 });
 
+// ---------- lint: asks ----------
+
+test('lint: an ask that is not a real decision is said; a named step with its stakes, or an open question, is not', () => {
+  const m = msgs([
+    '## Shall I proceed? {#a ask=approve}\nShort.\n',
+    '## Which queue? {#b ask=choose}\nNATS covers the peak with one binary, and Kafka costs a cluster to run.\n\n- [x] NATS\n- [ ] Kafka\n',
+    '## Pick the one option here {#e ask=choose}\nThis choice has only one option to take, which is no choice at all.\n\n- [x] only\n',
+    '## Freeze writes on the search API for 10 minutes at 02:00 UTC {#c ask=approve}\nThe final swap needs a write freeze, and nobody can save a search for those minutes.\n',
+    '## Which sessions can we drop instead of copying? {#d ask=answer}\nSessions idle for 30 days are most rows; only you know whether a customer needs them.\n',
+  ].join('\n'));
+  const about = (re) => m.filter((x) => re.test(x));
+  assert.equal(about(/asks for permission or feedback/).length, 1);
+  assert.match(about(/asks for permission or feedback/)[0], /^ask "Shall I proceed\?"/);
+  assert.equal(about(/claim of this choice is a question/).length, 1);
+  assert.equal(about(/needs its stakes/).length, 1, 'only the ask with a one-word gist');
+  assert.equal(about(/one option is not a choice/).length, 1);
+  for (const ok of ['Any feedback on the plan?', 'Is this OK?', 'Can we continue with the migration?', 'Does this look good to you?']) {
+    assert.ok(msgs(`## ${ok} {#x ask=approve}\nThe stakes go here in one sentence of enough words.\n`).some((x) => /permission or feedback/.test(x)), ok);
+  }
+  for (const real of ['Can I make the search API read-only for 10 minutes?', 'Push 0.3.0 to main and tag it', 'Approve the payment fix before it ships']) {
+    assert.ok(!msgs(`## ${real} {#x ask=approve}\nThe stakes go here in one sentence of enough words.\n`).some((x) => /permission or feedback/.test(x)), real);
+  }
+});
+
 // ---------- lint: writing ----------
 
 test('lint: long sentences and listed words are flagged with the plain word', () => {

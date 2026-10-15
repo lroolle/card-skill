@@ -11,6 +11,16 @@ The page
   header folds to one line (whose turn, the title, the ask tabs); the rack
   drops its width limit and the desk gets the height. Where the browser
   allows it, the page takes the real full screen; Esc leaves.
+- SKILL.md, section 3: ask only what is real and essential. Four tests
+  (only the human can supply it, the answer changes what you do, a wrong
+  answer costs something, it is due), a triage for every round, the shape
+  of an ask card, and what to do instead of a non-ask. Decisions you can
+  make go on the board as cards ("Decided; say if not"), not as asks. Later
+  sections are renumbered.
+- `cards check` warns on an ask that asks for permission or feedback with
+  nothing named, a choice whose claim is a question although you suggest an
+  option, a choice with one option, and an ask with no stakes in its first
+  paragraph. The templates' asks show the shape.
 - Figures: two new kinds. `#+begin_src sequence` draws calls between
   parts in time order (`a -> b: call`, `b --> a: reply`, `a -> a: self`).
   `#+begin_src chart` draws an Org table: names in the first column give

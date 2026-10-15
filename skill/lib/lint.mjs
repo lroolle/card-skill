@@ -150,6 +150,35 @@ function figureWarnings(c, warn0, sx) {
   }
 }
 
+// An ask stops the agent's work and takes the human's attention, so it must be a real
+// decision (SKILL.md, "Ask only what is real and essential"). Three tells a checker can see:
+// a request for permission or feedback with nothing at stake named, a question as the claim
+// of a choice the agent has a pick for, and an ask with no stakes in its first paragraph.
+const PERMISSION = [
+  /^(shall|should|can|could|may)\s+(i|we)\s+(proceed|continue|go\s+ahead|go\s+on|start|begin|move\s+on|carry\s+on)\b/i,
+  /^(ok|okay|good)\s+to\s+(proceed|continue|go\s+ahead|go\s+on|start|ship|merge)\b/i,
+  /^(proceed|continue|go\s+ahead|carry\s+on)\b.{0,20}\?$/i,
+  /^(is|does|do)\s+(this|that|it|these|the\s+(plan|change|draft|work))\s+(look\s+|sound\s+|seem\s+)?(ok|okay|good|fine|right|correct|reasonable)\b/i,
+  /^(any\s+)?(feedback|thoughts|comments|concerns|objections)\b/i,
+  /^(what\s+do\s+you\s+think|does\s+this\s+work|sounds?\s+good|lgtm|all\s+good)\b/i,
+  /^(do\s+you\s+)?(approve|agree)\s*\??$/i,
+];
+function askWarnings(c, a, warn, english) {
+  const claim = plain(c.title).trim();
+  if (english && PERMISSION.some((re) => re.test(claim))) {
+    warn(c.line, `ask "${claim}" asks for permission or feedback, not for a decision. Name the step and what is at stake ("Freeze writes on the search API for 10 minutes at 02:00 UTC"); if you can undo the step, do it and report it on a card`);
+  }
+  if (c.ask === 'choose' && a.options.some((o) => o.default) && /\?\s*$/.test(claim)) {
+    warn(c.line, `the claim of this choice is a question, and you suggest an option; state the decision with your pick ("Pick NATS unless replay beyond 7 days matters")`);
+  }
+  if (!a.gist || wordish(a.gist.text) < 8) {
+    warn(c.line, 'an ask needs its stakes in the first paragraph: what each answer changes, and what a wrong one costs');
+  }
+  if (c.ask === 'choose' && a.options.length === 1) {
+    warn(c.line, 'a choice with one option is not a choice; make it :ASK: approve, or add the other options');
+  }
+}
+
 const slugKey = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'key';
 
 // Blocks this build shows as something else than the writer meant. A src
@@ -228,6 +257,7 @@ export function lint(board) {
     for (const o of a.options) {
       if (o.badKey) warn(c.line, `option key "${o.badKey}" must be lowercase letters, digits and dashes to come back as a key: - [ ] ${slugKey(o.badKey)} :: ${o.badKey} ...`);
     }
+    if (c.ask && c.status !== 'done') askWarnings(c, a, warn, english);
     if (sx.fmt === 'org') blockWarnings(c, warn);
     figureWarnings(c, warn, sx);
     if (english) steWarnings(c, warn, sx);

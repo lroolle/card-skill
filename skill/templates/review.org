@@ -36,10 +36,10 @@ The delay doubles on every attempt with no maximum. After 12 attempts one job wa
 
 * Gate
 
-** Apply the three fixes and rerun the payments suite?
+** Apply the three fixes to the payment code and rerun its suite
 :PROPERTIES:
 :CUSTOM_ID: apply-fixes
 :ASK: approve
 :FROM: double-charge backoff-ceiling test-clock
 :END:
-I will change only the lines named in the findings and report the test result on this card.
+The fixes change when a charge is retried, and a wrong fix can charge a customer twice. I will change only the lines named in the findings and report the test result on this card.
