@@ -19,27 +19,29 @@ board waits there; answer it and press Send to see what the agent reads.
 The agent writes `board.org`, plain Org mode:
 
 ```org
-** Pick NATS unless replay beyond 7 days matters
+** Pick the batch brewer, unless espresso matters to the team
 :PROPERTIES:
-:CUSTOM_ID: pick-queue
+:CUSTOM_ID: pick-machine
 :ASK: choose
 :END:
-NATS meets both needs at the lowest operating cost.
+It covers the morning rush at the lowest cost a year. Only you know
+how much the team wants espresso.
 
-- [X] [[#nats]]
-- [ ] [[#kafka]]
+- [X] [[#batch]]
+- [ ] [[#espresso]]
+- [ ] [[#capsule]]
 ```
 
 `cards render` turns it into one self-contained `board.html`. You open it,
 answer, and send. The agent reads:
 
 ```
-cards: reply from the board "Pick a queue for the ingest service" (demo)
-rev 1 · 2026-10-09 12:46 · reply 53dcbab1
+cards: reply from the board "Pick a coffee machine for the team" (demo)
+.cards/demo/board.org · rev 1 · 2026-10-15 12:46 · reply 31215a70
 
-  #6 pick-queue   choose   changed: kafka  (you suggested nats)
-  #7 cutover      approve  held: #6 changed from your suggestion; ...
-  #3 nats         mark     more (go deeper)
+  #6 pick-machine choose   changed: espresso  (you suggested batch)
+  #7 order        approve  held: #6 changed from your suggestion; ...
+  #3 batch        mark     more (go deeper)
 ```
 
 Then it revises the board. A card that changed says so and keeps what it
@@ -61,7 +63,7 @@ dependencies.
 
 Then ask for something that ends in a decision:
 
-> Compare three queues for our ingest service and let me pick. Answer with cards.
+> Compare three coffee machines for the team and let me pick. Answer with cards.
 
 The skill tells the agent when a board is earned and when prose is better.
 Most answers should stay prose.

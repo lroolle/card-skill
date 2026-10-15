@@ -1,99 +1,129 @@
-#+title: Pick a queue for the ingest service
+#+title: Pick a coffee machine for the team
 #+todo: TODO DOING BLOCKED | DONE
 #+language: en
 #+author: an agent, as a sample
-#+description: A sample board: two needs, three options, one decision. Answer it and press Send to see what the agent reads.
+#+description: A sample board: two needs, three machines, one choice, and an order that waits for it. Answer it and press Send to see what the agent reads.
 
-A sample answer from an agent. The numbers are made up.
+A sample answer from an agent. Twelve people, one kitchen; the numbers are made up.
 
-* What the queue must do
+* What the team needs
 
-** Peak load is 80k messages a second; steady load is 5k
+** The morning rush is 30 cups between 9 and 10
 :PROPERTIES:
-:CUSTOM_ID: need-peak
+:CUSTOM_ID: need-rush
 :BASIS: fact
 :END:
-Measured from the October replay of production traffic.
+I counted the cups in the kitchen log for two weeks. A third of the day's coffee goes in that one hour.
 
-** A broker restart must not lose messages
-:PROPERTIES:
-:CUSTOM_ID: need-durable
-:BASIS: fact
-:END:
-A lost batch means re-billing customers by hand.
-
-* Options  :compare:
-
-** NATS JetStream covers the peak with one binary
-:PROPERTIES:
-:CUSTOM_ID: nats
-:BASIS: inference
-:FROM: need-peak need-durable
-:END:
-It meets both needs on a three-node cluster and adds the least operating work.
-
-- peak :: 120k msg/s on 3 nodes
-- replay :: 7 days
-- operations :: one binary
-- cost :: about $40 a month
-
-#+begin_src tradeoffs
-  + Smallest operating surface of the three
-  + The team ran it in 2025 for the notifier
-  - Replay window is shorter than Kafka's
+#+caption: Cups an hour, the mean of ten working days
+#+begin_src chart
+| hour | cups |
+|------+------|
+|    8 |    6 |
+|    9 |   30 |
+|   10 |   11 |
+|   11 |    5 |
+|   12 |    3 |
+|   13 |   14 |
+|   14 |    9 |
+|   15 |    4 |
 #+end_src
 
-** Kafka pays off only if we need months of replay
+** Cleanup takes one person five minutes at most
 :PROPERTIES:
-:CUSTOM_ID: kafka
+:CUSTOM_ID: need-clean
+:BASIS: fact
+:END:
+The team said so in the kitchen thread: "nobody stays late to descale a machine."
+
+* Machines  :compare:
+
+** A batch brewer covers the rush with one button
+:PROPERTIES:
+:CUSTOM_ID: batch
+:BASIS: inference
+:FROM: need-rush need-clean
+:END:
+Two carafes make 100 cups an hour, and it rinses clean in three minutes. The coffee is good, not great.
+
+- cups an hour :: 100, in two carafes
+- a cup costs :: €0.08
+- cleanup :: 3 minutes
+- price :: €900
+
+#+begin_src tradeoffs
+  + Covers the rush three times over
+  + The cheapest cup of the three
+  - No espresso, no milk foam
+#+end_src
+
+** The espresso machine makes the best cup and asks the most care
+:PROPERTIES:
+:CUSTOM_ID: espresso
 :BASIS: inference
 :END:
-It has the most headroom and the longest replay, at the cost of a cluster to run.
+Someone makes each cup by hand, so the rush turns into a queue. The group and the steam wand take ten minutes to clean.
 
-- peak :: 1M msg/s on 3 brokers
-- replay :: as long as disk allows
-- operations :: brokers plus a controller quorum
-- cost :: about $400 a month
+- cups an hour :: 40, with someone at it
+- a cup costs :: €0.18
+- cleanup :: 10 minutes
+- price :: €2,400
 
-** SQS is cheapest to run but needs sharding at this peak
+** Capsules are quick and clean, and cost the most per cup
 :PROPERTIES:
-:CUSTOM_ID: sqs
-:BASIS: guess
+:CUSTOM_ID: capsule
+:BASIS: inference
 :END:
-No servers to run, but one queue does not take 80k a second without batching and many queues.
+No grinding and no mess, but every cup leaves a capsule in the bin.
 
-- peak :: needs sharding across queues
-- replay :: none after delete
-- operations :: none
-- cost :: per request; about $90 a month here
+- cups an hour :: 60
+- a cup costs :: €0.45
+- cleanup :: 1 minute
+- price :: €300
 
 * Decision
 
-** Pick NATS JetStream unless replay beyond 7 days matters
+** Pick the batch brewer, unless espresso matters to the team
 :PROPERTIES:
-:CUSTOM_ID: pick-queue
+:CUSTOM_ID: pick-machine
 :ASK: choose
 :END:
-NATS meets both needs at the lowest operating cost. Kafka only wins if long replay is a requirement.
+It covers the rush and keeps the cleanup rule, at the lowest cost a year. Only you know how much the team wants espresso; a machine nobody likes is money gone.
 
-- [X] [[#nats]]
-- [ ] [[#kafka]]
-- [ ] [[#sqs]]
-
-** Move to NATS with a week of dual-write, then switch
-:PROPERTIES:
-:CUSTOM_ID: cutover
-:ASK: approve
-:NEEDS: pick-queue
-:END:
-This plan is written for NATS. If you pick another queue above, the board
-holds this ask back, and the agent writes a new plan.
-
-#+caption: The cutover: both queues take every message for a week
-#+begin_src flow
-  producers -> old queue
-  producers -> NATS: dual-write
-  old queue -> consumers
-  NATS -> compare: for one week
-  compare -> switch: when equal
+#+caption: A year of coffee, in euros: the machine and 6,000 cups
+#+begin_src chart
+| machine      | euros |
+|--------------+-------|
+| batch brewer | 1,380 |
+| espresso     | 3,480 |
+| capsules     | 3,000 |
 #+end_src
+
+- [X] [[#batch]]
+- [ ] [[#espresso]]
+- [ ] [[#capsule]]
+
+** Order the batch brewer for Monday, with a grinder
+:PROPERTIES:
+:CUSTOM_ID: order
+:ASK: approve
+:NEEDS: pick-machine
+:END:
+It costs €1,050 with the grinder, and the shop takes it back within 14 days. This order is written for the batch brewer: pick another machine above, and the board holds it back.
+
+#+caption: What happens when you approve
+#+begin_src sequence
+you -> agent: approve
+agent -> shop: brewer and grinder
+shop --> agent: delivery on Monday
+agent -> kitchen thread: tell the team
+#+end_src
+
+* Decided; say if not
+
+** Oat milk goes on the weekly order, next to dairy
+:PROPERTIES:
+:CUSTOM_ID: oat-milk
+:BASIS: inference
+:END:
+Four people asked for it in the kitchen thread, and it adds €6 a week. Drop this card if the team keeps to dairy.

@@ -21,7 +21,8 @@ import { cols, frame, FIG_MAX } from './figure.mjs';
 
 const CH = 7.2;          // advance of one column of 12px monospace
 const FIG_PAD = 12;      // padding around the drawing inside the figure frame
-const BAR_PLOT = 220;    // the length of the longest bar
+const BAR_MAX = 220;     // the length of the longest bar, at most
+const BAR_FIT = 290;     // a bar chart fits one column of the rack when it can: the bars give way to long names
 const LINE_W = 240;      // the plot of a line chart: one series fits one column of the rack
 const LINE_H = 140;
 const NAME_MAX = 24;     // a category name is cut after this many columns
@@ -130,6 +131,7 @@ function layoutBars(c) {
   const rowH = groupH + 10;
   const key = S > 1 || c.series[0].name ? 20 : 0;
   const x0 = labW + 10 + (vmin < 0 ? valW + 6 : 0);
+  const BAR_PLOT = Math.max(140, Math.min(BAR_MAX, BAR_FIT - x0 - valW - 6));
   const zero = x0 + ((0 - vmin) / span) * BAR_PLOT;
   const parts = [];
   if (S > 1) {

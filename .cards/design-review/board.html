@@ -418,6 +418,7 @@ svg.flow { display: block; overflow: visible; }
 .flow .fg-name text { fill: var(--fg-2); font-weight: var(--w-strong); paint-order: stroke; stroke: var(--surface-2); stroke-width: 4px; stroke-linejoin: round; }
 /* A sequence: each part has its line down the page; the messages cross between them. */
 .flow .life { fill: none; stroke: var(--line-strong); stroke-width: 1; }
+.flow .fe .plate { fill: var(--surface); stroke: none; }
 
 /* A chart, in the card's one ink: series differ by tone and by mark. */
 svg.chart { display: block; overflow: visible; }
@@ -2470,12 +2471,12 @@ numbers, lead lines), pictograms, bamboo slips. pool 7, roll f3a39d30.
   // The board takes the whole screen: the header folds to one line (whose
   // turn, the title, the ask tabs), the rack drops its width limit, and the
   // desk gets the height. Where the browser allows it, the page also asks for
-  // the real full screen; where it does not (a phone, a frame without
-  // permission), the board still fills its window. Leaving the browser's full
-  // screen (Esc, a gesture) leaves this mode too. Nothing is kept: a browser
-  // enters full screen only on a press.
+  // the real full screen; where it does not (a phone), the board still fills
+  // its window. Leaving the browser's full screen (Esc, a gesture) leaves this
+  // mode too. Nothing is kept: a browser enters full screen only on a press.
+  // A board in a frame (?embed) has no switch: the page around it owns the screen.
   var screenApi = false; // true while the browser's own full screen is ours
-  function screenAllowed() { return !ASKED.embed || !!document.fullscreenEnabled; }
+  function screenAllowed() { return !ASKED.embed; }
   function setScreen(on) {
     if (on === S.screen) return;
     S.screen = on;

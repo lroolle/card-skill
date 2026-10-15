@@ -1066,7 +1066,10 @@ export function sequence(text, caption, label, ctx = {}) {
   const parts = [];
   L.life.forEach((l, i) => parts.push(`<path class="life" data-n="${i}" d="M${fmt(l[0])} L${fmt(l[1])}"/>`));
   for (const r of L.rows) {
-    parts.push(`<g class="fe${r.dashed ? ' dash' : ''}" data-a="${r.a}" data-b="${r.b}"><path d="${r.d}"/>${r.text ? textAt(r.text) : ''}</g>`);
+    // A label that spans a part's line lies on a plate of card stock: the line is the part's
+    // time, not a link, so the plate hides nothing a reader needs.
+    const plate = r.text ? (() => { const b = textBox(r.text, 1); return `<rect class="plate" x="${round(b.x0)}" y="${round(b.y0)}" width="${round(b.x1 - b.x0)}" height="${round(b.y1 - b.y0)}"/>`; })() : '';
+    parts.push(`<g class="fe${r.dashed ? ' dash' : ''}" data-a="${r.a}" data-b="${r.b}"><path d="${r.d}"/>${plate}${r.text ? textAt(r.text) : ''}</g>`);
   }
   for (const p of L.parts) parts.push(boxSvg({ ...p, store: false }));
   const svg = svgFrame('flow seq', L, parts.join(''), aria);

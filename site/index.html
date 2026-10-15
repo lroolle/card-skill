@@ -63,12 +63,12 @@ is the product running; pool 7, roll 503b4783.
     </div>
     <div class="frame">
       <span class="cap"><span class="cap-wide">A live sample. Answer it; nothing is sent or kept.</span><span class="cap-narrow">A live sample. Start with the tab "6 Choose".</span></span>
-      <iframe id="sample" title="A sample board: pick a queue for the ingest service" data-src="demo/index.html?embed&amp;fresh"></iframe>
+      <iframe id="sample" title="A sample board: pick a coffee machine for the team" data-src="demo/index.html?embed&amp;fresh"></iframe>
       <noscript><a href="demo/index.html">Open the sample board</a></noscript>
     </div>
     <ol class="steps-try">
       <li><b>Open the ask: the tab "6 Choose".</b> The agent's pick is marked Suggested. It counts only if you choose it.</li>
-      <li><b>Pick Kafka, not the suggestion.</b> Card 7 was written for NATS, so it goes on hold.</li>
+      <li><b>Pick the espresso machine, not the suggestion.</b> Card 7 was written for the batch brewer, so it goes on hold.</li>
       <li><b>Press Send.</b> The text you get is the whole reply, as the agent reads it.</li>
       <li class="wide-only"><b>Then press Desk.</b> The same cards on a table, with a line for each link between them.</li>
     </ol>
@@ -125,7 +125,7 @@ is the product running; pool 7, roll 503b4783.
       <article class="card">
         <span class="n">3</span>
         <h3>What the agent reads</h3>
-        <p id="reply-note" data-sent="One line per card. This is the reply you just sent in the sample above.">One line per card. This is what the sample sends after you pick Kafka. Press Send in the sample above, and your own reply takes its place.</p>
+        <p id="reply-note" data-sent="One line per card. This is the reply you just sent in the sample above.">One line per card. This is what the sample sends after you pick the espresso machine. Press Send in the sample above, and your own reply takes its place.</p>
 <pre id="reply-box"><code id="reply">{{REPLY}}</code></pre>
       </article>
     </div>
@@ -157,7 +157,7 @@ is the product running; pool 7, roll 503b4783.
     <div class="tiles">
       <a class="tile" href="design-review/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/design-review-dark.png"><img src="shots/design-review-light.png" width="1520" height="950" alt="Cards on a desk in columns, with lines between the cards that depend on each other" loading="lazy"></picture><figcaption><b>How this project was designed</b><span>Its own design, argued card by card over two review rounds.</span><span class="meta">{{DR_CARDS}} cards · revision {{DR_REV}} · real</span></figcaption></figure></a>
       <a class="tile" href="roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/roadmap-dark.png"><img src="shots/roadmap-light.png" width="1520" height="950" alt="A card that shows Org source for a claim with the command that proves it" loading="lazy"></picture><figcaption><b>What comes next</b><span>Eleven directions, each one a feature Org mode already has syntax for.</span><span class="meta">{{RM_CARDS}} cards · {{RM_ASKS}} open ask · real</span></figcaption></figure></a>
-      <a class="tile" href="demo/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/demo-dark.png"><img src="shots/demo-light.png" width="1520" height="950" alt="Three options side by side, their facts in aligned rows" loading="lazy"></picture><figcaption><b>A decision, with its options side by side</b><span>The sample in the reading view: three queues, their facts in aligned rows.</span><span class="meta">{{CARDS}} cards · {{DEMO_ASKS}} asks · sample, the numbers are made up</span></figcaption></figure></a>
+      <a class="tile" href="demo/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/demo-dark.png"><img src="shots/demo-light.png" width="1520" height="950" alt="Three coffee machines side by side, their facts in aligned rows" loading="lazy"></picture><figcaption><b>A decision, with its options side by side</b><span>The sample in the reading view: three coffee machines, their facts in aligned rows.</span><span class="meta">{{CARDS}} cards · {{DEMO_ASKS}} asks · sample, the numbers are made up</span></figcaption></figure></a>
       <a class="tile" href="demo-zh/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/demo-zh-dark.png"><img src="shots/demo-zh-light.png" width="1520" height="950" alt="The same three options in Chinese" loading="lazy"></picture><figcaption><b lang="zh-Hans">同一个看板，中文版</b><span>The sample in Chinese. The buttons follow the board's language, the page carries its own Chinese font, and the two pages link to each other.</span><span class="meta">{{CARDS}} cards · {{DEMO_ASKS}} asks · sample</span></figcaption></figure></a>
     </div>
   </section>
@@ -177,7 +177,7 @@ node skill/bin/cards.mjs serve</code></pre>
       </div>
       <div>
         <p><b>Then ask for something that ends in a decision:</b></p>
-        <blockquote>Compare three queues for our ingest service and let me pick. Answer with cards.</blockquote>
+        <blockquote>Compare three coffee machines for the team and let me pick. Answer with cards.</blockquote>
         <p>The skill tells the agent when a board is earned and when prose is better. Most answers should stay prose.</p>
         <p>Node 18 or later. No dependencies. The copy does not update itself: copy it again after a pull. <code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> says which build you have.</p>
       </div>

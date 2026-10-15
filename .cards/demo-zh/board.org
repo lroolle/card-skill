@@ -1,99 +1,130 @@
-#+title: 给接入服务选一个消息队列
+#+title: 给团队挑一台咖啡机
 #+todo: TODO DOING BLOCKED | DONE
 #+language: zh-Hans
 #+translation_of: demo
 #+author: 示例 Agent
-#+description: 示例看板：两条需求，三个选项，一个决定。答完点“发送”，看 Agent 读到什么。
+#+description: 示例看板：两条需求，三台机器，一个选择，还有一份等着这个选择的订单。答完点“发送”，看 Agent 读到什么。
 
-这是 Agent 给出的一份示例回答，数字是编的。
+这是 Agent 给出的一份示例回答。十二个人，一间茶水间；数字是编的。
 
-* 队列必须做到什么
+* 团队需要什么
 
-** 峰值每秒 8 万条消息，平时每秒 5 千条
+** 早高峰在 9 点到 10 点，一小时要 30 杯
 :PROPERTIES:
-:CUSTOM_ID: need-peak
+:CUSTOM_ID: need-rush
 :BASIS: fact
 :END:
-数据来自十月的线上流量回放。
+我数了两周的茶水间记录。一天的咖啡，有三分之一是在这一个小时里喝掉的。
 
-** Broker 重启不能丢消息
-:PROPERTIES:
-:CUSTOM_ID: need-durable
-:BASIS: fact
-:END:
-丢一批消息，就要手工给客户重新出账。
-
-* 选项  :compare:
-
-** NATS JetStream 用一个二进制文件就能扛住峰值
-:PROPERTIES:
-:CUSTOM_ID: nats
-:BASIS: inference
-:FROM: need-peak need-durable
-:END:
-三节点集群就能满足两条需求，运维负担也最小。
-
-- 峰值 :: 3 个节点，每秒 12 万条
-- 回放 :: 7 天
-- 运维 :: 一个二进制文件
-- 费用 :: 每月约 40 美元
-
-#+begin_src tradeoffs
-  + 三个选项里要运维的东西最少
-  + 团队 2025 年在通知服务上用过
-  - 回放窗口比 Kafka 短
+#+caption: 每小时的杯数，十个工作日的平均
+#+begin_src chart
+| 时间 | 杯数 |
+|------+------|
+|    8 |    6 |
+|    9 |   30 |
+|   10 |   11 |
+|   11 |    5 |
+|   12 |    3 |
+|   13 |   14 |
+|   14 |    9 |
+|   15 |    4 |
 #+end_src
 
-** 要回放几个月的消息，Kafka 才划算
+** 清洗最多占用一个人五分钟
 :PROPERTIES:
-:CUSTOM_ID: kafka
+:CUSTOM_ID: need-clean
+:BASIS: fact
+:END:
+团队在茶水间群里说过：“谁也不想为了除垢留下来加班。”
+
+* 三台机器  :compare:
+
+** 美式滴滤机一键就能应付早高峰
+:PROPERTIES:
+:CUSTOM_ID: batch
+:BASIS: inference
+:FROM: need-rush need-clean
+:END:
+两个咖啡壶一小时能出 100 杯，冲洗三分钟就干净。咖啡不错，只是谈不上惊艳。
+
+- 每小时 :: 100 杯，两个咖啡壶
+- 每杯成本 :: €0.08
+- 清洗 :: 3 分钟
+- 价格 :: €900
+
+#+begin_src tradeoffs
+  + 能应付三倍的早高峰
+  + 三台里每杯最便宜
+  - 没有意式浓缩，也打不了奶泡
+#+end_src
+
+** 意式咖啡机出品最好，也最费心
+:PROPERTIES:
+:CUSTOM_ID: espresso
 :BASIS: inference
 :END:
-余量最大，回放最久，代价是要运维一个集群。
+每一杯都要有人手动做，早高峰就会排起队。冲煮头和蒸汽棒要洗十分钟。
 
-- 峰值 :: 3 个 Broker，每秒 100 万条
-- 回放 :: 磁盘够用就一直保留
-- 运维 :: Broker 加一组控制器节点
-- 费用 :: 每月约 400 美元
+- 每小时 :: 40 杯，得有人守着
+- 每杯成本 :: €0.18
+- 清洗 :: 10 分钟
+- 价格 :: €2,400
 
-** SQS 运维最省，但这个峰值下必须分片
+** 胶囊机又快又干净，但每杯最贵
 :PROPERTIES:
-:CUSTOM_ID: sqs
-:BASIS: guess
+:CUSTOM_ID: capsule
+:BASIS: inference
 :END:
-不用运维服务器。但单个队列不做批量、不拆多个队列，就接不住每秒 8 万条。
+不用磨豆，也没有残渣，可每喝一杯，垃圾桶里就多一颗胶囊。
 
-- 峰值 :: 需要拆成多个队列
-- 回放 :: 删除后无法回放
-- 运维 :: 无
-- 费用 :: 按请求计费，按这个流量每月约 90 美元
+- 每小时 :: 60 杯
+- 每杯成本 :: €0.45
+- 清洗 :: 1 分钟
+- 价格 :: €300
 
 * 决定
 
-** 选 NATS JetStream，除非需要 7 天以上的回放
+** 选美式滴滤机，除非团队离不开意式浓缩
 :PROPERTIES:
-:CUSTOM_ID: pick-queue
+:CUSTOM_ID: pick-machine
 :ASK: choose
 :END:
-NATS 两条需求都满足，运维成本最低。只有必须长期回放时才该选 Kafka。
+它能应付早高峰，清洗也不超时，一年下来成本最低。团队有多想喝意式浓缩，只有你知道；买一台没人喜欢的机器，钱就白花了。
 
-- [X] [[#nats]]
-- [ ] [[#kafka]]
-- [ ] [[#sqs]]
-
-** 迁移到 NATS：先双写一周，再切换
-:PROPERTIES:
-:CUSTOM_ID: cutover
-:ASK: approve
-:NEEDS: pick-queue
-:END:
-这个方案是按 NATS 写的。如果你在上面选了别的队列，看板会暂缓这一项，等 Agent 重写方案。
-
-#+caption: 切换过程：两个队列同时接收全部消息，持续一周
-#+begin_src flow
-  生产者 -> 旧队列
-  生产者 -> NATS: 双写
-  旧队列 -> 消费者
-  NATS -> 比对: 持续一周
-  比对 -> 切换: 一致后
+#+caption: 一年的咖啡开销，单位欧元：机器加 6,000 杯
+#+begin_src chart
+| 机器       | 欧元  |
+|------------+-------|
+| 美式滴滤机 | 1,380 |
+| 意式咖啡机 | 3,480 |
+| 胶囊机     | 3,000 |
 #+end_src
+
+- [X] [[#batch]]
+- [ ] [[#espresso]]
+- [ ] [[#capsule]]
+
+** 订一台美式滴滤机，配一台磨豆机，周一送到
+:PROPERTIES:
+:CUSTOM_ID: order
+:ASK: approve
+:NEEDS: pick-machine
+:END:
+连磨豆机一共 €1,050，14 天内可以退货。这份订单是按美式滴滤机写的：如果你在上面选了别的机器，看板会暂缓这一项。
+
+#+caption: 你批准之后会发生什么
+#+begin_src sequence
+你 -> Agent: 批准
+Agent -> 商店: 滴滤机和磨豆机
+商店 --> Agent: 周一送到
+Agent -> 茶水间群: 通知大家
+#+end_src
+
+* 已替你定了，不同意就说
+
+** 每周的订单里加上燕麦奶，和牛奶一起
+:PROPERTIES:
+:CUSTOM_ID: oat-milk
+:BASIS: inference
+:END:
+茶水间群里有四个人想要，每周多花 €6。如果团队只喝牛奶，就点这张卡片的“舍弃”。

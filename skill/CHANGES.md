@@ -6,39 +6,27 @@ different for you, not how it was built. `cards --version` names this build;
 
 ## 0.3.0
 
-The page
-- Full screen: Shift + F, or the Full screen button next to Desk. The
-  header folds to one line (whose turn, the title, the ask tabs); the rack
-  drops its width limit and the desk gets the height. Where the browser
-  allows it, the page takes the real full screen; Esc leaves.
-- SKILL.md, section 3: ask only what is real and essential. Four tests
-  (only the human can supply it, the answer changes what you do, a wrong
-  answer costs something, it is due), a triage for every round, the shape
-  of an ask card, and what to do instead of a non-ask. Decisions you can
-  make go on the board as cards ("Decided; say if not"), not as asks. Later
-  sections are renumbered.
-- `cards check` warns on an ask that asks for permission or feedback with
-  nothing named, a choice whose claim is a question although you suggest an
-  option, a choice with one option, and an ask with no stakes in its first
-  paragraph. The templates' asks show the shape.
-- Figures: two new kinds. `#+begin_src sequence` draws calls between
-  parts in time order (`a -> b: call`, `b --> a: reply`, `a -> a: self`).
-  `#+begin_src chart` draws an Org table: names in the first column give
-  bars with their values, numbers or dates give a line. See
-  `reference/format.md`, Figures.
-- A flow draws its arrows at right angles, each on a track of its own, and
-  an arrow back up the flow goes around the side. `group Cloud: a, b` frames
-  boxes that belong together; `store: a, b` draws boxes that hold data as
-  cylinders. A flow you wrote before keeps its meaning and its version.
-- `cards check` and `cards render` read each drawing as a reader would: a
-  label on a line or a box, two labels on each other, a line through a box,
-  two arrows on one run, a frame around a stranger, a cut box name, a
-  drawing wider than a card on the desk. Each warning names the parts and
-  the fix.
-- The reading view packs the cards of a section into columns, in board
-  order: a short card no longer leaves a hole under it, and the card after
-  a wide one stands beside it when there is room. A compare section keeps
-  its rows. Nothing changes in `board.org`.
+New
+- Two more figures. `sequence` shows who calls whom, in order:
+  `a -> b: call`, `b --> a: reply`. `chart` draws an Org table: names in
+  the first column give bars, numbers or dates give a line.
+- In a flow, `group Cloud: a, b` frames boxes that belong together, and
+  `store: a` draws a box that holds data as a cylinder.
+- `cards check` reads each drawing and says what a reader would misread,
+  with the fix: a label on a line, a line through a box, two arrows on one
+  run, a frame around a box that is not in it, a drawing too wide for a card.
+- SKILL.md section 3: ask only what is real and essential. Four tests, a
+  short triage each round, and what to do instead of "Shall I proceed?".
+  `cards check` warns on the usual non-asks. Later sections are renumbered.
+- Full screen: Shift + F, or the button next to Desk.
+
+Changed
+- Flow arrows run at right angles, each on its own track. A flow you wrote
+  before keeps its meaning and its version.
+- The reading view packs a section's cards into columns, so a short or a
+  wide card leaves no hole.
+- The sample board picks a coffee machine for the team, in English and
+  Chinese.
 
 ## 0.2.0
 

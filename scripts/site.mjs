@@ -62,9 +62,9 @@ function build(dir) {
   const [demo, review, roadmap] = ['demo', 'design-review', 'roadmap'].map(dataOf);
   const index = Object.fromEntries(Object.values(demo.cards).map((c) => [c.id, { n: c.n, v: c.v }]));
   const reply = globalThis.cardsDigest({ items: [
-    { card: 'pick-queue', v: 1, kind: 'choose', value: ['kafka'], default: ['nats'], state: 'changed' },
-    { card: 'cutover', v: 1, kind: 'approve', state: 'held', needs: ['pick-queue'], why: 'changed' },
-    { card: 'nats', v: 1, kind: 'mark', value: 'more' },
+    { card: 'pick-machine', v: 1, kind: 'choose', value: ['espresso'], default: ['batch'], state: 'changed' },
+    { card: 'order', v: 1, kind: 'approve', state: 'held', needs: ['pick-machine'], why: 'changed' },
+    { card: 'batch', v: 1, kind: 'mark', value: 'more' },
   ] }, index).split('\n').filter((l) => /^\s+#\d/.test(l)).map((l) => l.replace(/^ {2}/, '').replace(/ {2,}/g, '  ')).join('\n');
 
   const fill = {
@@ -78,8 +78,8 @@ function build(dir) {
     BG_NIGHT: tokenOf('--bg', true),
     REPLY: esc(reply),
     // Card 6 of the sample as the agent wrote it, from board.org itself, in each language.
-    CARD_SRC: esc(cardSource('demo', 'pick-queue')),
-    CARD_SRC_ZH: esc(cardSource('demo-zh', 'pick-queue')),
+    CARD_SRC: esc(cardSource('demo', 'pick-machine')),
+    CARD_SRC_ZH: esc(cardSource('demo-zh', 'pick-machine')),
     CARDS: Object.keys(demo.cards).length,
     DEMO_ASKS: open(demo),
     DR_CARDS: Object.keys(review.cards).length,
@@ -128,8 +128,8 @@ async function shots() {
     }, { inside: '.shelves' }],
     // A tile shows a section from its head: what the caption names is what the picture shows.
     ['roadmap', 'roadmap/index.html?view=rack&level=gist', [1180, 900], top('#c-proof'), { inside: '.shelf:has(#c-proof)' }],
-    ['demo', 'demo/index.html?view=rack&level=gist', [1180, 900], top('#c-nats'), { inside: '.shelf:has(#c-nats)' }],
-    ['demo-zh', 'demo-zh/index.html?view=rack&level=gist', [1180, 900], top('#c-nats'), { inside: '.shelf:has(#c-nats)' }],
+    ['demo', 'demo/index.html?view=rack&level=gist', [1180, 900], top('#c-batch'), { inside: '.shelf:has(#c-batch)' }],
+    ['demo-zh', 'demo-zh/index.html?view=rack&level=gist', [1180, 900], top('#c-batch'), { inside: '.shelf:has(#c-batch)' }],
     // Two more things a card does, each on a real card. The first is the repo's own
     // working page, not the export: an export drops past versions. Each is taken twice:
     // at the width of a desktop column, and at the width of a phone.
@@ -138,8 +138,8 @@ async function shots() {
     ['figure', 'design-review/index.html?view=rack&level=gist', [700, 1400], null, { el: '#c-return-channel' }],
     ['figure-narrow', 'design-review/index.html?view=rack&level=gist', [400, 1400], null, { el: '#c-return-channel' }],
     // Card 6 of the sample as the page shows it, for "one card, three forms".
-    ['card6', 'demo/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-queue', pad: 26 }],
-    ['card6-zh', 'demo-zh/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-queue', pad: 26 }],
+    ['card6', 'demo/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-machine', pad: 26 }],
+    ['card6-zh', 'demo-zh/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-machine', pad: 26 }],
   ];
   for (const theme of ['light', 'dark']) {
     for (const [name, rel, [w, h], before, take] of list) {

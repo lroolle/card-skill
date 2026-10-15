@@ -1388,12 +1388,12 @@
   // The board takes the whole screen: the header folds to one line (whose
   // turn, the title, the ask tabs), the rack drops its width limit, and the
   // desk gets the height. Where the browser allows it, the page also asks for
-  // the real full screen; where it does not (a phone, a frame without
-  // permission), the board still fills its window. Leaving the browser's full
-  // screen (Esc, a gesture) leaves this mode too. Nothing is kept: a browser
-  // enters full screen only on a press.
+  // the real full screen; where it does not (a phone), the board still fills
+  // its window. Leaving the browser's full screen (Esc, a gesture) leaves this
+  // mode too. Nothing is kept: a browser enters full screen only on a press.
+  // A board in a frame (?embed) has no switch: the page around it owns the screen.
   var screenApi = false; // true while the browser's own full screen is ours
-  function screenAllowed() { return !ASKED.embed || !!document.fullscreenEnabled; }
+  function screenAllowed() { return !ASKED.embed; }
   function setScreen(on) {
     if (on === S.screen) return;
     S.screen = on;

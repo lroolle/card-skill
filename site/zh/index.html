@@ -67,12 +67,12 @@ is the product running; pool 7, roll 503b4783.
     </div>
     <div class="frame">
       <span class="cap"><span class="cap-wide">这个示例可以直接操作。随便答，不会发出，也不会保存。</span><span class="cap-narrow">这个示例可以直接操作。先点“6 选择”。</span></span>
-      <iframe id="sample" title="示例看板：给接入服务选一个消息队列" data-src="../demo-zh/index.html?embed&amp;fresh"></iframe>
+      <iframe id="sample" title="示例看板：给团队挑一台咖啡机" data-src="../demo-zh/index.html?embed&amp;fresh"></iframe>
       <noscript><a href="../demo-zh/index.html">打开示例看板</a></noscript>
     </div>
     <ol class="steps-try">
       <li><b>点橙色标签“6 选择”，打开提问。</b>Agent 建议的选项标着“建议”，你选了才算数。</li>
-      <li><b>选 Kafka，不选建议的那个。</b>卡片 7 是按 NATS 写的，所以会暂缓。</li>
+      <li><b>选意式咖啡机，不选建议的那个。</b>卡片 7 是按美式滴滤机写的，所以会暂缓。</li>
       <li><b>点“发送”。</b>弹出的就是 Agent 会读到的完整回复。</li>
       <li class="wide-only"><b>再点“桌面”。</b>同样的卡片铺在桌面上，有关联的卡片之间连着线。</li>
     </ol>
@@ -128,7 +128,7 @@ is the product running; pool 7, roll 503b4783.
       <article class="card">
         <span class="n">3</span>
         <h3>Agent 读到的</h3>
-        <p id="reply-note" data-sent="一张卡片一行。这就是你刚才在上面的示例里发出的回复。">一张卡片一行，固定用英文。这是选了 Kafka 之后示例会发出的回复。在上面的示例里点“发送”，这里就换成你自己的回复。</p>
+        <p id="reply-note" data-sent="一张卡片一行。这就是你刚才在上面的示例里发出的回复。">一张卡片一行，固定用英文。这是选了意式咖啡机之后示例会发出的回复。在上面的示例里点“发送”，这里就换成你自己的回复。</p>
 <pre id="reply-box"><code id="reply">{{REPLY}}</code></pre>
       </article>
     </div>
@@ -158,7 +158,7 @@ is the product running; pool 7, roll 503b4783.
     <div class="shelf-head"><h2>可以打开的看板</h2><span class="count">4</span></div>
     <p class="shelf-note">两个是示例，中英文各一个；两个是这个项目自己在用的看板。在哪个看板上点“发送”，都只显示回复，不会发出去。</p>
     <div class="tiles">
-      <a class="tile" href="../demo-zh/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-zh-dark.png"><img src="../shots/demo-zh-light.png" width="1520" height="950" alt="三个选项并排，各项数据逐行对齐" loading="lazy"></picture><figcaption><b>一个决定，选项并排着比</b><span>示例的阅读视图：三个队列，各项数据逐行对齐。页面自带中文字体。</span><span class="meta">{{CARDS}} 张卡片 · {{DEMO_ASKS}} 个提问 · 示例，数字是编的</span></figcaption></figure></a>
+      <a class="tile" href="../demo-zh/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-zh-dark.png"><img src="../shots/demo-zh-light.png" width="1520" height="950" alt="三台咖啡机并排，各项数据逐行对齐" loading="lazy"></picture><figcaption><b>一个决定，选项并排着比</b><span>示例的阅读视图：三台咖啡机，各项数据逐行对齐。页面自带中文字体。</span><span class="meta">{{CARDS}} 张卡片 · {{DEMO_ASKS}} 个提问 · 示例，数字是编的</span></figcaption></figure></a>
       <a class="tile" href="../demo/index.html?view=rack"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/demo-dark.png"><img src="../shots/demo-light.png" width="1520" height="950" alt="同一个示例的英文版" loading="lazy"></picture><figcaption><b>同一个示例，英文版</b><span>按钮跟着看板的语言走，两个页面互相链接。</span><span class="meta">{{CARDS}} 张卡片 · {{DEMO_ASKS}} 个提问 · 示例</span></figcaption></figure></a>
       <a class="tile" href="../design-review/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/design-review-dark.png"><img src="../shots/design-review-light.png" width="1520" height="950" alt="卡片按列摆在桌面上，有依赖关系的卡片之间连着线" loading="lazy"></picture><figcaption><b>这个项目是怎么设计出来的</b><span>两轮评审，一张卡片一张卡片地过。</span><span class="meta">{{DR_CARDS}} 张卡片 · 第 {{DR_REV}} 版 · 真实看板，英文</span></figcaption></figure></a>
       <a class="tile" href="../roadmap/index.html"><figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/roadmap-dark.png"><img src="../shots/roadmap-light.png" width="1520" height="950" alt="一张显示 Org 源码的卡片：一个结论，带着验证它的命令" loading="lazy"></picture><figcaption><b>接下来做什么</b><span>11 个方向，每一个 Org mode 都已有现成的语法。</span><span class="meta">{{RM_CARDS}} 张卡片 · {{RM_ASKS}} 个提问待处理 · 真实看板，英文</span></figcaption></figure></a>
@@ -180,7 +180,7 @@ node skill/bin/cards.mjs serve</code></pre>
       </div>
       <div>
         <p><b>然后让 Agent 做一件要你拿主意的事。</b></p>
-        <blockquote>比较三个消息队列，给接入服务用，让我来选。用卡片回答。</blockquote>
+        <blockquote>比较三台咖啡机，给团队用，让我来选。用卡片回答。</blockquote>
         <p>技能里写了什么时候值得用看板，什么时候直接说更好。多数回答还是该用文字。</p>
         <p>需要 Node 18 及以上，没有其他依赖。复制的那一份不会自己更新，拉取新版本后再复制一次。<code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> 能看到当前版本。</p>
       </div>

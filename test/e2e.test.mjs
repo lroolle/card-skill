@@ -1379,6 +1379,15 @@ test('full screen: Shift + F and the button give the board the screen; the heade
     await page.waitForFunction(() => !document.fullscreenElement); // leaving the browser's full screen takes a moment
     assert.deepEqual(errors, []);
 
+    // In a frame the page around it owns the screen: no switch, and Shift + F does nothing.
+    const framed = await browser.newPage({ viewport: { width: 1200, height: 700 } });
+    await framed.goto(url + '?embed');
+    await framed.waitForSelector('.board');
+    assert.equal(await framed.$('[data-act="screen"]'), null);
+    await framed.keyboard.press('Shift+F');
+    assert.equal(await framed.evaluate(() => document.querySelector('.board').classList.contains('screen')), false);
+    await framed.close();
+
     // On a phone the switch is not in the tools.
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await phone.goto(url);
