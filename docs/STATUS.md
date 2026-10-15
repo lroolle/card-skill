@@ -1,15 +1,13 @@
 # Status
 
-Version 0.3.0, built on 2026-10-15 and not yet pushed or tagged; 0.2.0
-(2026-10-09) is the last release. What works, what nobody has checked yet, and
+Version 0.3.0, tagged and released on 2026-10-15. What works, what nobody has checked yet, and
 what is known to be missing. The reasons are in `docs/DECISIONS.md`; what
 comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
 `npm test`: 148 tests. 24 of them drive a real browser; on GitHub they run
-in Chromium, Firefox and WebKit, each one required. 0.3.0 ran them in all
-three engines on Linux before its push. 3 run a real Emacs.
+in Chromium, Firefox and WebKit, each one required.  3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
 
