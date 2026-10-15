@@ -1344,6 +1344,25 @@ test('full screen: Shift + F and the button give the board the screen; the heade
     assert.ok(await page.isVisible('.rail-tab'));
     assert.ok(await page.isVisible('.lamp'));
     assert.equal(await page.getAttribute('[data-act="screen"]', 'aria-pressed'), 'true');
+    // A board is answered, not presented: Send and the desk stay on screen.
+    assert.ok(await page.isVisible('[data-act="send"]'), 'Send stays on screen');
+    assert.ok(await page.isVisible('.board.view-desk .shelves'), 'the desk stays');
+    // Shift + F leaves as it came, and f still steps the filter.
+    await page.keyboard.press('Shift+F');
+    await page.waitForSelector('.board:not(.screen)');
+    await page.waitForFunction(() => !document.fullscreenElement);
+    await page.keyboard.press('f');
+    assert.equal(await page.evaluate(() => document.querySelector('.board').classList.contains('screen')), false, 'f is the filter key');
+    assert.equal(await page.getAttribute('[data-filter="yours"]', 'aria-pressed'), 'true');
+    await page.keyboard.press('f');
+    await page.keyboard.press('f');
+    // The help names the key.
+    await page.keyboard.press('?');
+    assert.match(await page.textContent('dialog[open] .keys'), /Shift \+ FFull screen, or back/);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Shift+F');
+    await page.waitForSelector('.board.screen');
+    await page.waitForTimeout(200);
     if (on.enabled) {
       assert.equal(on.api, true, 'the browser went to full screen');
       // Leaving the browser's full screen (Esc there, a gesture) leaves the mode too.
