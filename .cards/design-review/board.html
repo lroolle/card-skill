@@ -1818,48 +1818,49 @@ numbers, lead lines), pictograms, bamboo slips. pool 7, roll f3a39d30.
   // does not change. A compare section keeps its rows (its facts line up), a
   // list keeps its one column, and Claim is a ledger.
   var PACK_EVEN = 32;
+  var packGap = 0; // the vertical gap of an unpacked grid (board.css, .slots): read once, kept
+  // Everything is measured on the layout as it stands, and only then changed: a section that
+  // lost its places for a moment would collapse, and the browser would scroll the page.
   function packRack() {
     $$('.slots').forEach(function (slots) {
       var all = $$(':scope > .card', slots);
       var items = all.filter(function (el) { return !el.hidden; });
-      var on = S.view === 'rack' && S.alt !== 'claim' && slots.dataset.layout === 'grid' && items.length > 1;
-      all.forEach(function (el) { el.style.gridColumn = el.style.gridRow = ''; });
-      slots.classList.remove('packed');
-      if (!on) return;
-      // The columns and the gap between cards are the ones the grid has unpacked (board.css, .slots).
+      var was = slots.classList.contains('packed');
       var cs = getComputedStyle(slots);
+      if (!was) packGap = parseFloat(cs.rowGap) || packGap;
       var cols = cs.gridTemplateColumns.split(' ').length;
-      var gap = parseFloat(cs.rowGap) || 0;
-      if (cols < 2) return;
-      // A card takes two columns when its first figure is wider than one column holds
-      // (the card's padding and border: 34px). Full screen has narrower columns than the
-      // 330px that compile.mjs assumes, so the page decides here, on the real width.
+      var on = S.view === 'rack' && S.alt !== 'claim' && slots.dataset.layout === 'grid' && items.length > 1 && cols > 1;
+      if (!on) {
+        if (was) { slots.classList.remove('packed'); all.forEach(function (el) { el.style.gridColumn = el.style.gridRow = ''; }); }
+        return;
+      }
+      // A card takes two columns when board.css says so (a wide figure, a wide table at Full),
+      // and when its first figure is wider than one column holds (the card's padding and
+      // border: 34px). Full screen has narrower columns than the 330px compile.mjs assumes.
       var colW = parseFloat(cs.gridTemplateColumns) || 0;
-      slots.classList.add('packed');
-      var unit = parseFloat(getComputedStyle(slots).gridAutoRows) || 4; // a packed grid has rows of --s1
+      var unit = 4; // board.css: a packed grid has rows of --s1
       var bottom = [];
       for (var c = 0; c < cols; c++) bottom.push(0);
       var places = items.map(function (el) {
-        // board.css gives a wide card "grid-column: span 2", which is its start.
-        var gc = getComputedStyle(el);
-        var m = (gc.gridColumnStart + ' ' + gc.gridColumnEnd).match(/span (\d+)/);
-        var c = B.cards[el.dataset.id];
-        var fw = c && c.fig_w && c.status !== 'done' ? c.fig_w + 34 : 0;
-        var w = Math.min(Math.max(m ? +m[1] : 1, fw > colW + 1 ? 2 : 1), cols);
+        var card = B.cards[el.dataset.id];
+        var fw = card && card.fig_w && card.status !== 'done' ? card.fig_w + 34 : 0;
+        var wide = el.classList.contains('wide') || (S.alt === 'full' && el.classList.contains('wide-t')) || fw > colW + 1;
+        var w = Math.min(wide ? 2 : 1, cols);
         var tops = [];
         for (var x = 0; x + w <= cols; x++) tops.push(Math.max.apply(null, bottom.slice(x, x + w)));
         var low = Math.min.apply(null, tops);
         var at = 0;
         while (tops[at] > low + PACK_EVEN) at++;
         var r0 = Math.ceil(tops[at] / unit);
-        var rows = Math.ceil((el.offsetHeight + gap) / unit);
+        var rows = Math.ceil((el.offsetHeight + packGap) / unit);
         for (var y = at; y < at + w; y++) bottom[y] = (r0 + rows) * unit;
-        return (at + 1) + ' / span ' + w + '|' + (r0 + 1) + ' / span ' + rows;
+        return [(at + 1) + ' / span ' + w, (r0 + 1) + ' / span ' + rows];
       });
+      slots.classList.add('packed');
+      all.forEach(function (el) { if (el.hidden) el.style.gridColumn = el.style.gridRow = ''; });
       items.forEach(function (el, k) {
-        var p = places[k].split('|');
-        el.style.gridColumn = p[0];
-        el.style.gridRow = p[1];
+        if (el.style.gridColumn !== places[k][0]) el.style.gridColumn = places[k][0];
+        if (el.style.gridRow !== places[k][1]) el.style.gridRow = places[k][1];
       });
     });
   }

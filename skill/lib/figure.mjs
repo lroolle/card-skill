@@ -372,6 +372,41 @@ export function layoutFlow(g) {
   // 4. Order each rank by barycenter sweeps; keep the order with the fewest crossings.
   //    The boxes of one group stay next to each other in every rank.
   const R = Math.max(0, ...els.map((e) => e.rank)) + 1;
+  // Groups keep one order, left to right, in every rank: two frames that swapped sides
+  // between ranks could never both hold their boxes. The order is where they first stand.
+  const gpos = new Map();
+  {
+    const at = new Map();
+    els.forEach((e) => { if (e.real && e.group >= 0) { const l = at.get(e.rank) || 0; at.set(e.rank, l + 1); } });
+    const seen = new Map();
+    els.forEach((e, j) => {
+      if (!e.real || e.group < 0) return;
+      const a = gpos.get(e.group) || [0, 0];
+      const x = seen.get(e.rank) || 0;
+      seen.set(e.rank, x + 1);
+      a[0] += x / at.get(e.rank); a[1]++;
+      gpos.set(e.group, a);
+    });
+  }
+  const gorder = [...gpos.keys()].sort((a, b) => gpos.get(a)[0] / gpos.get(a)[1] - gpos.get(b)[0] / gpos.get(b)[1] || a - b);
+  const gatherBlocks = (sorted) => {
+    const blocks = [];
+    sorted.forEach((j) => { const gi = els[j].group; if (gi >= 0 && !blocks.includes(gi)) blocks.push(gi); });
+    const want = blocks.slice().sort((a, b) => gorder.indexOf(a) - gorder.indexOf(b));
+    if (want.every((g, k) => g === blocks[k])) return sorted;
+    const members = new Map(blocks.map((g) => [g, sorted.filter((j) => els[j].group === g)]));
+    const out = [];
+    const used = new Set();
+    let k = 0;
+    for (const j of sorted) {
+      const gi = els[j].group;
+      if (gi < 0) { out.push(j); continue; }
+      if (used.has(gi)) continue;
+      used.add(gi);
+      out.push(...members.get(want[k++]));
+    }
+    return out;
+  };
   const gather = (layer, key) => {
     const sum = new Map();
     layer.forEach((j) => {
@@ -382,7 +417,7 @@ export function layoutFlow(g) {
       sum.set(gi, a);
     });
     const k1 = (j) => (els[j].group >= 0 ? sum.get(els[j].group)[0] / sum.get(els[j].group)[1] : key(j));
-    return layer.slice().sort((p, q) => k1(p) - k1(q) || els[p].group - els[q].group || key(p) - key(q));
+    return gatherBlocks(layer.slice().sort((p, q) => k1(p) - k1(q) || els[p].group - els[q].group || key(p) - key(q)));
   };
   let layers = Array.from({ length: R }, () => []);
   els.forEach((e, j) => layers[e.rank].push(j));
@@ -469,6 +504,12 @@ export function layoutFlow(g) {
       if (need > 0) for (let y = x; y < l.length; y++) els[l[y]].s += need;
     }
   };
+  // The loop must settle. Where it cannot (frames whose boxes cross each other's ranks), the
+  // places before it come back, and the check says why the frames cut boxes.
+  const before = els.map((e) => e.s);
+  const extent = () => Math.max(...els.map(hi)) - Math.min(...els.map(lo));
+  const limit = 4 * extent() + 400;
+  let settled = !groups.length;
   for (let it = 0; it < 60 && groups.length; it++) {
     const B = bands();
     let moved = false;
@@ -511,8 +552,10 @@ export function layoutFlow(g) {
         }
       }
     }
-    if (!moved) break;
+    if (!moved) { settled = true; break; }
+    if (extent() > limit) break;
   }
+  if (!settled) els.forEach((e, j) => { e.s = before[j]; });
   const minS = Math.min(...els.map(lo), ...bands().map((b) => b.s0));
   els.forEach((e) => { e.s -= minS; });
   const B = bands();
@@ -796,7 +839,7 @@ export function layoutFlow(g) {
   frames.forEach((f) => take(frameRect(f)));
   edges.forEach((ed) => { ed.xy.forEach(([x, y]) => take({ x0: x, y0: y, x1: x, y1: y })); if (ed.label) take(textBox(ed.label, 2)); });
   if (!boxes.length) take({ x0: 0, y0: 0, x1: 0, y1: 0 });
-  return { x: x0, y: y0, width: Math.ceil(x1 - x0), height: Math.ceil(y1 - y0), boxes, edges, frames, dir: down ? 'down' : 'right' };
+  return { x: x0, y: y0, width: Math.ceil(x1 - x0), height: Math.ceil(y1 - y0), boxes, edges, frames, dir: down ? 'down' : 'right', tangled: !settled };
 }
 
 // flowIssues(g, L) -> [{ code, msg }]: what a reader would misread in the drawing, found on
@@ -842,6 +885,9 @@ export function flowIssues(g, L) {
         : horz ? Math.min(Math.max(ax, bx), Math.max(cx, dx)) - Math.max(Math.min(ax, bx), Math.min(cx, dx)) : 0;
       if (span > 4) say('shared-lane', arrow(p.ed) + arrow(q.ed), `the arrows ${arrow(p.ed)} and ${arrow(q.ed)} share a run, so a reader cannot tell where each goes; split the drawing`);
     }
+  }
+  if (L.tangled) {
+    say('groups-tangled', '', `the groups ${L.frames.map((f) => `"${f.label}"`).join(' and ')} take boxes from the same ranks in crossed order, so their frames cannot stay apart; put fewer boxes in groups, or split the drawing`);
   }
   for (const f of L.frames) {
     const fr = frameRect(f);

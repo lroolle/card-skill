@@ -87,10 +87,13 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
   for the choice. Change the choice, and the approval is held until the
   agent asks again.
 - **Evidence in the card.** A screenshot, lines 40 to 60 of a file, a
-  drawing of a flow. They travel inside the one HTML file.
+  diagram (a flow with groups and stores, or a sequence of calls), a chart
+  drawn from an Org table. They travel inside the one HTML file, and
+  `cards check` says what a reader would misread in each drawing.
 - **Two views.** The desk lays every card on a table and draws the links
-  between them; you place each card and set its width. The rack is a column
-  for reading.
+  between them; you place each card and set its width. The rack packs the
+  cards into columns for reading. Shift + F gives either one the whole
+  screen.
 - **A list of boards.** `.cards/index.html` shows every board of a project
   and how many asks are open on each.
 - **Plain Org underneath.** `board.org` is an outline that Emacs folds and
@@ -181,7 +184,7 @@ DESIGN.md, TASTE.md   the visual material and its rulings
 npm test
 ```
 
-137 tests. The browser tests need Playwright and skip without it; three
+148 tests. The browser tests need Playwright and skip without it; three
 tests need Emacs (they run `org-lint` on the boards) and skip without it.
 On GitHub nothing skips: the suite runs in Chromium, Firefox and WebKit
 (`CARDS_BROWSER`), with Emacs and with the font tools.

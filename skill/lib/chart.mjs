@@ -33,7 +33,15 @@ function num(raw) {
   const s = String(raw).trim();
   if (!s || s === '-' || s === '—') return null;
   const m = s.replace(/[,_\s]/g, '').match(/^([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)%?$/i);
-  return m ? Number(m[1]) : undefined;
+  const v = m ? Number(m[1]) : NaN;
+  return Number.isFinite(v) ? v : undefined; // 1e999 is no number a chart can draw
+}
+// A range that is a point, or too narrow to show at this size (equal values past 2^53, where
+// adding 1 changes nothing), is widened around it.
+function widen(lo, hi) {
+  if (hi - lo > Math.abs(lo) * 1e-9) return [lo, hi];
+  const d = Math.max(1, Math.abs(lo) * 0.1);
+  return [lo - (lo < 0 ? d : 0), hi + d];
 }
 // A point on x as a number: a number, or a date (2026, 2026-10, 2026-10-15) as its time.
 function xval(raw) {
@@ -161,19 +169,19 @@ function layoutLine(c) {
   const S = c.series.length;
   const n = c.xs.length;
   const X = c.xv.every((v) => v !== null) ? c.xv : c.xs.map((_, i) => i);
-  let xmin = Math.min(...X);
-  let xmax = Math.max(...X);
-  if (xmax === xmin) xmax = xmin + 1;
+  const [xmin, xmax] = widen(Math.min(...X), Math.max(...X));
   const vals = c.series.flatMap((s) => s.values.map((x) => x.v)).filter((v) => v !== null);
   let lo = Math.min(...vals);
   let hi = Math.max(...vals);
   if (lo >= 0 && lo <= 0.6 * hi) lo = 0;
-  if (hi === lo) hi = lo + 1;
+  [lo, hi] = widen(lo, hi);
   const step = niceStep((hi - lo) / 4);
   const t0 = Math.floor(lo / step) * step;
   const t1 = Math.ceil(hi / step) * step;
+  // Ticks by count, never by adding a step that a large number does not feel.
+  const count = Math.min(12, Math.max(1, Math.round((t1 - t0) / step)));
   const ticks = [];
-  for (let t = t0; t <= t1 + step / 2; t += step) ticks.push(Number(t.toFixed(10)));
+  for (let i = 0; i <= count; i++) ticks.push(Number((t0 + i * step).toPrecision(12)));
   const tickW = Math.max(...ticks.map((t) => cols(short(t)))) * CH + 8;
   const top = S === 1 && c.series[0].name ? 20 : 8;
   const px = (x) => tickW + ((x - xmin) / (xmax - xmin)) * LINE_W;
@@ -234,9 +242,11 @@ export function chart(src, caption, label, ctx = {}) {
   const T = ctx.t || en;
   const cap = caption && (ctx.plain ? ctx.plain(caption) : caption);
   const head = cap ? T('fig_chart_named', { caption: cap }) : T('fig_chart');
-  if (!c.series.length || !c.xs.length) {
+  const any = c.series.some((s) => s.values.some((x) => x.v !== null));
+  if (!c.series.length || !c.xs.length || !any) {
     const body = `<p class="chart-none">${esc(T('fig_chart_empty'))}</p>`;
-    return { html: frame('chart', body, caption, label, ctx), width: 0, problems: c.problems, issues: [] };
+    const issues = c.series.length && c.xs.length ? [{ code: 'no-numbers', msg: 'the chart has no numbers yet; fill the cells, or draw it when they come' }] : [];
+    return { html: frame('chart', body, caption, label, ctx), width: 0, problems: c.problems, issues };
   }
   const L = c.type === 'line' ? layoutLine(c) : layoutBars(c);
   // A screen reader hears the numbers: each series, row by row (the first 40 values).

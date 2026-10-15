@@ -384,6 +384,8 @@ test('reading: a drag that selects text does not open or close the card', { skip
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
     await toRack(page);
     const drag = async () => {
+      // The card stands in the middle of the window, clear of the toolbar (the template's chart pushes it down).
+      await page.evaluate(() => document.querySelector('#c-nats').scrollIntoView({ block: 'center' }));
       const r = await page.locator('#c-nats .gist p').boundingBox();
       await page.mouse.move(r.x + 4, r.y + 6);
       await page.mouse.down();
@@ -1324,6 +1326,7 @@ test('full screen: Shift + F and the button give the board the screen; the heade
     const measure = () => page.evaluate(() => ({
       header: document.querySelector('.board > header').getBoundingClientRect().height,
       table: document.querySelector('.shelves').getBoundingClientRect().height,
+      win: window.innerHeight,
       lede: !!document.querySelector('.lede') && getComputedStyle(document.querySelector('.lede')).display !== 'none',
       api: !!document.fullscreenElement,
       enabled: !!document.fullscreenEnabled,
@@ -1334,7 +1337,8 @@ test('full screen: Shift + F and the button give the board the screen; the heade
     await page.waitForTimeout(200);
     const on = await measure();
     assert.ok(on.header < 60, `the header is one line: ${on.header}px`);
-    assert.ok(on.table > before.table + 80, `the table gets the height: ${before.table} -> ${on.table}`);
+    // (A browser's own full screen may be smaller than the window was: headless Firefox's is 1366 x 768.)
+    assert.ok(on.table / on.win > before.table / before.win + 0.08, `the table gets the height: ${before.table} of ${before.win} -> ${on.table} of ${on.win}`);
     assert.equal(on.lede, false);
     // The asks stay in sight, and so does whose turn it is.
     assert.ok(await page.isVisible('.rail-tab'));
@@ -1357,15 +1361,22 @@ test('full screen: Shift + F and the button give the board the screen; the heade
     const page1 = await page.evaluate(() => document.querySelector('.board').getBoundingClientRect().width);
     await page.click('[data-act="screen"]');
     await page.waitForSelector('.board.screen.view-rack');
-    const page2 = await page.evaluate(() => document.querySelector('.board').getBoundingClientRect().width);
-    assert.ok(page2 > page1 + 100, `the rack takes the width: ${page1} -> ${page2}`);
+    const [page2, win2] = await page.evaluate(() => [document.querySelector('.board').getBoundingClientRect().width, window.innerWidth]);
+    assert.ok(page1 < 1300 && page2 >= win2 - 1, `the rack takes the width of the window: ${page1} -> ${page2} of ${win2}`);
     assert.ok(await cols() >= 1);
-    // Esc first clears a focused card, then leaves a full window.
+    // Esc first clears a focused card, then leaves a full window. In the browser's own full screen
+    // Esc belongs to the browser (WebKit leaves at once): the board then leaves with it.
     await page.click('#c-nats .claim');
     await page.keyboard.press('Escape');
-    assert.equal(await page.evaluate(() => document.querySelector('.board').classList.contains('screen')), true, 'the first Esc only clears the focus');
-    await page.click('[data-act="screen"]');
-    await page.waitForSelector('.board:not(.screen)');
+    await page.waitForTimeout(300);
+    const esc = await page.evaluate(() => ({ screen: document.querySelector('.board').classList.contains('screen'), api: !!document.fullscreenElement }));
+    if (!on.enabled) assert.equal(esc.screen, true, 'the first Esc only clears the focus');
+    assert.ok(esc.screen || !esc.api, 'the board and the browser agree');
+    if (esc.screen) {
+      await page.click('[data-act="screen"]');
+      await page.waitForSelector('.board:not(.screen)');
+    }
+    await page.waitForFunction(() => !document.fullscreenElement); // leaving the browser's full screen takes a moment
     assert.deepEqual(errors, []);
 
     // On a phone the switch is not in the tools.
@@ -1453,6 +1464,37 @@ test('rack placement: cards pack into columns in board order; no hole beside a w
     assert.equal(await page.evaluate(() => document.querySelectorAll('.slots.packed').length), 0);
     assert.equal(await page.evaluate(() => [...document.querySelectorAll('.card')].some((el) => el.style.gridRow)), false);
     assert.deepEqual(errors, []);
+
+    // A click or a keystroke packs again, and the page does not move. A reviewer saw it jump to the
+    // top on a board that is one tall section: the section had collapsed for a moment while it was measured.
+    const tall = resolveBoard('tall', cwd);
+    fs.mkdirSync(tall.dir, { recursive: true });
+    fs.writeFileSync(tall.file, '#+title: Tall\n\n* Findings\n\n' + [1, 3, 2, 5, 1, 4, 2, 6, 1, 3, 2, 4].map((n, i) =>
+      card(`t${i}`, `Card ${i} holds a claim of its own here`, words(n) + '\n\n' + Array.from({ length: i % 5 }, (_, k) => `- fact ${k} :: a value that takes a line`).join('\n'))).join('\n'));
+    buildBoard(tall, { cwd });
+    const short = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await short.goto(pathToFileURL(path.join(tall.dir, 'board.html')).href + '?view=rack&level=gist');
+    await short.waitForSelector('.slots.packed');
+    await short.evaluate(() => window.scrollTo(0, 899));
+    await short.waitForTimeout(150);
+    const seen = await short.evaluate(() => {
+      const el = [...document.querySelectorAll('.card')].find((c) => { const q = c.getBoundingClientRect(); return q.top > 0 && q.top < 600; });
+      return el && { id: el.dataset.id, top: el.getBoundingClientRect().top, y: window.scrollY };
+    });
+    assert.ok(seen && seen.y > 300, 'the page is scrolled down to a card');
+    await short.click(`#c-${seen.id} .claim`);
+    await short.waitForTimeout(150);
+    const after = await short.evaluate((id) => ({ top: document.getElementById('c-' + id).getBoundingClientRect().top, y: window.scrollY }), seen.id);
+    assert.ok(Math.abs(after.y - seen.y) < 2 && Math.abs(after.top - seen.top) < 2, `a click moved the page: ${JSON.stringify([seen, after])}`);
+    // Opening a reply box may bring it into view; typing in it moves nothing.
+    await short.keyboard.press('r');
+    await short.waitForTimeout(200);
+    const open = await short.evaluate(() => window.scrollY);
+    await short.keyboard.type('a reply');
+    await short.waitForTimeout(150);
+    const typed = await short.evaluate(() => window.scrollY);
+    assert.ok(Math.abs(typed - open) < 2, `typing moved the page from ${open} to ${typed}`);
+    await short.close();
 
     // A phone has one column: nothing to pack.
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });

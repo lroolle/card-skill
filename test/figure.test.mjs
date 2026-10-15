@@ -128,6 +128,18 @@ test('flow: a group is one frame around its boxes and no other; a store is a cyl
   }
 });
 
+test('flow: groups in crossed order keep one order; frames that cannot stay apart keep their places and are said', () => {
+  // A reviewer's case: 6 boxes once grew to 30,604 px as two bands pushed each other.
+  const crossed = parseFlow('a -> x\nb -> y\nc -> z\ngroup G1: a, y, c\ngroup G2: b, x, z');
+  assert.ok(layoutFlow(crossed).width < 600, `width ${layoutFlow(crossed).width}`);
+  // G1 holds d and a, but b of G2 stands between them on one chain: no two frames can hold that.
+  const tangled = parseFlow('b -> a\ne -> f\nd -> b\ngroup G1: d, a\ngroup G2: f, b');
+  const L = layoutFlow(tangled);
+  assert.equal(L.tangled, true);
+  assert.ok(L.width < 600);
+  assert.match(flowIssues(tangled, L).find((x) => x.code === 'groups-tangled').msg, /groups "G1" and "G2" take boxes from the same ranks in crossed order/);
+});
+
 // ---------- sequence ----------
 
 test('sequence: columns in order of first mention, a row per message, replies dashed, a call to itself', () => {
@@ -171,6 +183,26 @@ test('chart: an Org table gives bars for names and a line for numbers or dates; 
   const line = chart('| round | asks | cards |\n|---|---|---|\n| 1 | 9 | 22 |\n| 2 | 6 | 27 |\n| 3 | 3 | 30 |', 'Per round', '4.2').html;
   assert.equal((line.match(/<path class="c-ln s\d"/g) || []).length, 2);
   assert.match(line, />asks<\/text>/, 'each line is named at its end');
+});
+
+test('chart: hostile numbers end at once and draw no NaN; no numbers yet is said', () => {
+  const cases = [
+    '| d | bytes |\n|---|---|\n| 1 | 1.2e16 |\n| 2 | 1.2e16 |\n| 3 | 1.2e16 |',
+    '| q | n |\n|---|---|\n| a | 1e999 |\n| b | 2 |',
+    'type: line\n| d | n |\n|---|---|\n| 2026-10 | 5 |',
+    '| d | n |\n|---|---|\n| 1 | 1e-300 |\n| 2 | 1e-300 |\n| 3 | 1e-300 |',
+    '| x | n |\n|---|---|\n| 9007199254740993 | 1 |\n| 9007199254740993 | 2 |\n| 9007199254740993 | 3 |',
+  ];
+  for (const src of cases) {
+    const t = Date.now();
+    const r = chart(src, 'c', '1.1');
+    assert.ok(Date.now() - t < 500, src);
+    assert.ok(!/NaN|Infinity/.test(r.html), src);
+  }
+  assert.match(chart(cases[1], 'c', '1.1').problems[0].msg, /"1e999" in the column "n" is not a number/);
+  const empty = chart('| d | n |\n|---|---|\n| 1 | |\n| 2 | - |', 'c', '1.1');
+  assert.match(empty.html, /class="chart-none"/);
+  assert.equal(empty.issues[0].code, 'no-numbers');
 });
 
 test('lint: sequence and chart are drawn kinds; their faults are said with a fix; a wide flow says how to fit', () => {

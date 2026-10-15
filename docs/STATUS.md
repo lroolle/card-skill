@@ -1,13 +1,15 @@
 # Status
 
-Version 0.2.0, tagged and released on 2026-10-09. What works, what nobody has checked yet, and
+Version 0.3.0, built on 2026-10-15 and not yet pushed or tagged; 0.2.0
+(2026-10-09) is the last release. What works, what nobody has checked yet, and
 what is known to be missing. The reasons are in `docs/DECISIONS.md`; what
 comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
-`npm test`: 137 tests. 21 of them drive a real browser; on GitHub they run
-in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
+`npm test`: 148 tests. 24 of them drive a real browser; on GitHub they run
+in Chromium, Firefox and WebKit, each one required. 0.3.0 ran them in all
+three engines on Linux before its push. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
 
@@ -22,6 +24,12 @@ from `site/` and the boards under `.cards/`.
   and for syntax that does nothing.
 - Versions that follow meaning: a re-wrapped paragraph is not a revision; a
   changed picture is.
+- Figures: sketch, flow (right angles, groups, stores), sequence and chart,
+  with the checks that `cards check` runs on each drawing's geometry. 2000
+  generated flows of real shape: 98.6% with no fault the checks know.
+- Full screen (Shift + F), and a reading view that packs its cards into
+  columns without moving the page under a click.
+- Asks: the lint tells of an ask that is not a real decision.
 - The page: the rack and the desk, the three levels, the first-view and Fit
   rules, lines by link type, your own layout, the image viewer, the chat,
   keys, a phone-width layout, a board in a frame (`?embed`, `?fresh`).
@@ -42,6 +50,9 @@ from `site/` and the boards under `.cards/`.
 
 ## Not checked
 
+- The new figures, full screen and packing on a real Mac screen, at 2x, and
+  in Safari itself. They were looked at in Chromium at 1440 px in both
+  themes, and tested in all three engines on Linux.
 - Safari itself, and a phone in a hand. WebKit and Firefox run the browser
   tests on Linux; the phone layout is tested at 390 px.
 - Pinch zoom on the desk. (Taps are tested on a touch screen of phone size
@@ -70,6 +81,14 @@ from `site/` and the boards under `.cards/`.
   what fell behind.
 - `cards shot` needs Playwright, which the skill does not install. Its
   pictures are only as true as the fonts of the machine that takes them.
+- A flow label can still sit beside a crowded line (29 of 2000 generated
+  flows of real shape); `cards check` says where. A flow drawn left to
+  right is often wider than a card; the check names `direction: down`.
+- Two groups whose boxes cross each other's ranks cannot both keep their
+  frames apart; the boxes stay where the layout put them, and the check
+  says so.
+- A drawing does not open full size; it scrolls in its frame and zooms on
+  the desk.
 
 ## How to work on it
 
