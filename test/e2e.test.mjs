@@ -206,7 +206,8 @@ test('full screen: the button and F fill the screen with the whole page and leav
       return;
     }
     assert.ok(entered && await full(), 'the whole page fills the screen');
-    assert.equal(await page.getAttribute(btn, 'aria-pressed'), 'true');
+    // fullscreenchange comes a frame after fullscreenElement: wait for the button, do not race it.
+    await page.waitForSelector(btn + '[aria-pressed="true"]');
     assert.equal(await page.isVisible('[data-act="send"]'), true, 'Send stays on screen');
     assert.equal(await page.isVisible('.board.view-desk .shelves'), true, 'the desk stays');
 
@@ -214,7 +215,7 @@ test('full screen: the button and F fill the screen with the whole page and leav
     await page.locator('body').click({ position: { x: 5, y: 5 } });
     await page.keyboard.press('Shift+F');
     await page.waitForFunction(() => !document.fullscreenElement);
-    assert.equal(await page.getAttribute(btn, 'aria-pressed'), 'false');
+    await page.waitForSelector(btn + '[aria-pressed="false"]');
     await page.keyboard.press('f');
     assert.equal(await full(), false, 'f still steps the filter');
     await page.keyboard.press('Shift+F');
