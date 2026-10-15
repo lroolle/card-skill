@@ -859,3 +859,27 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
    that goes on hold is seen to do so. */
 .embed .view-rack > header { display: contents; }
 .embed .view-rack .rail { position: sticky; top: 0; z-index: 6; padding-top: var(--s2); background: var(--bg); }
+
+/* ---------- full screen ---------- */
+/* The board takes the whole screen (Shift + F). The header folds to one line:
+   whose turn, the title, the ask tabs. The rack drops its width limit, so more
+   columns fit; the desk gets the height. A notice still takes its own row. */
+.board.screen { max-width: none; padding-top: var(--s3); }
+.board.screen > header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); min-width: 0; }
+.board.screen .andon { flex: none; }
+.board.screen .andon > :not(.lamp) { display: none; }
+.board.screen h1.title {
+  flex: 1 1 12em; min-width: 0; max-width: none; margin: 0;
+  font-size: var(--t-l); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.board.screen .lede { display: none; }
+.board.screen .notice { order: 9; flex-basis: 100%; margin-top: 0; }
+.board.screen .rail { flex: none; max-width: 60%; flex-wrap: nowrap; overflow-x: auto; margin: 0; border: 0; }
+.board.screen .rail-tab { min-height: 26px; margin: 0; border-bottom-width: 1px; border-radius: var(--r); }
+.board.screen.view-rack .shelf:first-of-type { margin-top: var(--s5); }
+.board.screen .desk-bar { padding-top: var(--s1); }
+/* A phone has no room for the switch in its first row of tools, and most phones give a page no
+   full screen. A board already in full screen keeps the switch, so it can leave by a press. */
+@media (max-width: 720px) {
+  .board:not(.screen) ~ .bar [data-act="screen"] { display: none; }
+}

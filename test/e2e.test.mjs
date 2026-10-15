@@ -1309,3 +1309,72 @@ test('resize, as a reviewer broke it: the edge follows the pointer at any zoom, 
     }
   } finally { await browser.close(); }
 });
+
+test('full screen: Shift + F and the button give the board the screen; the header folds to one line; Esc and the browser bring it back', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  buildBoard(ref, { cwd });
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url);
+    await page.waitForSelector('.board.view-desk');
+    const measure = () => page.evaluate(() => ({
+      header: document.querySelector('.board > header').getBoundingClientRect().height,
+      table: document.querySelector('.shelves').getBoundingClientRect().height,
+      lede: !!document.querySelector('.lede') && getComputedStyle(document.querySelector('.lede')).display !== 'none',
+      api: !!document.fullscreenElement,
+      enabled: !!document.fullscreenEnabled,
+    }));
+    const before = await measure();
+    await page.keyboard.press('Shift+F');
+    await page.waitForSelector('.board.screen');
+    await page.waitForTimeout(200);
+    const on = await measure();
+    assert.ok(on.header < 60, `the header is one line: ${on.header}px`);
+    assert.ok(on.table > before.table + 80, `the table gets the height: ${before.table} -> ${on.table}`);
+    assert.equal(on.lede, false);
+    // The asks stay in sight, and so does whose turn it is.
+    assert.ok(await page.isVisible('.rail-tab'));
+    assert.ok(await page.isVisible('.lamp'));
+    assert.equal(await page.getAttribute('[data-act="screen"]', 'aria-pressed'), 'true');
+    if (on.enabled) {
+      assert.equal(on.api, true, 'the browser went to full screen');
+      // Leaving the browser's full screen (Esc there, a gesture) leaves the mode too.
+      await page.evaluate(() => document.exitFullscreen());
+      await page.waitForSelector('.board:not(.screen)');
+    } else {
+      await page.keyboard.press('Escape');
+      await page.waitForSelector('.board:not(.screen)');
+    }
+
+    // The button does the same, on the rack too: there the width limit goes, so more columns fit.
+    await page.keyboard.press('d');
+    await page.waitForSelector('.board.view-rack');
+    const cols = () => page.evaluate(() => getComputedStyle(document.querySelector('.slots[data-layout="grid"], .slots')).gridTemplateColumns.split(' ').length);
+    const page1 = await page.evaluate(() => document.querySelector('.board').getBoundingClientRect().width);
+    await page.click('[data-act="screen"]');
+    await page.waitForSelector('.board.screen.view-rack');
+    const page2 = await page.evaluate(() => document.querySelector('.board').getBoundingClientRect().width);
+    assert.ok(page2 > page1 + 100, `the rack takes the width: ${page1} -> ${page2}`);
+    assert.ok(await cols() >= 1);
+    // Esc first clears a focused card, then leaves a full window.
+    await page.click('#c-nats .claim');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.evaluate(() => document.querySelector('.board').classList.contains('screen')), true, 'the first Esc only clears the focus');
+    await page.click('[data-act="screen"]');
+    await page.waitForSelector('.board:not(.screen)');
+    assert.deepEqual(errors, []);
+
+    // On a phone the switch is not in the tools.
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await phone.goto(url);
+    await phone.waitForSelector('.board.view-rack');
+    assert.equal(await phone.isVisible('[data-act="screen"]'), false);
+    await phone.close();
+  } finally {
+    await browser.close();
+  }
+});

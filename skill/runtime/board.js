@@ -89,7 +89,7 @@
   // most detail that still fits the window at a readable size (firstView, below).
   var deskAltSet = load('deskAlt', null);
   var S = { view: ASKED.view || load('view', NARROW ? 'rack' : 'desk'), alts: { rack: load('alt', 'gist'), desk: deskAltSet || 'gist' }, filter: 'all', sort: 'board', q: '', focus: null, hover: null, open: new Set(), replyOpen: new Set(),
-    zoom: load('zoom', 'fit'), scale: 1, back: null, chatOpen: false };
+    zoom: load('zoom', 'fit'), scale: 1, back: null, chatOpen: false, screen: false };
   if (ASKED.alt) S.alts[S.view] = ASKED.alt;
   S.alt = S.alts[S.view];
   var D = load('drafts', null) || emptyDrafts();
@@ -384,7 +384,7 @@
     if (B.board.author) stat.push(t('stat_by', { author: B.board.author }));
     var build = B.build || {};
     var html = [];
-    html.push('<div class="page board view-' + S.view + ' alt-' + S.alt + '">');
+    html.push('<div class="page board view-' + S.view + ' alt-' + S.alt + (S.screen ? ' screen' : '') + '">');
     html.push('<header><div class="andon">' +
       (build.home ? '<a class="mark" href="' + esc(build.home) + '" target="_blank" rel="noopener noreferrer" title="' + esc(t('mark_title', { version: build.version })) + '" aria-label="' + esc(t('mark_title', { version: build.version })) + '">' +
         '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="mark-tab" d="' + MARK_TAB + '"/><path d="' + MARK_CARD + '"/></svg></a>' : '') +
@@ -580,7 +580,8 @@
       '<button data-alt="claim" title="' + esc(t('alt_claim_title')) + '">' + esc(t('alt_claim')) + '</button>' +
       '<button data-alt="gist" title="' + esc(t('alt_gist_title')) + '">' + esc(t('alt_gist')) + '</button>' +
       '<button data-alt="full" title="' + esc(t('alt_full_title')) + '">' + esc(t('alt_full')) + '</button></div>' +
-      '<div class="seg seg-view"><button data-act="desk" title="' + esc(t('desk_title')) + '">' + esc(t('desk')) + '</button></div>' +
+      '<div class="seg seg-view"><button data-act="desk" title="' + esc(t('desk_title')) + '">' + esc(t('desk')) + '</button>' +
+      (screenAllowed() ? '<button data-act="screen" title="' + esc(t('screen_title')) + '">' + esc(t('screen')) + '</button>' : '') + '</div>' +
       '<span class="sep"></span>' +
       '<select data-sort aria-label="' + esc(t('sort_label')) + '"><option value="board">' + esc(t('sort_board')) + '</option><option value="waiting">' + esc(t('sort_waiting')) + '</option><option value="recent">' + esc(t('sort_recent')) + '</option></select>' +
       '<label class="search"><span class="icon-btn" aria-hidden="true">' + ICON.search + '</span><input type="search" data-search placeholder="' + esc(t('find')) + '" aria-label="' + esc(t('find_label')) + '" value="' + esc(S.q) + '"></label>' +
@@ -626,9 +627,11 @@
     if (!root) return;
     ANS = answeredSet();
     var rel = S.focus ? relations(S.focus) : new Map();
-    root.className = 'page board view-' + S.view + ' alt-' + S.alt + (S.focus && rel.size ? ' focusing' : '');
+    root.className = 'page board view-' + S.view + ' alt-' + S.alt + (S.focus && rel.size ? ' focusing' : '') + (S.screen ? ' screen' : '');
     var deskBtn = $('[data-act="desk"]');
     if (deskBtn) deskBtn.setAttribute('aria-pressed', String(S.view === 'desk'));
+    var screenBtn = $('[data-act="screen"]');
+    if (screenBtn) screenBtn.setAttribute('aria-pressed', String(S.screen));
     $$('[data-filter]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.filter === S.filter)); });
     $$('[data-alt]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.alt === S.alt)); });
     var sel = $('[data-sort]');
@@ -1310,6 +1313,34 @@
     }
   }
 
+  // ---- full screen ----
+  //
+  // The board takes the whole screen: the header folds to one line (whose
+  // turn, the title, the ask tabs), the rack drops its width limit, and the
+  // desk gets the height. Where the browser allows it, the page also asks for
+  // the real full screen; where it does not (a phone, a frame without
+  // permission), the board still fills its window. Leaving the browser's full
+  // screen (Esc, a gesture) leaves this mode too. Nothing is kept: a browser
+  // enters full screen only on a press.
+  var screenApi = false; // true while the browser's own full screen is ours
+  function screenAllowed() { return !ASKED.embed || !!document.fullscreenEnabled; }
+  function setScreen(on) {
+    if (on === S.screen) return;
+    S.screen = on;
+    var el = document.documentElement;
+    if (on && document.fullscreenEnabled && !document.fullscreenElement && el.requestFullscreen) {
+      screenApi = true;
+      try { var p = el.requestFullscreen(); if (p && p.catch) p.catch(function () { screenApi = false; }); } catch (e) { screenApi = false; }
+    }
+    if (!on && screenApi && document.fullscreenElement) { screenApi = false; document.exitFullscreen().catch(function () { /* already out */ }); }
+    applyView();
+    watchSizes();
+    if (S.view === 'desk') scheduleWires();
+  }
+  document.addEventListener('fullscreenchange', function () {
+    if (!document.fullscreenElement && screenApi) { screenApi = false; setScreen(false); }
+  });
+
   // ---- the chat with the agent: a box in the bottom-right corner ----
   //
   // A message goes now, as its own round, not with the card answers. The
@@ -1652,7 +1683,7 @@
   function openHelp() {
     // [the key, as typed; what it does]. Key names stay literal; 'Alt + arrows' names keys in words, so it translates.
     var keys = [['j / k', t('keys_step')], ['Enter', t('keys_open')], ['Esc', t('keys_clear')], ['n', t('keys_next_waiting')],
-      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['z', t('keys_zoom')], ['[  ]  0', t('keys_width')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
+      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['Shift + F', t('keys_screen')], ['z', t('keys_zoom')], ['[  ]  0', t('keys_width')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
       ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')], ['Ctrl + Enter', t('send')], ['Esc', t('keys_undo_send')]];
     var dlg = document.createElement('dialog');
     var made = B.build ? '<a class="made" href="' + esc(B.build.home) + '" target="_blank" rel="noopener noreferrer">' + esc(t('mark_title', { version: B.build.version })) + '</a>' : '';
@@ -1850,6 +1881,7 @@
       var a = act.dataset.act;
       if (a === 'reply' && card) toggleReply(card.dataset.id);
       else if (a === 'desk') toggleDesk();
+      else if (a === 'screen') setScreen(!S.screen);
       else if (a === 'arrange') arrange();
       else if (a === 'chat') toggleChat();
       else if (a === 'chat-send') chatSend();
@@ -2169,7 +2201,9 @@
       if (pendingChat) { e.preventDefault(); chatUndo(); return; }
       if (target.closest && target.closest('.chat')) { toggleChat(false); return; }
       if (typingTarget(target)) { target.blur(); if (S.focus && cardEl(S.focus)) cardEl(S.focus).focus({ preventScroll: true }); return; }
-      if (S.focus) { S.open.delete(S.focus); clearFocus(); }
+      if (S.focus) { S.open.delete(S.focus); clearFocus(); return; }
+      // Last: a board that fills its window without the browser's full screen leaves it.
+      if (S.screen && !document.fullscreenElement) setScreen(false);
       return;
     }
     // "[" and "]" are typed with AltGr (Ctrl + Alt) or Option on many keyboards: they pass.
@@ -2209,6 +2243,8 @@
       case 'r': if (id) { e.preventDefault(); toggleReply(id, true); } break;
       case 'n': nextWaiting(); break;
       case 'd': toggleDesk(); break;
+      // Shift + F; a capital F from Caps Lock alone does nothing, as before.
+      case 'F': if (e.shiftKey && screenAllowed()) setScreen(!S.screen); break;
       case 'z': if (deskOn()) cycleZoom(); break;
       case '0': if (deskOn() && id) resetWidth(id); break;
       case 'c': if (!ASKED.embed) { e.preventDefault(); toggleChat(true); } break;

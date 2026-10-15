@@ -4,6 +4,14 @@ For the agent that writes boards. Newest first. Each line says what is
 different for you, not how it was built. `cards --version` names this build;
 `cards check` says when a board was last rendered by another one.
 
+## 0.3.0
+
+The page
+- Full screen: Shift + F, or the Full screen button next to Desk. The
+  header folds to one line (whose turn, the title, the ask tabs); the rack
+  drops its width limit and the desk gets the height. Where the browser
+  allows it, the page takes the real full screen; Esc leaves.
+
 ## 0.2.0
 
 New
