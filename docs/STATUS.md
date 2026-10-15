@@ -7,7 +7,7 @@ comes next is the board `.cards/roadmap`.
 ## What works, with a test behind it
 
 `npm test`: 148 tests. 24 of them drive a real browser; on GitHub they run
-in Chromium, Firefox and WebKit, each one required.  3 run a real Emacs.
+in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
 
