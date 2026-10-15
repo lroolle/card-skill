@@ -166,6 +166,8 @@
   "send_copy_failed": "Select the text and copy it.",
   "desk": "Desk",
   "desk_title": "Lay the cards out on a desk, with lines between related cards (d)",
+  "fullscreen": "Full screen",
+  "fullscreen_title": "Fill the screen with the board; Esc leaves (F)",
   "desk_legend_label": "What the lines mean",
   "desk_line_from": "Source",
   "desk_line_needs": "Needs",
@@ -211,6 +213,7 @@
   "keys_next_waiting": "Next card waiting on you",
   "keys_alt": "Claim / Gist / Full",
   "keys_desk": "Desk or reading view",
+  "keys_fullscreen": "Full screen on or off",
   "keys_zoom": "Desk zoom: Fit, 50%, 100%",
   "keys_marks": "Keep / Drop / More",
   "keys_reply": "Reply to the card",
@@ -229,5 +232,6 @@
   "lightbox_close": "Close",
   "lightbox_actual": "Show the real pixels",
   "lightbox_fit": "Fit to the window",
-  "file_dir": "Folder"
+  "file_dir": "Folder",
+  "fullscreen_refused": "The browser did not allow full screen"
 }

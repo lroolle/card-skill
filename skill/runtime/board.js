@@ -580,7 +580,8 @@
       '<button data-alt="claim" title="' + esc(t('alt_claim_title')) + '">' + esc(t('alt_claim')) + '</button>' +
       '<button data-alt="gist" title="' + esc(t('alt_gist_title')) + '">' + esc(t('alt_gist')) + '</button>' +
       '<button data-alt="full" title="' + esc(t('alt_full_title')) + '">' + esc(t('alt_full')) + '</button></div>' +
-      '<div class="seg seg-view"><button data-act="desk" title="' + esc(t('desk_title')) + '">' + esc(t('desk')) + '</button></div>' +
+      '<div class="seg seg-view"><button data-act="desk" title="' + esc(t('desk_title')) + '">' + esc(t('desk')) + '</button>' +
+      (canFullscreen() ? '<button data-act="fullscreen" title="' + esc(t('fullscreen_title')) + '">' + esc(t('fullscreen')) + '</button>' : '') + '</div>' +
       '<span class="sep"></span>' +
       '<select data-sort aria-label="' + esc(t('sort_label')) + '"><option value="board">' + esc(t('sort_board')) + '</option><option value="waiting">' + esc(t('sort_waiting')) + '</option><option value="recent">' + esc(t('sort_recent')) + '</option></select>' +
       '<label class="search"><span class="icon-btn" aria-hidden="true">' + ICON.search + '</span><input type="search" data-search placeholder="' + esc(t('find')) + '" aria-label="' + esc(t('find_label')) + '" value="' + esc(S.q) + '"></label>' +
@@ -629,6 +630,7 @@
     root.className = 'page board view-' + S.view + ' alt-' + S.alt + (S.focus && rel.size ? ' focusing' : '');
     var deskBtn = $('[data-act="desk"]');
     if (deskBtn) deskBtn.setAttribute('aria-pressed', String(S.view === 'desk'));
+    syncFullscreen();
     $$('[data-filter]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.filter === S.filter)); });
     $$('[data-alt]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.alt === S.alt)); });
     var sel = $('[data-sort]');
@@ -1296,6 +1298,28 @@
     applyView();
     if (S.focus && S.view === 'desk') reveal(S.focus);
   }
+  // Full screen holds the whole page, with every control: the human still answers and sends.
+  // Not in a frame (the host page decides that) and not where the browser has none (an iPhone).
+  function fullscreenElement() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
+  function canFullscreen() {
+    var el = document.documentElement;
+    return !ASKED.embed && !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) &&
+      !!(el.requestFullscreen || el.webkitRequestFullscreen);
+  }
+  function toggleFullscreen() {
+    if (!canFullscreen()) return;
+    var el = document.documentElement;
+    var done = fullscreenElement()
+      ? (document.exitFullscreen || document.webkitExitFullscreen).call(document)
+      : (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    if (done && done.catch) done.catch(function () { toast(t('fullscreen_refused')); });
+  }
+  function syncFullscreen() {
+    $$('[data-act="fullscreen"]').forEach(function (b) { b.setAttribute('aria-pressed', String(!!fullscreenElement())); });
+  }
+  document.addEventListener('fullscreenchange', syncFullscreen);
+  document.addEventListener('webkitfullscreenchange', syncFullscreen);
+
   function toggleDesk() {
     S.view = S.view === 'desk' ? 'rack' : 'desk';
     S.alt = S.alts[S.view];
@@ -1652,8 +1676,8 @@
   function openHelp() {
     // [the key, as typed; what it does]. Key names stay literal; 'Alt + arrows' names keys in words, so it translates.
     var keys = [['j / k', t('keys_step')], ['Enter', t('keys_open')], ['Esc', t('keys_clear')], ['n', t('keys_next_waiting')],
-      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['z', t('keys_zoom')], ['[  ]  0', t('keys_width')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
-      ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')], ['Ctrl + Enter', t('send')], ['Esc', t('keys_undo_send')]];
+      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')]].concat(canFullscreen() ? [['F', t('keys_fullscreen')]] : []).concat([['z', t('keys_zoom')], ['[  ]  0', t('keys_width')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
+      ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')], ['Ctrl + Enter', t('send')], ['Esc', t('keys_undo_send')]]);
     var dlg = document.createElement('dialog');
     var made = B.build ? '<a class="made" href="' + esc(B.build.home) + '" target="_blank" rel="noopener noreferrer">' + esc(t('mark_title', { version: B.build.version })) + '</a>' : '';
     dlg.innerHTML = '<h2>' + esc(t('keys_title')) + '</h2><dl class="keys">' + keys.map(function (k) { return '<dt>' + esc(k[0]) + '</dt><dd>' + esc(k[1]) + '</dd>'; }).join('') + '</dl>' +
@@ -1850,6 +1874,7 @@
       var a = act.dataset.act;
       if (a === 'reply' && card) toggleReply(card.dataset.id);
       else if (a === 'desk') toggleDesk();
+      else if (a === 'fullscreen') toggleFullscreen();
       else if (a === 'arrange') arrange();
       else if (a === 'chat') toggleChat();
       else if (a === 'chat-send') chatSend();
@@ -2209,6 +2234,7 @@
       case 'r': if (id) { e.preventDefault(); toggleReply(id, true); } break;
       case 'n': nextWaiting(); break;
       case 'd': toggleDesk(); break;
+      case 'F': if (canFullscreen()) { e.preventDefault(); toggleFullscreen(); } break;
       case 'z': if (deskOn()) cycleZoom(); break;
       case '0': if (deskOn() && id) resetWidth(id); break;
       case 'c': if (!ASKED.embed) { e.preventDefault(); toggleChat(true); } break;

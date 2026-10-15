@@ -180,6 +180,68 @@ test('keyboard: j/k move focus, 1/2/3 set altitude, n finds the waiting card', {
   }
 });
 
+test('full screen: the button and F fill the screen with the whole page and leave it; a frame has neither', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  buildBoard(ref, { cwd });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+    await page.goto(url);
+    const full = () => page.evaluate(() => document.fullscreenElement === document.documentElement);
+    if (!(await page.evaluate(() => document.fullscreenEnabled))) {
+      // An engine with no full screen gets no button and no key. Chromium has full screen.
+      assert.notEqual(ENGINE, 'chromium', 'Chromium reports no full screen');
+      assert.equal(await page.$('[data-act="fullscreen"]'), null);
+      return;
+    }
+    const btn = '[data-act="fullscreen"]';
+    assert.equal(await page.getAttribute(btn, 'aria-pressed'), 'false');
+    await page.click(btn);
+    const entered = await page.waitForFunction(() => !!document.fullscreenElement, null, { timeout: 3000 }).then(() => true, () => false);
+    if (!entered && ENGINE !== 'chromium') {
+      // Some headless engines refuse full screen: the page says so instead of failing quietly.
+      await page.waitForSelector('.toast:not([hidden])');
+      assert.match(await page.textContent('.toast'), /did not allow full screen/);
+      return;
+    }
+    assert.ok(entered && await full(), 'the whole page fills the screen');
+    assert.equal(await page.getAttribute(btn, 'aria-pressed'), 'true');
+    assert.equal(await page.isVisible('[data-act="send"]'), true, 'Send stays on screen');
+    assert.equal(await page.isVisible('.board.view-desk .shelves'), true, 'the desk stays');
+
+    // F leaves; the filter key f does not.
+    await page.locator('body').click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('Shift+F');
+    await page.waitForFunction(() => !document.fullscreenElement);
+    assert.equal(await page.getAttribute(btn, 'aria-pressed'), 'false');
+    await page.keyboard.press('f');
+    assert.equal(await full(), false, 'f still steps the filter');
+    await page.keyboard.press('Shift+F');
+    await page.waitForFunction(() => !!document.fullscreenElement);
+    await page.keyboard.press('Shift+F');
+    await page.waitForFunction(() => !document.fullscreenElement);
+
+    // The help names the key.
+    await page.keyboard.press('?');
+    assert.match(await page.textContent('dialog[open] .keys'), /FFull screen on or off/);
+    await page.keyboard.press('Escape');
+
+    // On a phone-wide screen the bar keeps its rows: no button.
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await page.isVisible(btn), false);
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    // In a frame the host page decides: no button, and F does nothing.
+    await page.goto(url + '?embed');
+    assert.equal(await page.$(btn), null);
+    await page.keyboard.press('Shift+F');
+    assert.equal(await full(), false);
+  } finally {
+    await browser.close();
+  }
+});
+
 const card = (title, props, body) => `** ${title}\n:PROPERTIES:\n${Object.entries(props).map(([k, v]) => `:${k}: ${v}`).join('\n')}\n:END:\n${body}\n`;
 const DESK = [
   '#+title: Desk test\n',

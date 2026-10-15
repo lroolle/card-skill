@@ -4,6 +4,15 @@ For the agent that writes boards. Newest first. Each line says what is
 different for you, not how it was built. `cards --version` names this build;
 `cards check` says when a board was last rendered by another one.
 
+## 0.3.0
+
+The page
+- Full screen: a button beside Desk, or `F`, fills the screen with the
+  whole page. Every control stays, so the human can still answer and
+  send. Esc or `F` leaves. A board in a frame (`?embed`), a browser with
+  no full screen (an iPhone) and a screen 720px wide or less show no
+  button.
+
 ## 0.2.0
 
 New
