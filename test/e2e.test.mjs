@@ -1378,3 +1378,89 @@ test('full screen: Shift + F and the button give the board the screen; the heade
     await browser.close();
   }
 });
+
+test('rack placement: cards pack into columns in board order; no hole beside a wide card, no overlap, nothing under the next section', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const ref = resolveBoard('pack', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  const words = (n) => 'The queue keeps each message until a reader takes it. '.repeat(n).trim();
+  const card = (id, claim, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n:END:\n${body}\n`;
+  const wideFlow = '#+caption: The path of one message\n#+begin_src flow\ndirection: right\nproducer -> broker -> partition -> consumer -> store -> report\n#+end_src';
+  fs.writeFileSync(ref.file, `#+title: Packing\n\n* Findings\n\n${[
+    card('wide', 'A wide figure takes two columns here', words(1) + '\n\n' + wideFlow),
+    card('wide2', 'A second wide figure takes two columns too', words(1) + '\n\n' + wideFlow),
+    card('short', 'A short card sits beside the wide one', words(1)),
+    card('tall', 'A tall card holds many facts at every level', words(2) + '\n\n' + Array.from({ length: 14 }, (_, k) => `- fact ${k + 1} :: a value that takes a line`).join('\n')),
+    card('s2', 'Another short card fills a gap', words(1)),
+    card('s3', 'A third short card fills the next gap', words(1)),
+    card('s4', 'A fourth short card ends the section', words(1)),
+  ].join('\n')}\n* After\n\n${card('next', 'The next section starts below every short card', words(1))}`);
+  const r = buildBoard(ref, { cwd });
+  assert.deepEqual(r.errors, []);
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url + '?view=rack&level=gist');
+    await page.waitForSelector('.slots.packed');
+    await page.waitForTimeout(150);
+    const rects = () => page.evaluate(() => {
+      const box = (el) => { const q = el.getBoundingClientRect(); return { id: el.dataset.id, l: q.left, t: q.top, r: q.right, b: q.bottom }; };
+      return {
+        cards: [...document.querySelectorAll('.shelf:first-of-type .card:not([hidden])')].map(box),
+        head: document.querySelectorAll('.shelf')[1].querySelector('.shelf-head').getBoundingClientRect().top,
+      };
+    });
+    const sound = (got, when) => {
+      for (const a of got.cards) {
+        for (const b of got.cards) {
+          if (a.id < b.id && a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) assert.fail(`${when}: ${a.id} overlaps ${b.id}`);
+        }
+        assert.ok(a.b < got.head, `${when}: ${a.id} reaches under the next section`);
+      }
+    };
+    let got = await rects();
+    sound(got, 'gist');
+    const at = Object.fromEntries(got.cards.map((c) => [c.id, c]));
+    // The wide cards take two of three columns. In rows, the second one would leave a hole
+    // beside the first; packed, the short card after them stands there.
+    assert.ok(at.wide.r - at.wide.l > 1.8 * (at.short.r - at.short.l), 'the wide card spans two columns');
+    assert.ok(Math.abs(at.short.t - at.wide.t) < 2, 'the short card stands beside the first wide one');
+    // Each card goes to the column that is free highest: not below the tall card's row.
+    assert.ok(at.s2.t < at.tall.b, 'a short card fills the gap beside the tall one');
+    // Cards of like height read in rows, left to right.
+    assert.ok(Math.abs(at.s2.t - at.s3.t) < 2 && at.s2.l < at.s3.l, 'level cards read left to right');
+
+    // Opening a card packs again; so do a filter and another level.
+    await page.click('#c-tall .claim');
+    await page.waitForSelector('#c-tall.open');
+    await page.waitForTimeout(150);
+    sound(await rects(), 'open');
+    await page.fill('[data-search]', 'short');
+    await page.waitForTimeout(150);
+    got = await rects();
+    sound(got, 'search');
+    assert.ok(got.cards.length < 7);
+    await page.fill('[data-search]', '');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('3');
+    await page.waitForTimeout(150);
+    sound(await rects(), 'full');
+    // Claim is a ledger: one row per card, no packing.
+    await page.keyboard.press('1');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.slots.packed').length), 0);
+    assert.equal(await page.evaluate(() => [...document.querySelectorAll('.card')].some((el) => el.style.gridRow)), false);
+    assert.deepEqual(errors, []);
+
+    // A phone has one column: nothing to pack.
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await phone.goto(url + '?view=rack&level=gist');
+    await phone.waitForSelector('.board.view-rack');
+    assert.equal(await phone.evaluate(() => document.querySelectorAll('.slots.packed').length), 0);
+    await phone.close();
+  } finally {
+    await browser.close();
+  }
+});

@@ -11,6 +11,10 @@ The page
   header folds to one line (whose turn, the title, the ask tabs); the rack
   drops its width limit and the desk gets the height. Where the browser
   allows it, the page takes the real full screen; Esc leaves.
+- The reading view packs the cards of a section into columns, in board
+  order: a short card no longer leaves a hole under it, and the card after
+  a wide one stands beside it when there is room. A compare section keeps
+  its rows. Nothing changes in `board.org`.
 
 ## 0.2.0
 

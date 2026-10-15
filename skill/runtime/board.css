@@ -175,6 +175,9 @@ h1.title {
 }
 .slots[data-layout="compare"] { grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); }
 .slots[data-layout="list"] { grid-template-columns: minmax(0, 1fr); max-width: 860px; gap: calc(var(--s3) + var(--tab-h)) 0; }
+/* The rack packs a grid section (board.js, packRack): rows of --s1, and each card spans the
+   rows of its own height and the gap under it. So nothing leaves a hole beside or under it. */
+.view-rack .slots[data-layout="grid"].packed { grid-auto-rows: var(--s1); row-gap: 0; }
 
 /* ---------- the card ---------- */
 

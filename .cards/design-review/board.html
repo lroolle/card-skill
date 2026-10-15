@@ -191,6 +191,9 @@ h1.title {
 }
 .slots[data-layout="compare"] { grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); }
 .slots[data-layout="list"] { grid-template-columns: minmax(0, 1fr); max-width: 860px; gap: calc(var(--s3) + var(--tab-h)) 0; }
+/* The rack packs a grid section (board.js, packRack): rows of --s1, and each card spans the
+   rows of its own height and the gap under it. So nothing leaves a hole beside or under it. */
+.view-rack .slots[data-layout="grid"].packed { grid-auto-rows: var(--s1); row-gap: 0; }
 
 /* ---------- the card ---------- */
 
@@ -1732,6 +1735,7 @@ numbers, lead lines), pictograms, bamboo slips. pool 7, roll f3a39d30.
     setIcon(waiting);
     $$('.grip').forEach(function (g) { g.disabled = S.sort !== 'board'; g.title = t(S.sort === 'board' ? 'grip_title' : 'grip_title_sorted'); });
     alignCompare();
+    packRack();
     layoutDesk();
   }
 
@@ -1770,6 +1774,64 @@ numbers, lead lines), pictograms, bamboo slips. pool 7, roll f3a39d30.
       });
     });
   }
+
+  // ---------- the rack: cards packed in columns ----------
+  //
+  // A grid section on the rack puts each card, in board order, at the top of
+  // the column that is free highest; a wide card takes the two neighbouring
+  // columns that are. Columns free within PACK_EVEN of the highest count as
+  // level, and the leftmost of them wins, so cards of like height still read
+  // in rows. No hole stays beside a wide card or under a short one. The order
+  // of the cards in the page, which the keyboard and a screen reader follow,
+  // does not change. A compare section keeps its rows (its facts line up), a
+  // list keeps its one column, and Claim is a ledger.
+  var PACK_EVEN = 32;
+  function packRack() {
+    $$('.slots').forEach(function (slots) {
+      var all = $$(':scope > .card', slots);
+      var items = all.filter(function (el) { return !el.hidden; });
+      var on = S.view === 'rack' && S.alt !== 'claim' && slots.dataset.layout === 'grid' && items.length > 1;
+      all.forEach(function (el) { el.style.gridColumn = el.style.gridRow = ''; });
+      slots.classList.remove('packed');
+      if (!on) return;
+      // The columns and the gap between cards are the ones the grid has unpacked (board.css, .slots).
+      var cs = getComputedStyle(slots);
+      var cols = cs.gridTemplateColumns.split(' ').length;
+      var gap = parseFloat(cs.rowGap) || 0;
+      if (cols < 2) return;
+      slots.classList.add('packed');
+      var unit = parseFloat(getComputedStyle(slots).gridAutoRows) || 4; // a packed grid has rows of --s1
+      var bottom = [];
+      for (var c = 0; c < cols; c++) bottom.push(0);
+      var places = items.map(function (el) {
+        // board.css gives a wide card "grid-column: span 2", which is its start.
+        var gc = getComputedStyle(el);
+        var m = (gc.gridColumnStart + ' ' + gc.gridColumnEnd).match(/span (\d+)/);
+        var w = m ? Math.min(+m[1], cols) : 1;
+        var tops = [];
+        for (var x = 0; x + w <= cols; x++) tops.push(Math.max.apply(null, bottom.slice(x, x + w)));
+        var low = Math.min.apply(null, tops);
+        var at = 0;
+        while (tops[at] > low + PACK_EVEN) at++;
+        var r0 = Math.ceil(tops[at] / unit);
+        var rows = Math.ceil((el.offsetHeight + gap) / unit);
+        for (var y = at; y < at + w; y++) bottom[y] = (r0 + rows) * unit;
+        return (at + 1) + ' / span ' + w + '|' + (r0 + 1) + ' / span ' + rows;
+      });
+      items.forEach(function (el, k) {
+        var p = places[k].split('|');
+        el.style.gridColumn = p[0];
+        el.style.gridRow = p[1];
+      });
+    });
+  }
+  // A card that grows (opened, an image loaded, a table stacked) packs the section again, in the next frame.
+  var packFrame = 0;
+  function schedulePack() {
+    if (packFrame) return;
+    packFrame = requestAnimationFrame(function () { packFrame = 0; if (S.view === 'rack') packRack(); });
+  }
+  var packWatch = window.ResizeObserver ? new ResizeObserver(schedulePack) : null;
 
   // ---------- the desk ----------
   //
@@ -2329,6 +2391,10 @@ numbers, lead lines), pictograms, bamboo slips. pool 7, roll f3a39d30.
     fitTables();
     var bar = $('.bar');
     if (bar) document.documentElement.style.setProperty('--bar-h', bar.offsetHeight + 'px');
+    if (packWatch) {
+      packWatch.disconnect();
+      if (S.view === 'rack') $$('.slots[data-layout="grid"], .slots[data-layout="grid"] > .card').forEach(function (el) { packWatch.observe(el); });
+    }
     if (!sizeWatch) return;
     sizeWatch.disconnect();
     if (S.view !== 'desk') return;
@@ -3027,6 +3093,7 @@ numbers, lead lines), pictograms, bamboo slips. pool 7, roll f3a39d30.
     var before = cols > 1 ? e.clientX < r.left + r.width / 2 : e.clientY < r.top + r.height / 2;
     drag.slots.insertBefore(drag.card, before ? over : over.nextElementSibling);
     drag.moved = true;
+    packRack();
   });
   function endDrag() {
     if (!drag) return;
