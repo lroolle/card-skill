@@ -49,11 +49,15 @@ said before.
 
 ```
 git clone https://github.com/lroolle/card-skill
-cp -R card-skill/skill ~/.claude/skills/card-skill
+cd card-skill && make install
 ```
 
-A real copy, not a link. The copy does not update itself: after a pull,
-remove it and copy again. Node 18 or later; no dependencies.
+`make install` copies `skill/` into `~/.claude/skills/card-skill` for
+Claude Code and `~/.agents/skills/card-skill` for Codex. The copy is real,
+not a link, and comes from the last commit. An agent whose folder does not
+exist is skipped. To update: `git pull && make install`. Another folder:
+`make install DESTS=$HOME/.other/skills`. Node 18 or later; no
+dependencies.
 
 Then ask for something that ends in a decision:
 
