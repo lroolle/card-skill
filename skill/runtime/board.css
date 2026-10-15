@@ -816,6 +816,8 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
   .desk-bar .legend { gap: var(--s1) var(--s3); }
   /* Keys need a keyboard; on a phone the slot goes to the desk switch. */
   .bar [data-act="help"] { display: none; }
+  /* A phone browser already gives the page the screen: no Full screen button, so the bar keeps its rows. */
+  .bar [data-act="fullscreen"] { display: none; }
   .bar .send { margin-left: auto; }
 }
 
