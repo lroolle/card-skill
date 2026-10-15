@@ -988,3 +988,76 @@ Rejected: a lower cap on open asks (it counts, it does not judge); a
 required "if no answer" field (language-bound keys; the depth carries it).
 The permission tell reads English only, as the writing checks do (D14).
 Tests: `test/figure.test.mjs` "lint: an ask that is not a real decision".
+
+## D42. A sheet is a drawing on the board, and cards pin on its parts
+
+2026-10-15. Built. The human asked that agents can "draw the diagram /
+charts and directly render in the board canvas ... like another component
+other than the cards", borrowing from archify, so the skill becomes "the
+best visualize skill for agents' reports to humans".
+What was wrong: a drawing lived inside a card, at 12 boxes and 502 px, and
+a board could not say which card was about which part of it. A review of a
+system drew the system small in one card and named its boxes again in
+prose on the others.
+What is built:
+- A sheet: a card tagged `:sheet:`. Its first figure is the drawing, at the
+  width it needs, with the room of a sheet (24 boxes, 8 groups, 10 parts,
+  32 messages, 30 bars, 200 points, up to 1120 px at full size; a chart is
+  drawn larger). The claim is the caption and the numeral the figure's
+  number ("Fig. 3"). It leads its section: side by side on the rack, a
+  column each beside the section's lane on the desk. It shows its drawing
+  at every level. Below three fifths of its size it scrolls inside itself.
+- A pin: `:ON: sheet/part` on any card. A part is a box or group of a flow,
+  a part of a sequence, a row of a bar chart, a line or a point on x of a
+  line chart, named by its folded name. The part carries the card's
+  numeral; a click on it goes to the card; focus on the card lights the
+  part, focus on the sheet lights its cards ("On 1", "#4 points here").
+  A wrong pin is an error that lists the sheet's parts.
+- SKILL.md "Draw it": which block for which claim, when to make a sheet,
+  how to pin, and archify's working loop: write it whole with no
+  coordinates, check, change one diagnosed thing, check again, stop when
+  clean or when two rounds do not lower the count, then look at it.
+- The review template opens with a sheet and pins its findings.
+Why a card and not a new object: a sheet then has an id, a numeral,
+versions, marks, a reply, an ask, links and the focus light with no new
+code path for any of them, and the reply names it as it names a card. Why
+the numeral and no line: a line from a card into a drawing crosses boxes it
+does not relate (TASTE, 2026-10-09); a patent drawing joins text and part
+by the numeral alone, and the board already takes its numerals from there.
+A pin is the pinned card's meaning: pinning makes a version of that card,
+not of the sheet.
+Fixed on the way, measured on 2000 generated flows:
+- A group's name lay on a line in 448 flows with a group (22%; real group
+  names like "Customer data", one group in every flow). Running down, every
+  line into the group's first rank came down through the strip of the name.
+  Where that happens the layout runs again with room for the name left of
+  the group's first box, and keeps that run when it clears more names and
+  grows by at most twice the names' width, never past a card's 502 px when
+  it fit one: 411 to 17 running down. Running right, the name also tries
+  each of its boxes: 37 left. The check names each one. Room for every
+  name, always, was the first try: it cleared all 411, but a reviewer found
+  drawings 1.3 times wider at the median and up to 3 times, and 45 that no
+  longer fit a card. With the second run, the reviewer's 1500 grouped flows have no
+  new fault, 341 fewer, and no new drawing too wide.
+- A label was placed with a line 2px from its text when a place with room
+  was free: a line within 3px of a label went from 929 flows to 262, with
+  real crossings level (112, now 114). The check now counts a line within
+  1px of a label as on it.
+- A line chart set its names on x so close that two dates ran into one
+  ("2026-10-082026-10-09").
+A part's name folds to its key, with `+`, `#`, `.` and a number's minus
+kept, so `C`, `C++` and `C#` stay three parts. Two parts that still fold
+to one key are an error on the pin, not two numerals.
+A reviewer who did not build it read this round before its commit: two
+regressions on boards with no sheet (the width above; names on x of a line
+chart with uneven dates, chosen now by where they stand), the name clash,
+a done sheet that kept its width, a compare section that counted its
+sheet, numerals on a group over a box, and four smaller ones. All are
+fixed, each with a test.
+Rejected: a section-level figure with `#+name:` (Org's own way, but it has
+no numeral, no versions, no marks: every card mechanism would need a second
+path); lines from cards to parts; placing a sheet by coordinates (D3: the
+agent never places); embedding archify's HTML (D40); new drawing kinds in
+this round (a timeline and a scatter are candidates on the roadmap).
+Tests: `test/sheet.test.mjs` (parts, pins, errors, room, versions, lint,
+names on x); `test/e2e.test.mjs` "sheets" in Chromium, Firefox and WebKit.

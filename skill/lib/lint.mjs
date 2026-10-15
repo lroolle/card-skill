@@ -3,9 +3,9 @@
 // Errors stop a render. Warnings do not; they are the writing rules from
 // SKILL.md made checkable, so an agent hears them at the moment it can act.
 
-import { LIMITS as FIG, parseFlow, layoutFlow, flowIssues, parseSequence, layoutSequence, sequenceIssues, sketchLines, cols, isFigure, figuresIn } from './figure.mjs';
+import { ROOMS, parseFlow, layoutFlow, flowIssues, parseSequence, layoutSequence, sequenceIssues, sketchLines, cols, isFigure, figuresIn, partKey } from './figure.mjs';
 import { chart } from './chart.mjs';
-import { syntaxOf } from './board.mjs';
+import { syntaxOf, pinsOn } from './board.mjs';
 
 export const LIMITS = {
   claimChars: 110,
@@ -107,43 +107,59 @@ function steWarnings(c, warn, sx) {
   }
 }
 
-function figureWarnings(c, warn0, sx) {
-  const blocks = sx.blocks(c.body);
+// pins: the cards pinned on this card's parts, when it is a sheet (board.pinsOn). The
+// drawing is checked as the page draws it: with their numerals in it.
+function figureWarnings(c, warn0, sx, pins = null) {
+  // The blocks the card's anatomy was read from, so its figure is the same object here.
+  const blocks = c.anatomy ? c.anatomy.blocks : sx.blocks(c.body);
   // A figure inside a list or a quote is checked as well; its warning points at the list.
   const lineOfTop = new Map();
   for (const top of blocks) for (const f of figuresIn([top])) lineOfTop.set(f, top);
+  // A sheet's first drawing is the sheet: it has the room of a sheet, and the claim is its caption.
+  const main = c.sheet ? c.anatomy.figure : null;
+  if (c.sheet && !main) warn0(c.line, 'a sheet shows a drawing: put a flow, sequence, chart or sketch block under its first paragraph, or drop the :sheet: tag');
   for (const b of figuresIn(blocks)) {
     const warn = (_line, msg) => warn0(lineOf(c, lineOfTop.get(b) || b), msg);
+    const room = b === main ? ROOMS.sheet : ROOMS.card;
+    const FIG = room;
+    const ctx = b === main ? { room: 'sheet', pins } : {};
+    // Only the sheet's own drawing carries numerals; a later figure in its depth does not.
+    const pinned = (name) => (b === main && pins && pins.get(partKey(name))) || undefined;
     if (b.type === 'file') {
-      if (!b.info) warn(c.line, `the image ${b.path} has no caption; put "#+caption: What it shows" on the line above it`);
+      if (!b.info && b !== main) warn(c.line, `the image ${b.path} has no caption; put "#+caption: What it shows" on the line above it`);
       continue;
     }
-    if (!b.info) {
+    if (!b.info && b !== main) {
       warn(c.line, sx.fmt === 'org'
         ? `the ${b.lang} block has no caption; put "#+caption: What it shows" on the line above #+begin_src ${b.lang}`
         : `\`\`\`${b.lang} has no caption; say what it shows: \`\`\`${b.lang} Rack view: no lines`);
     }
     if (b.lang === 'sketch') {
       const w = Math.max(0, ...sketchLines(b.text).map(cols));
-      if (w > FIG.sketchCols) warn(c.line, `sketch is ${w} columns wide; draw it in ${FIG.sketchCols} or fewer`);
+      if (w > FIG.sketchCols) warn(c.line, `sketch is ${w} columns wide; draw it in ${FIG.sketchCols} or fewer${room === ROOMS.card ? ', or make it a sheet' : ''}`);
       if (!sketchLines(b.text).length) warn(c.line, 'sketch is empty');
     } else if (b.lang === 'flow') {
       const g = parseFlow(b.text);
       for (const p of g.problems) warn(c.line, `flow: ${p.msg}`);
-      if (g.nodes.length > FIG.flowBoxes) warn(c.line, `flow has ${g.nodes.length} boxes; split it (<= ${FIG.flowBoxes})`);
-      if (g.groups.length > FIG.flowGroups) warn(c.line, `flow has ${g.groups.length} groups; draw ${FIG.flowGroups} or fewer`);
+      const more = room === ROOMS.card ? ', or make it a sheet' : '';
+      if (g.nodes.length > FIG.flowBoxes) warn(c.line, `flow has ${g.nodes.length} boxes; split it (<= ${FIG.flowBoxes})${more}`);
+      if (g.groups.length > FIG.flowGroups) warn(c.line, `flow has ${g.groups.length} groups; draw ${FIG.flowGroups} or fewer${more}`);
       if (!g.edges.length) warn(c.line, 'flow has no arrows; write a -> b');
+      g.nodes.forEach((nd) => { nd.pins = pinned(nd.label); });
+      g.groups.forEach((gr) => { gr.pins = pinned(gr.label); });
       // What a reader would misread in the drawing itself: found on its own geometry.
-      if (g.nodes.length && g.nodes.length <= 2 * FIG.flowBoxes) for (const x of flowIssues(g, layoutFlow(g))) warn(c.line, `flow: ${x.msg}`);
+      if (g.nodes.length && g.nodes.length <= 2 * FIG.flowBoxes) for (const x of flowIssues(g, layoutFlow(g), room)) warn(c.line, `flow: ${x.msg}`);
     } else if (b.lang === 'sequence') {
       const q = parseSequence(b.text);
       for (const p of q.problems) warn(c.line, `sequence: ${p.msg}`);
-      if (q.parts.length > FIG.sequenceParts) warn(c.line, `sequence has ${q.parts.length} parts; split it (<= ${FIG.sequenceParts})`);
-      if (q.msgs.length > FIG.sequenceMsgs) warn(c.line, `sequence has ${q.msgs.length} messages; split it (<= ${FIG.sequenceMsgs})`);
+      const more = room === ROOMS.card ? ', or make it a sheet' : '';
+      if (q.parts.length > FIG.sequenceParts) warn(c.line, `sequence has ${q.parts.length} parts; split it (<= ${FIG.sequenceParts})${more}`);
+      if (q.msgs.length > FIG.sequenceMsgs) warn(c.line, `sequence has ${q.msgs.length} messages; split it (<= ${FIG.sequenceMsgs})${more}`);
+      q.parts.forEach((p) => { p.pins = pinned(p.label); });
       if (!q.msgs.length) warn(c.line, 'sequence has no messages; write a -> b: what a asks of b');
-      else for (const x of sequenceIssues(q, layoutSequence(q))) warn(c.line, `sequence: ${x.msg}`);
+      else for (const x of sequenceIssues(q, layoutSequence(q), room)) warn(c.line, `sequence: ${x.msg}`);
     } else if (b.lang === 'chart') {
-      const r = chart(b.text, '', '', {});
+      const r = chart(b.text, '', '', ctx);
       for (const p of r.problems) warn(c.line, `chart: ${p.msg}`);
       for (const x of r.issues) warn(c.line, `chart: ${x.msg}`);
     }
@@ -207,7 +223,9 @@ function blockWarnings(c, warn) {
   });
 }
 
-export function lint(board) {
+// nOf: a card's numeral, as the next render gives it (store.numeralsOf); it sizes the
+// numerals a sheet's drawing carries.
+export function lint(board, { nOf = null } = {}) {
   const out = [];
   const warn = (line, msg) => out.push({ line, msg });
   // What keeps the file valid Org for Emacs and GitHub, not only for this build.
@@ -234,6 +252,7 @@ export function lint(board) {
   const english = /^en\b/i.test(board.lang || 'en');
   const sx = syntaxOf(board.fmt);
   plain = sx.plain;
+  const sheetPins = pinsOn(board, nOf);
 
   for (const c of board.cards) {
     if (plain(c.title).length > LIMITS.claimChars) {
@@ -259,12 +278,14 @@ export function lint(board) {
     }
     if (c.ask && c.status !== 'done') askWarnings(c, a, warn, english);
     if (sx.fmt === 'org') blockWarnings(c, warn);
-    figureWarnings(c, warn, sx);
+    figureWarnings(c, warn, sx, c.sheet ? sheetPins.get(c.id) || null : null);
     if (english) steWarnings(c, warn, sx);
   }
   for (const [text, line] of [[board.lede, 1], ...board.sections.map((s) => [s.note, s.line])]) {
     if (sx.blocks(text).some(isFigure)) {
-      warn(line, 'figures belong in cards; move it into the card it explains');
+      warn(line, sx.fmt === 'org'
+        ? 'figures belong in cards; move it into the card it explains, or give it a card of its own: a sheet (** The claim it shows  :sheet:)'
+        : 'figures belong in cards; move it into the card it explains');
     }
   }
 
@@ -272,13 +293,15 @@ export function lint(board) {
     if (s.cards.length > LIMITS.sectionCards) {
       warn(s.line, `section "${s.title || '(untitled)'}" has ${s.cards.length} cards; split it or cut to ${LIMITS.sectionCards}`);
     }
-    if (s.layout === 'compare' && s.cards.length < 2) {
-      warn(s.line, `compare section "${s.title}" has fewer than two cards`);
+    // A sheet leads the section; the options are the other cards.
+    if (s.layout === 'compare' && s.cards.filter((id) => !board.cards.find((c) => c.id === id).sheet).length < 2) {
+      warn(s.line, `compare section "${s.title}" has fewer than two cards to compare`);
     }
     if (s.layout === 'compare') {
-      const drawn = s.cards.map((id) => board.cards.find((c) => c.id === id)).filter((c) => c.anatomy.figure);
-      if (drawn.length && drawn.length < s.cards.length) {
-        warn(s.line, `compare section "${s.title}": ${drawn.length} of ${s.cards.length} options have a figure; draw every option or none`);
+      const opts = s.cards.map((id) => board.cards.find((c) => c.id === id)).filter((c) => !c.sheet);
+      const drawn = opts.filter((c) => c.anatomy.figure);
+      if (drawn.length && drawn.length < opts.length) {
+        warn(s.line, `compare section "${s.title}": ${drawn.length} of ${opts.length} options have a figure; draw every option or none`);
       }
     }
   }

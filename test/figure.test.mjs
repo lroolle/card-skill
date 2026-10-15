@@ -104,8 +104,8 @@ test('flow: a group is one frame around its boxes and no other; a store is a cyl
   assert.equal(L.frames.length, 1);
   assert.deepEqual(flowIssues(g, L), []);
   const html = flow('group Cloud: api, db\nstore: db\nweb -> api -> db', 'Two zones', '2.1').html;
-  assert.match(html, /<g class="fg"><rect /);
-  assert.match(html, /<g class="fn store" data-n="1"><path d="M/);
+  assert.match(html, /<g class="fg"[^>]*><rect /);
+  assert.match(html, /<g class="fn store" data-n="1"[^>]*><path d="M/);
   assert.match(html, /<g class="fg-name"><text[^>]*>Cloud<\/text>/);
   assert.match(parseFlow('group Cloud: a\ngroup Edge: a, b').problems[0].msg, /in two groups/);
   // Many generated flows with a group: the frame never takes in a box that is not in it.

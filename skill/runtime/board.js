@@ -43,6 +43,7 @@
     ['needs', 'rel_needs', 'rel_lit_needs'], ['blocks', 'rel_blocks', 'rel_lit_blocks'],
     ['from', 'rel_from', 'rel_lit_from'], ['followup', 'rel_followup', 'rel_lit_followup'],
     ['mentions', 'rel_mentions', 'rel_lit_mentions'], ['mentioned', 'rel_mentioned', 'rel_lit_mentioned'],
+    ['on', 'rel_on', 'rel_lit_on'], ['pinned', 'rel_pinned', 'rel_lit_pinned'],
   ];
   var REL_LIT = {};
   REL.forEach(function (r) { REL_LIT[r[0]] = r[2]; });
@@ -278,6 +279,9 @@
     all.forEach(function (o) { if (o.from.indexOf(id) >= 0) add(o.id, 'followup'); });
     c.refs.forEach(function (o) { add(o, 'mentions'); });
     all.forEach(function (o) { if (o.refs.indexOf(id) >= 0) add(o.id, 'mentioned'); });
+    // A card pinned on a part of a sheet: in the sheet, the part carries its numeral.
+    (c.on || []).forEach(function (p) { add(p[0], 'on'); });
+    all.forEach(function (o) { if ((o.on || []).some(function (p) { return p[0] === id; })) add(o.id, 'pinned'); });
     return rel;
   }
 
@@ -428,9 +432,13 @@
   function compareCols(n) { return n <= 4 ? Math.max(n, 1) : Math.ceil(n / Math.ceil(n / 4)); }
 
   function sectionHtml(s) {
-    var ids = sortedIds(s);
+    var all = sortedIds(s);
+    // A sheet leads its section: the drawing first, then the cards about it. On the
+    // rack the sheets stand above the cards; on the desk they lie in a lane beside them.
+    var sheets = all.filter(function (id) { return B.cards[id].sheet; });
+    var ids = all.filter(function (id) { return !B.cards[id].sheet; });
     var keys = s.layout === 'compare' ? factKeys(ids) : null;
-    var head = s.title ? '<div class="shelf-head"><h2>' + esc(s.title) + '</h2><span class="count">' + ids.length + '</span></div>' : '';
+    var head = s.title ? '<div class="shelf-head"><h2>' + esc(s.title) + '</h2><span class="count">' + all.length + '</span></div>' : '';
     // On the desk a column is as wide as its widest figure needs (card padding and border: 34px).
     var figW = Math.max.apply(null, [0].concat(ids.map(function (id) { return B.cards[id].fig_w || 0; })));
     // At Full a column is also as wide as its widest table wants (compile.mjs, tableWidth).
@@ -438,9 +446,11 @@
     var tblW = Math.max.apply(null, [0].concat(ids.map(function (id) { return B.cards[id].status === 'done' ? 0 : B.cards[id].tbl_w || 0; })));
     var colW = figW || tblW ? ' style="' + (figW ? '--col-w:' + Math.min(560, figW + 34) + 'px;' : '') + (tblW ? '--col-wf:' + Math.min(560, tblW + 34) + 'px' : '') + '"' : '';
     var top = head || s.note_html ? '<div class="shelf-top">' + head + (s.note_html ? '<div class="shelf-note">' + s.note_html + '</div>' : '') + '</div>' : '';
-    return '<section class="shelf" data-section="' + esc(s.id) + '"' + colW + '>' + top +
-      '<div class="slots" data-layout="' + s.layout + '" style="--cols:' + compareCols(ids.length) + '">' +
-      ids.map(function (id) { return cardHtml(B.cards[id], keys); }).join('') + '</div></section>';
+    var lane = sheets.length ? '<div class="sheets">' + sheets.map(function (id) { return cardHtml(B.cards[id], null); }).join('') + '</div>' : '';
+    var slots = ids.length || !sheets.length ? '<div class="slots" data-layout="' + s.layout + '" style="--cols:' + compareCols(ids.length) + '">' +
+      ids.map(function (id) { return cardHtml(B.cards[id], keys); }).join('') + '</div>' : '';
+    return '<section class="shelf' + (sheets.length ? ' has-sheets' + (slots ? '' : ' only-sheets') : '') + '" data-section="' + esc(s.id) + '"' + colW + '>' + top +
+      lane + slots + '</section>';
   }
 
   var KEY_HTML = {}; // a fact's key as written -> its markup
@@ -548,15 +558,18 @@
       }).join('') + '</ol></details>'
       : '';
     var replyShown = !!(d.reply) || S.replyOpen.has(c.id);
-    return '<article class="card' + (c.wide ? ' wide' : '') + (c.tbl_w > 440 && c.status !== 'done' ? ' wide-t' : '') + '" id="c-' + esc(c.id) + '" data-id="' + esc(c.id) + '" data-status="' + c.status + '"' +
-      (c.ask ? ' data-ask="' + c.ask + '"' : '') + ' tabindex="0" aria-labelledby="t-' + esc(c.id) + '">' +
+    // A sheet is one drawing: its numeral is the figure's number, and the drawing comes
+    // before the words, at the width it needs (the drawing, the card's padding and border).
+    var sheet = !!c.sheet;
+    var gist = c.gist_html ? '<div class="gist">' + c.gist_html + '</div>' : '';
+    return '<article class="card' + (sheet ? ' sheet' : '') + (c.wide && !sheet ? ' wide' : '') + (c.tbl_w > 440 && c.status !== 'done' ? ' wide-t' : '') + '" id="c-' + esc(c.id) + '" data-id="' + esc(c.id) + '" data-status="' + c.status + '"' +
+      (c.ask ? ' data-ask="' + c.ask + '"' : '') + (sheet && c.fig_w ? ' style="--sheet-w:' + (c.fig_w + 34) + 'px"' : '') + ' tabindex="0" aria-labelledby="t-' + esc(c.id) + '">' +
       (isOpenAsk(c) ? '<div class="tab">' + esc(tabLabel(c)) + '</div>' : '') +
-      '<div class="addr"><span class="n ref-n" title="' + esc(t('card_n', { card: c.n })) + '">' + c.n + '</span><span class="rel"></span>' +
+      '<div class="addr"><span class="n ref-n" title="' + esc(t('card_n', { card: c.n })) + '">' + (sheet ? esc(t('fig')) + ' ' : '') + c.n + '</span><span class="rel"></span>' +
       '<span class="stamp">' + (d.mark ? esc(t(MARK_STAMP[d.mark])) : '') + '</span>' + meta.join('') + '</div>' +
       '<h3 class="claim" id="t-' + esc(c.id) + '">' + c.title_html + '</h3>' +
       (c.progress ? '<div class="meter" role="img" aria-label="' + esc(t('card_progress', { done: c.progress.done, total: c.progress.total })) + '"><i style="width:' + pct + '%"></i></div>' : '') +
-      (c.gist_html ? '<div class="gist">' + c.gist_html + '</div>' : '') +
-      (c.figure_html || '') +
+      (sheet ? (c.figure_html || '') + gist : gist + (c.figure_html || '')) +
       factsHtml(c, keys) + askHtml(c, d) +
       (c.depth_html ? '<div class="depth">' + c.depth_html + '</div>' : '') +
       '<div class="context"></div>' + hist + threadHtml(c) +
@@ -668,6 +681,7 @@
       if (tab) tab.textContent = tabLabel(c);
     });
     $$('.shelf').forEach(function (sh) { sh.hidden = !sh.querySelector('.card:not([hidden])'); });
+    lightParts();
     var none = $('#no-match');
     none.hidden = shown > 0 || !Object.keys(B.cards).length;
     none.textContent = t(S.filter === 'yours' && !q ? 'empty_yours' : S.filter === 'changed' && !q ? 'empty_changed' : 'empty_search');
@@ -687,6 +701,19 @@
     alignCompare();
     packRack();
     layoutDesk();
+  }
+
+  // Focus on a card pinned on a sheet lights the part it is about, and its numeral there.
+  function lightParts() {
+    $$('.sheet svg .lit, .sheet svg .pin.on').forEach(function (el) { el.classList.remove('lit', 'on'); });
+    var c = S.focus && B.cards[S.focus];
+    if (!c) return;
+    (c.on || []).forEach(function (p) {
+      var sh = cardEl(p[0]);
+      // The sheet's own drawing: a later figure in its depth may name a part the same.
+      if (sh) $$(':scope > .fig svg [data-part="' + p[1] + '"]', sh).forEach(function (el) { el.classList.add('lit'); });
+    });
+    $$('.sheet > .fig svg .pin[data-card="' + c.id + '"]').forEach(function (el) { el.classList.add('on'); });
   }
 
   // The browser tab says it too: a count before the title, and the lit tab of the mark.
@@ -852,25 +879,31 @@
   function measureDesk(plane) {
     var cols = [];
     var rect = {};
+    // A column is a lane of cards one above the other: a section's cards, or one of the
+    // sheets that lie side by side before them.
     $$('.shelf', plane).forEach(function (sh) {
       if (sh.hidden) return;
-      var col = { k: cols.length, gaps: [] };
-      if (!PLACE) {
-        var sb = planeBox(sh, plane);
-        col.l = sb.l;
-        col.r = sb.r;
-      }
-      var prev = PLACE ? 0 : planeBox(sh.querySelector('.slots'), plane).t - 4;
-      $$('.card:not([hidden])', sh).forEach(function (el) {
-        var r = planeBox(el, plane);
-        var top = el.querySelector('.tab') ? r.t - TAB_H : r.t;
-        if (!PLACE && top - prev >= 6) col.gaps.push({ y0: prev, y1: top, used: 0 });
-        prev = r.b;
-        r.col = PLACE ? -1 : col.k;
-        rect[el.dataset.id] = r;
+      $$('.sheets > .card, .slots', sh).forEach(function (lane) {
+        var els = lane.classList.contains('card') ? (lane.hidden ? [] : [lane]) : $$('.card:not([hidden])', lane);
+        if (!els.length) return;
+        var col = { k: cols.length, gaps: [] };
+        if (!PLACE) {
+          var lb = planeBox(lane, plane);
+          col.l = lb.l;
+          col.r = lb.r;
+        }
+        var prev = PLACE ? 0 : planeBox(lane, plane).t - 4;
+        els.forEach(function (el) {
+          var r = planeBox(el, plane);
+          var top = el.querySelector('.tab') ? r.t - TAB_H : r.t;
+          if (!PLACE && top - prev >= 6) col.gaps.push({ y0: prev, y1: top, used: 0 });
+          prev = r.b;
+          r.col = PLACE ? -1 : col.k;
+          rect[el.dataset.id] = r;
+        });
+        col.gaps.push({ y0: prev, y1: prev + 40, used: 0 });
+        cols.push(col);
       });
-      col.gaps.push({ y0: prev, y1: prev + 40, used: 0 });
-      cols.push(col);
     });
     return { cols: cols, rect: rect, free: !!PLACE };
   }
@@ -1057,7 +1090,7 @@
       var x = snap(right + GRID * 4);
       var y = GRID * 2;
       waiting.forEach(function (el) {
-        var p = [x, y, 288];
+        var p = [x, y, el.classList.contains('sheet') ? sheetWidth(el) : 288];
         PLACE.cards[el.dataset.id] = p;
         setBox(el, p);
         grow(el, p);
@@ -1073,6 +1106,13 @@
     if (S.holding && plane.style.width) { w = parseFloat(plane.style.width) || w; h = parseFloat(plane.style.height) || h; }
     plane.style.width = w + 'px';
     plane.style.height = h + 'px';
+  }
+
+  // A sheet is as wide as its drawing needs: its own width on the desk, and the most you can drag it to.
+  // A done sheet lies back as one line, as narrow as a card.
+  function sheetWidth(el) {
+    if (el.dataset.status === 'done' && !el.classList.contains('open')) return 288;
+    return Math.max(288, parseFloat(getComputedStyle(el).getPropertyValue('--sheet-w')) || 0);
   }
 
   function nudge(id, key) {
@@ -1656,8 +1696,9 @@
     el.scrollIntoView({ block: 'nearest' });
   }
   function commitOrder(slots) {
-    var sid = slots.closest('.shelf').dataset.section;
-    D.order[sid] = $$('.card', slots).map(function (el) { return el.dataset.id; });
+    var sh = slots.closest('.shelf');
+    // The order of the whole section: its sheets and its cards.
+    D.order[sh.dataset.section] = $$('.card', sh).map(function (el) { return el.dataset.id; });
     touchDrafts();
     applyView();
   }
@@ -1911,6 +1952,9 @@
     if (go) { focusCard(go.dataset.goto, { open: go.hasAttribute('data-open') }); return; }
     var ref = t.closest('a.ref[data-ref]');
     if (ref) { e.preventDefault(); focusCard(ref.dataset.ref); return; }
+    // A numeral on a part of a sheet is the card pinned there.
+    var pin = t.closest('.pin[data-card]');
+    if (pin && B.cards[pin.dataset.card]) { focusCard(pin.dataset.card); return; }
     var card = t.closest('.card');
     var mark = t.closest('[data-mark]');
     if (mark && card) { setMark(card.dataset.id, mark.dataset.mark); return; }
@@ -2083,6 +2127,7 @@
     var sh = el.closest('.shelf');
     var cs = sh ? getComputedStyle(sh) : null;
     var num = function (name) { return cs ? parseFloat(cs.getPropertyValue(name)) || 0 : 0; };
+    if (el.classList.contains('sheet')) return sheetWidth(el);
     if (S.alt === 'claim') return 288;
     return Math.max(288, num('--col-w'), S.alt === 'full' ? num('--col-wf') : 0);
   }
@@ -2101,7 +2146,7 @@
     if (!PLACE) freeze();
     var p = PLACE.cards[id];
     if (!p) return;
-    p[2] = exact ? w : clamp(done ? snap(w) : w, MIN_W, MAX_W);
+    p[2] = exact ? w : clamp(done ? snap(w) : w, MIN_W, el.classList.contains('sheet') ? Math.max(MAX_W, sheetWidth(el)) : MAX_W);
     setBox(el, p);
     if (done) { raise(id); savePlace(); layoutDesk(); } else scheduleWires();
   }

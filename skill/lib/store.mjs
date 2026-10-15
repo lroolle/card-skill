@@ -108,6 +108,16 @@ export function fold(events) {
   return st;
 }
 
+// numeralsOf(dir, board) -> (id) -> the numeral the next render gives a card: the one it
+// has, or the next free one, in board order, as sync() gives them.
+export function numeralsOf(dir, board) {
+  const st = fold(readLog(dir));
+  let next = st.nextN;
+  const out = new Map();
+  for (const c of board.cards) if (!out.has(c.id)) out.set(c.id, st.cards.get(c.id)?.n ?? next++);
+  return (id) => out.get(id) ?? 0;
+}
+
 function boardShape(board) {
   return JSON.stringify([board.title, board.lang, board.lede,
     board.sections.map((s) => [s.id, s.title, s.note, s.layout, s.cards])]);

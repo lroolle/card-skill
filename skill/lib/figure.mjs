@@ -23,7 +23,7 @@
 
 import { esc, inline } from './md.mjs';
 import { en } from './i18n.mjs';
-import { chart } from './chart.mjs';
+import { chart, chartParts } from './chart.mjs';
 
 export const FIGURE_LANGS = ['sketch', 'flow', 'sequence', 'chart'];
 // An image file shown in a card is a figure too: numbered, captioned, under the gist.
@@ -49,6 +49,8 @@ const PAD_X = 10;
 const PAD_Y = 6;
 const FIG_PAD = 12; // padding around the drawing inside the figure frame
 export const WIDE = 330; // a figure wider than this needs two grid columns
+// The widest drawing a desk column shows whole: 560px, less the card's padding and the frame's.
+export const FIG_MAX = 560 - 34 - 2 * FIG_PAD;
 
 // East Asian wide characters take two monospace columns.
 const WIDE_CHAR = /[ᄀ-ᅟ⺀-〾ぁ-㏿㐀-䶿一-鿿ꀀ-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦]/;
@@ -58,10 +60,84 @@ export function cols(s) {
   return n;
 }
 
+// ---------- parts and pins ----------
+//
+// A sheet is a card that is one drawing (a card tagged :sheet:). Another card is pinned
+// on a part of it with :ON: sheet/part, and the part then carries that card's numeral,
+// as a part of a patent drawing carries its reference numeral. A part is anything the
+// drawing names: a box or a group of a flow, a part of a sequence, a row of a bar chart,
+// a line or a point of a line chart. Its key is its name, folded: lower case, and each run of
+// spaces and other marks one dash. Letters, digits, + # and . stay, and so does the minus of a
+// number: "Web app" is web-app, "C++" is c++, "board.org" is board.org, "-1" is -1.
+export const partKey = (s) => {
+  const t = String(s).normalize('NFKC').toLowerCase().trim();
+  const k = t.replace(/[^\p{L}\p{N}+#.]+/gu, '-').replace(/^-+|-+$/g, '');
+  return /^-\d/.test(t) ? '-' + k : k;
+};
+
+const PIN_H = 16;   // a numeral on a part: the card numeral's own size
+const PIN_GAP = 3;  // between two numerals
+const PIN_SEP = 6;  // between a name and its first numeral
+const pinW = (p) => Math.max(18, cols(String(p.n)) * CH + 8);
+export const pinsW = (pins) => (pins && pins.length ? pins.reduce((w, p) => w + pinW(p), 0) + PIN_GAP * (pins.length - 1) : 0);
+// The numerals of a part, from x, centred on y. A numeral is a button for its card.
+export function pinSvg(pins, x, y) {
+  let at = x;
+  return (pins || []).map((p) => {
+    const w = pinW(p);
+    const g = `<g class="pin${p.done ? ' done' : ''}" data-card="${esc(p.id)}"><title>${esc(p.title || '')}</title>` +
+      `<rect x="${round(at)}" y="${round(y - PIN_H / 2)}" width="${round(w)}" height="${PIN_H}" rx="3"/>` +
+      `<text x="${round(at + w / 2)}" y="${round(y)}" text-anchor="middle" dominant-baseline="central">${esc(p.n)}</text></g>`;
+    at += w + PIN_GAP;
+    return g;
+  }).join('');
+}
+// pinsFor(ctx, name) -> the numerals pinned on the part with this name, or none.
+const pinsFor = (ctx, name) => (ctx && ctx.pins && ctx.pins.get(partKey(name))) || null;
+
+// partsOf(block) -> Map(key -> [names]): what a card can be pinned on in this drawing. Two
+// names that fold to one key ("Web app" and "web-app", a box and a group both "api") share it.
+export function partsOf(b) {
+  const out = new Map();
+  const add = (name) => {
+    const k = partKey(name);
+    if (!k) return;
+    if (!out.has(k)) out.set(k, []);
+    if (!out.get(k).includes(name)) out.get(k).push(name);
+  };
+  if (b.lang === 'flow') {
+    const g = parseFlow(b.text);
+    g.nodes.forEach((nd) => add(nd.label));
+    g.groups.forEach((gr) => add(gr.label));
+  } else if (b.lang === 'sequence') {
+    parseSequence(b.text).parts.forEach((p) => add(p.label));
+  } else if (b.lang === 'chart') {
+    const c = chartParts(b.text);
+    c.forEach(add);
+  }
+  return out;
+}
+
+// Two rooms for a drawing. In a card it shares a column of the desk with the card's words.
+// A sheet is the drawing: it takes the width it needs, up to SHEET_MAX at full size.
+export const SHEET_MAX = 1120;
+export const ROOMS = {
+  card: { ...LIMITS, max: FIG_MAX },
+  sheet: { sketchCols: 160, flowBoxes: 24, flowGroups: 8, sequenceParts: 10, sequenceMsgs: 32, max: SHEET_MAX },
+};
+export const roomOf = (ctx) => ROOMS[ctx && ctx.room === 'sheet' ? 'sheet' : 'card'];
+// What a check says when a drawing is wider than its room.
+export function tooWide(width, room, fix) {
+  if (room === ROOMS.sheet) return `the drawing is ${width} px wide, and a sheet shows ${SHEET_MAX} px at full size; ${fix}`;
+  return `the drawing is ${width} px wide, and a card on the desk shows ${FIG_MAX} px of it; ${fix}, or make it a sheet (a card tagged :sheet:)`;
+}
+
 export function frame(kind, body, caption, label, ctx, extra = '') {
   const cap = caption ? ' ' + (ctx.inline || inline)(caption, ctx) : '';
+  // A sheet's drawing has no number of its own and often no caption: then it has no caption line.
+  const said = `${label ? `<b>${esc((ctx.t || en)('fig'))} ${esc(label)}</b>` : ''}${cap}`;
   return `<figure class="fig" data-kind="${kind}"${extra}><div class="fig-body">${body}</div>` +
-    `<figcaption>${label ? `<b>${esc((ctx.t || en)('fig'))} ${esc(label)}</b>` : ''}${cap}</figcaption></figure>`;
+    `${said ? `<figcaption>${said}</figcaption>` : ''}</figure>`;
 }
 
 // ---------- sketch ----------
@@ -183,8 +259,6 @@ const CLEAR = 8;         // between a frame and anything outside it
 const TRACK = 10;        // one run across the gap between two ranks
 const CORNER = 4;        // the radius of a bend
 const LANE = 12;         // between two return loops on the far side
-// The widest drawing a desk column shows whole: 560px, less the card's padding and the frame's.
-export const FIG_MAX = 560 - 34 - 2 * FIG_PAD;
 
 // A box name in lines of at most `max` columns; three lines at most, and `cut` says when it was cut.
 function wrapBox(label, max = 22) {
@@ -199,6 +273,12 @@ function wrapBox(label, max = 22) {
   const cut = out.length > 3;
   if (cut) { out.length = 3; out[2] += '…'; }
   return { lines: out, cut };
+}
+
+// How wide a box's text is: its widest line, or its last line and the numerals after it.
+function lineWidth(lines, pins) {
+  const w = Math.max(...lines.map(cols)) * CH;
+  return pins ? Math.max(w, cols(lines[lines.length - 1]) * CH + PIN_SEP + pinsW(pins)) : w;
 }
 
 // Pool adjacent violators: place items in order, each at least `gap` after the
@@ -244,7 +324,8 @@ function segHits([[ax, ay], [bx, by]], r) {
 }
 // The rectangle a label's text takes. Text is 12px mono, centered on its y.
 export function textBox(l, margin = 0) {
-  const tw = cols(l.text) * CH;
+  // pad: the numerals after the text, when a card is pinned on what it names.
+  const tw = cols(l.text) * CH + (l.pad || 0);
   const x = l.anchor === 'start' ? l.x : l.anchor === 'end' ? l.x - tw : l.x - tw / 2;
   return { x0: x - margin, x1: x + tw + margin, y0: l.y - 7 - margin, y1: l.y + 7 + margin };
 }
@@ -301,13 +382,38 @@ function arrowHead(from, tip) {
   return ` M${fmt(at(6, 4))} L${fmt(tip)} L${fmt(at(6, -4))}`;
 }
 
+// A group's frame keeps room for its name beside its first box only where the name would
+// land on a line: a frame that grows for nothing makes the whole drawing wider. So the
+// layout runs once as it is, and again, with that room, for the groups whose name a line
+// crosses. The second one stands when it clears more names and grows by about the names.
 export function layoutFlow(g) {
+  const L = layoutPass(g, null);
+  if (L.dir !== 'down' || !L.frames.length) return L;
+  const hits = (lay) => new Set(lay.frames.filter((f) => nameHit(f, lay)).map((f) => f.gi));
+  const hit = hits(L);
+  if (!hit.size) return L;
+  const L2 = layoutPass(g, hit);
+  const room = [...hit].reduce((w, gi) => w + nameWidth(g.groups[gi]) + 14, 0) + 24;
+  // It may grow by up to twice the room of the names, and never past a card's width when it fit one.
+  const fits = L.width > FIG_MAX || L2.width <= FIG_MAX;
+  return !L2.tangled && hits(L2).size < hit.size && L2.width - L.width <= 2 * room && fits ? L2 : L;
+}
+const nameWidth = (gr) => cols(gr.label) * CH + (gr.pins ? PIN_SEP + pinsW(gr.pins) : 0);
+// Does a line cross the name of this frame, or the numerals of the cards pinned on its group?
+function nameHit(f, L) {
+  const rs = [textBox(f.text, 1)];
+  if (f.pinAt) rs.push({ x0: f.pinAt.x - 1, x1: f.pinAt.x + pinsW(f.pins) + 1, y0: f.pinAt.y - PIN_H / 2, y1: f.pinAt.y + PIN_H / 2 });
+  return L.edges.some((ed) => segsOf(ed.xy).some((sg) => rs.some((r) => segHits(sg, r))));
+}
+
+// room: the groups whose frame keeps room for its name (layoutFlow).
+function layoutPass(g, room) {
   const down = g.dir !== 'right';
   const n = g.nodes.length;
   const groups = g.groups || [];
   const els = g.nodes.map((nd) => {
     const { lines, cut } = wrapBox(nd.label);
-    const w = Math.max(48, Math.ceil(Math.max(...lines.map(cols)) * CH) + 2 * PAD_X);
+    const w = Math.max(48, Math.ceil(lineWidth(lines, nd.pins)) + 2 * PAD_X);
     const h = lines.length * LH + 2 * PAD_Y + (nd.store ? 2 * RY : 0);
     return { real: true, k: nd.k, node: nd, lines, cut, w, h, rank: 0, pred: [], succ: [], group: nd.group ?? -1 };
   });
@@ -492,8 +598,12 @@ export function layoutFlow(g) {
   const bands = () => groups.map((gr, gi) => {
     const ms = els.filter((e) => e.real && e.group === gi);
     if (!ms.length) return null;
-    return { gi, s0: Math.min(...ms.map(lo)) - padLo, s1: Math.max(...ms.map(hi)) + FRAME_PAD,
-      r0: Math.min(...ms.map((e) => e.rank)), r1: Math.max(...ms.map((e) => e.rank)) };
+    const r0 = Math.min(...ms.map((e) => e.rank));
+    let s0 = Math.min(...ms.map(lo)) - padLo;
+    // Running down, every line into the group's first rank comes down through the strip that
+    // holds the name. The name lies left of the first box of that rank, where none comes down.
+    if (down && room && room.has(gi)) s0 = Math.min(s0, Math.min(...ms.filter((e) => e.rank === r0).map(lo)) - 6 - nameWidth(gr) - 8);
+    return { gi, s0, s1: Math.max(...ms.map(hi)) + FRAME_PAD, r0, r1: Math.max(...ms.map((e) => e.rank)) };
   }).filter(Boolean);
   const shiftRank = (r, from, sign, d) => layers[r].forEach((j) => { if (sign < 0 ? els[j].s <= from : els[j].s >= from) els[j].s += sign * d; });
   // Keep a rank in order with its gaps, pushing to the right where two meet.
@@ -745,7 +855,7 @@ export function layoutFlow(g) {
   // Boxes and frames, in page coordinates.
   const boxes = els.filter((e) => e.real).map((e) => {
     const [x, y] = pt(e.s - sizeS(e) / 2, e.p - sizeP(e) / 2);
-    return { k: e.k, label: e.node.label, strong: e.node.strong, store: !!e.node.store, cut: e.cut, lines: e.lines, x, y, w: e.w, h: e.h };
+    return { k: e.k, label: e.node.label, strong: e.node.strong, store: !!e.node.store, cut: e.cut, lines: e.lines, pins: e.node.pins || null, x, y, w: e.w, h: e.h };
   });
   const frames = B.map((b) => {
     const ms = els.filter((e) => e.real && e.group === b.gi);
@@ -753,7 +863,7 @@ export function layoutFlow(g) {
     const p1 = Math.max(...ms.map(far)) + FRAME_PAD;
     const [xa, ya] = pt(b.s0, p0);
     const [xb, yb] = pt(b.s1, p1);
-    return { gi: b.gi, label: groups[b.gi].label, x: Math.min(xa, xb), y: Math.min(ya, yb), w: Math.abs(xb - xa), h: Math.abs(yb - ya) };
+    return { gi: b.gi, label: groups[b.gi].label, pins: groups[b.gi].pins || null, x: Math.min(xa, xb), y: Math.min(ya, yb), w: Math.abs(xb - xa), h: Math.abs(yb - ya) };
   });
 
   // 8. Labels. A label sits beside the first run of its arrow, in the band kept for it; a
@@ -765,8 +875,11 @@ export function layoutFlow(g) {
   const placed = [];
   const costOf = (l, ei, rank) => {
     const r = textBox(l, 2);
+    // A line that runs past within a few pixels does not cross the label, but reads as
+    // running into it: a small cost, so a place with room around it wins when there is one.
+    const near = textBox(l, 5);
     let cost = rank;
-    segs.forEach(({ ei: k, sg }) => { if (segHits(sg, r)) cost += k === ei ? 60 : 30; });
+    segs.forEach(({ ei: k, sg }) => { if (segHits(sg, r)) cost += k === ei ? 60 : 30; else if (k !== ei && segHits(sg, near)) cost += 4; });
     fsegs.forEach((sg) => { if (segHits(sg, r)) cost += 15; });
     rects.forEach((q) => { if (meets(r, q)) cost += 100; });
     placed.forEach((q) => { if (meets(r, q)) cost += 100; });
@@ -817,17 +930,51 @@ export function layoutFlow(g) {
   frames.forEach((f) => {
     const y = f.y + FRAME_LABEL / 2 + 2;
     const cands = [{ x: f.x + 8, y, anchor: 'start' }, { x: f.x + f.w - 8, y, anchor: 'end' }];
+    // Running right, the strip of the name lies above every box of the group, and lines bend
+    // down through it between ranks: the name may also start or end over any of its boxes.
+    if (!down) {
+      for (const b of boxes) {
+        if (g.nodes[b.k].group !== f.gi) continue;
+        cands.push({ x: b.x, y, anchor: 'start' }, { x: b.x + b.w, y, anchor: 'end' });
+      }
+    }
+    const cost = (r, rank) => {
+      let c = rank;
+      // A name that reaches past its frame belongs to no frame.
+      if (r.x0 < f.x || r.x1 > f.x + f.w) c += 50;
+      segs.forEach(({ sg }) => { if (segHits(sg, r)) c += 30; });
+      placed.forEach((q) => { if (meets(r, q)) c += 100; });
+      return c;
+    };
+    // Running down, the frame keeps room for the name and its numerals together (bands).
+    const together = down && f.pins;
     let bestL = null;
     cands.forEach((l, ci) => {
       l.text = f.label;
-      const r = textBox(l, 2);
-      let c = ci * 0.5;
-      segs.forEach(({ sg }) => { if (segHits(sg, r)) c += 30; });
-      placed.forEach((q) => { if (meets(r, q)) c += 100; });
+      if (together) l.pad = PIN_SEP + pinsW(f.pins);
+      const c = cost(textBox(l, 2), ci * 0.5);
       if (!bestL || c < bestL.c) bestL = { c, l };
     });
     f.text = bestL.l;
     placed.push(textBox(bestL.l, 2));
+    // The numerals of the cards pinned on the group: after the name where they fit, else
+    // where the strip of the name is free.
+    if (f.pins) {
+      const pw = pinsW(f.pins);
+      const nb = textBox(f.text);
+      const at = together ? [f.text.anchor === 'end' ? f.text.x - f.text.pad + PIN_SEP : nb.x1 - f.text.pad + PIN_SEP]
+        : [nb.x1 + PIN_SEP, nb.x0 - PIN_SEP - pw, f.x + f.w - 8 - pw, f.x + 8,
+          ...boxes.filter((b) => g.nodes[b.k].group === f.gi).flatMap((b) => [b.x, b.x + b.w - pw])];
+      let best = null;
+      at.forEach((x, ci) => {
+        const r = { x0: x, x1: x + pw, y0: y - PIN_H / 2, y1: y + PIN_H / 2 };
+        let c = together ? 0 : cost(grow(r, 2), ci * 0.5);
+        if (!together) rects.forEach((q) => { if (meets(grow(r, 2), q)) c += 100; });
+        if (!best || c < best.c) best = { c, x, r };
+      });
+      f.pinAt = { x: best.x, y };
+      placed.push(grow(best.r, 2));
+    }
   });
 
   edges.forEach((ed) => { ed.d = routePath(ed.xy); });
@@ -844,7 +991,7 @@ export function layoutFlow(g) {
 
 // flowIssues(g, L) -> [{ code, msg }]: what a reader would misread in the drawing, found on
 // its own geometry. Each names its subject and a change that fixes it.
-export function flowIssues(g, L) {
+export function flowIssues(g, L, room = ROOMS.card) {
   const out = [];
   const seen = new Set();
   const say = (code, key, msg) => { if (!seen.has(code + key)) { seen.add(code + key); out.push({ code, msg }); } };
@@ -852,14 +999,17 @@ export function flowIssues(g, L) {
   const arrow = (ed) => `${name(ed.a)} -> ${name(ed.b)}`;
   const segs = L.edges.flatMap((ed) => segsOf(ed.xy).map((sg) => ({ ed, sg })));
   const labels = [
-    ...L.edges.filter((ed) => ed.label).map((ed) => ({ text: ed.label.text, r: textBox(ed.label), what: `the label "${ed.label.text}"` })),
-    ...L.frames.map((f) => ({ text: f.label, r: textBox(f.text), what: `the name of the group "${f.label}"` })),
+    // A line within 1px of a label's text touches it, to a reader.
+    ...L.edges.filter((ed) => ed.label).map((ed) => ({ text: ed.label.text, r: textBox(ed.label, 1), what: `the label "${ed.label.text}"`, fix: 'shorten the label' })),
+    ...L.frames.map((f) => ({ text: f.label, r: textBox(f.text, 1), what: `the name of the group "${f.label}"`, fix: 'shorten the name of the group' })),
+    ...L.frames.filter((f) => f.pinAt && !f.text.pad).map((f) => ({ r: { x0: f.pinAt.x - 1, x1: f.pinAt.x + pinsW(f.pins) + 1, y0: f.pinAt.y - PIN_H / 2, y1: f.pinAt.y + PIN_H / 2 },
+      what: `the numerals on the group "${f.label}"`, fix: 'shorten the name of the group, or pin fewer cards on the group' })),
   ];
   for (const l of labels) {
     for (const { ed, sg } of segs) {
-      if (segHits(sg, l.r)) say('label-on-line', l.what + arrow(ed), `${l.what} lies on the arrow ${arrow(ed)}; shorten the label, or drop it where the boxes already say it`);
+      if (segHits(sg, l.r)) say('label-on-line', l.what + arrow(ed), `${l.what} lies on the arrow ${arrow(ed)}; ${l.fix}${l.fix === 'shorten the label' ? ', or drop it where the boxes already say it' : ''}`);
     }
-    for (const b of L.boxes) if (meets(l.r, boxRect(b))) say('label-on-box', l.what + b.k, `${l.what} covers the box "${b.label}"; shorten the label`);
+    for (const b of L.boxes) if (meets(l.r, boxRect(b))) say('label-on-box', l.what + b.k, `${l.what} covers the box "${b.label}"; ${l.fix}`);
   }
   for (let i = 0; i < labels.length; i++) {
     for (let j = i + 1; j < labels.length; j++) {
@@ -898,8 +1048,8 @@ export function flowIssues(g, L) {
       }
     }
   }
-  if (L.width > FIG_MAX) {
-    say('too-wide', '', `the drawing is ${L.width} px wide, and a card on the desk shows ${FIG_MAX} px of it; ${L.dir === 'right' ? 'write direction: down, or split it' : 'split it, or shorten the box names'}`);
+  if (L.width > room.max) {
+    say('too-wide', '', tooWide(L.width, room, L.dir === 'right' ? 'write direction: down, or split it' : 'split it, or shorten the box names'));
   }
   for (const b of L.boxes) if (b.cut) say('box-cut', b.k, `the box "${b.label}" is cut after three lines; shorten its name`);
   return out;
@@ -916,9 +1066,24 @@ const textAt = (l, cls = '') => `<text${cls ? ` class="${cls}"` : ''} x="${round
 function boxSvg(b, extraY = 0) {
   const cx = b.x + b.w / 2;
   const top = b.y + b.h / 2 - ((b.lines.length - 1) * LH) / 2 + extraY;
-  const text = b.lines.map((l, i) => `<text x="${round(cx)}" y="${round(top + i * LH)}" text-anchor="middle" dominant-baseline="central">${esc(l)}</text>`).join('');
+  const last = b.lines.length - 1;
+  const text = b.lines.map((l, i) => {
+    const y = top + i * LH;
+    if (i !== last || !b.pins) return `<text x="${round(cx)}" y="${round(y)}" text-anchor="middle" dominant-baseline="central">${esc(l)}</text>`;
+    // The last line and the numerals after it are centred as one.
+    const tw = cols(l) * CH;
+    const x0 = cx - (tw + PIN_SEP + pinsW(b.pins)) / 2;
+    return `<text x="${round(x0)}" y="${round(y)}" text-anchor="start" dominant-baseline="central">${esc(l)}</text>` + pinSvg(b.pins, x0 + tw + PIN_SEP, y);
+  }).join('');
   const shape = b.store ? `<path d="${CYL(b)}"/>` : `<rect x="${round(b.x)}" y="${round(b.y)}" width="${b.w}" height="${b.h}" rx="3"/>`;
-  return `<g class="fn${b.strong ? ' strong' : ''}${b.store ? ' store' : ''}" data-n="${b.k}">${shape}${text}</g>`;
+  return `<g class="fn${b.strong ? ' strong' : ''}${b.store ? ' store' : ''}${b.pins ? ' pinned' : ''}" data-n="${b.k}" data-part="${esc(partKey(b.label))}">${shape}${text}</g>`;
+}
+// A frame's name, and the numerals of the cards pinned on its group.
+function frameName(f) {
+  const l = f.text;
+  if (!f.pins) return textAt(l);
+  const x = l.anchor === 'end' && l.pad ? l.x - l.pad : l.x;
+  return textAt({ ...l, x }) + pinSvg(f.pins, f.pinAt.x, f.pinAt.y);
 }
 function svgFrame(cls, L, body, aria) {
   const W = L.width + 4;
@@ -928,6 +1093,8 @@ function svgFrame(cls, L, body, aria) {
 
 export function flow(text, caption, label, ctx = {}) {
   const g = parseFlow(text);
+  g.nodes.forEach((nd) => { nd.pins = pinsFor(ctx, nd.label); });
+  g.groups.forEach((gr) => { gr.pins = pinsFor(ctx, gr.label); });
   const L = layoutFlow(g);
   const name = (k) => g.nodes[k].label;
   const T = ctx.t || en;
@@ -940,16 +1107,16 @@ export function flow(text, caption, label, ctx = {}) {
   const aria = esc(T('fig_said', { head, parts: said || g.nodes.map((nd) => nd.label).join(T('fig_node_sep')) }));
   const parts = [];
   for (const f of L.frames) {
-    parts.push(`<g class="fg"><rect x="${round(f.x)}" y="${round(f.y)}" width="${round(f.w)}" height="${round(f.h)}" rx="6"/></g>`);
+    parts.push(`<g class="fg${f.pins ? ' pinned' : ''}" data-part="${esc(partKey(f.label))}"><rect x="${round(f.x)}" y="${round(f.y)}" width="${round(f.w)}" height="${round(f.h)}" rx="6"/></g>`);
   }
   for (const e of L.edges) {
     parts.push(`<g class="fe${e.dashed ? ' dash' : ''}${e.back ? ' back' : ''}" data-a="${e.a}" data-b="${e.b}"><path d="${e.d}"/>` +
       (e.label ? textAt(e.label) : '') + '</g>');
   }
   for (const b of L.boxes) parts.push(boxSvg(b, b.store ? RY / 2 : 0));
-  for (const f of L.frames) parts.push(`<g class="fg-name">${textAt(f.text)}</g>`);
+  for (const f of L.frames) parts.push(`<g class="fg-name">${frameName(f)}</g>`);
   const svg = svgFrame('flow', L, parts.join(''), aria);
-  return { html: frame('flow', svg, caption, label, ctx), width: L.width + 4 + 2 * FIG_PAD, problems: g.problems, boxes: g.nodes.length, issues: flowIssues(g, L) };
+  return { html: frame('flow', svg, caption, label, ctx), width: L.width + 4 + 2 * FIG_PAD, problems: g.problems, boxes: g.nodes.length, issues: flowIssues(g, L, roomOf(ctx)) };
 }
 
 // ---------- sequence ----------
@@ -995,7 +1162,7 @@ const ROW_SELF = 40;
 export function layoutSequence(q) {
   const P = q.parts.map((p) => {
     const { lines, cut } = wrapBox(p.label, 16);
-    return { k: p.k, label: p.label, strong: p.strong, lines, cut, w: Math.max(48, Math.ceil(Math.max(...lines.map(cols)) * CH) + 2 * PAD_X), h: lines.length * LH + 2 * PAD_Y };
+    return { k: p.k, label: p.label, strong: p.strong, lines, cut, pins: p.pins || null, w: Math.max(48, Math.ceil(lineWidth(lines, p.pins)) + 2 * PAD_X), h: lines.length * LH + 2 * PAD_Y };
   });
   const n = P.length;
   const H = Math.max(0, ...P.map((p) => p.h));
@@ -1045,15 +1212,16 @@ export function layoutSequence(q) {
   return { x: 0, y: 0, width, height: Math.ceil(bottom), parts: P, rows, life: P.map((p) => [[p.cx, H], [p.cx, bottom]]) };
 }
 
-export function sequenceIssues(q, L) {
+export function sequenceIssues(q, L, room = ROOMS.card) {
   const out = [];
-  if (L.width > FIG_MAX) out.push({ code: 'too-wide', msg: `the drawing is ${L.width} px wide, and a card on the desk shows ${FIG_MAX} px of it; shorten the labels, or split it` });
+  if (L.width > room.max) out.push({ code: 'too-wide', msg: tooWide(L.width, room, 'shorten the labels, or split it') });
   for (const p of L.parts) if (p.cut) out.push({ code: 'box-cut', msg: `the name "${p.label}" is cut after three lines; shorten it` });
   return out;
 }
 
 export function sequence(text, caption, label, ctx = {}) {
   const q = parseSequence(text);
+  q.parts.forEach((p) => { p.pins = pinsFor(ctx, p.label); });
   const L = layoutSequence(q);
   const T = ctx.t || en;
   const name = (k) => q.parts[k].label;
@@ -1073,7 +1241,7 @@ export function sequence(text, caption, label, ctx = {}) {
   }
   for (const p of L.parts) parts.push(boxSvg({ ...p, store: false }));
   const svg = svgFrame('flow seq', L, parts.join(''), aria);
-  return { html: frame('sequence', svg, caption, label, ctx), width: L.width + 4 + 2 * FIG_PAD, problems: q.problems, boxes: q.parts.length, issues: sequenceIssues(q, L) };
+  return { html: frame('sequence', svg, caption, label, ctx), width: L.width + 4 + 2 * FIG_PAD, problems: q.problems, boxes: q.parts.length, issues: sequenceIssues(q, L, roomOf(ctx)) };
 }
 
 // renderFigure(block, label, ctx) -> { html, width, problems?, issues? }

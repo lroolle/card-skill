@@ -17,16 +17,20 @@
 
 import { esc } from './md.mjs';
 import { en } from './i18n.mjs';
-import { cols, frame, FIG_MAX } from './figure.mjs';
+import { cols, frame, partKey, pinsW, pinSvg, roomOf, tooWide, ROOMS } from './figure.mjs';
 
 const CH = 7.2;          // advance of one column of 12px monospace
 const FIG_PAD = 12;      // padding around the drawing inside the figure frame
-const BAR_MAX = 220;     // the length of the longest bar, at most
-const BAR_FIT = 290;     // a bar chart fits one column of the rack when it can: the bars give way to long names
-const LINE_W = 240;      // the plot of a line chart: one series fits one column of the rack
-const LINE_H = 140;
 const NAME_MAX = 24;     // a category name is cut after this many columns
-export const CHART_LIMITS = { series: 4, bars: 16, points: 60 };
+// In a card a chart fits one column of the rack when it can: the bars give way to long names,
+// and one series of a line fits. On a sheet the chart is the drawing, and takes room.
+const SIZE = {
+  card: { barMax: 220, barFit: 290, lineW: 240, lineH: 140, series: 4, bars: 16, points: 60 },
+  sheet: { barMax: 440, barFit: Infinity, lineW: 640, lineH: 260, series: 4, bars: 30, points: 200 },
+};
+export const CHART_LIMITS = { series: SIZE.card.series, bars: SIZE.card.bars, points: SIZE.card.points };
+const sizeOf = (room) => (room === ROOMS.sheet ? SIZE.sheet : SIZE.card);
+const PIN_SEP = 6;
 
 // A cell as a number: "1,200", "-3.5", "12%". Empty or "-" is no value (null); anything
 // else is not a number (undefined).
@@ -102,6 +106,14 @@ export function parseChart(text) {
   return { type: kind, head, xs, xv, series, problems };
 }
 
+// chartParts(text) -> the names a card can be pinned on: the rows of a bar chart; the
+// lines and the points on x of a line chart.
+export function chartParts(text) {
+  const c = parseChart(text);
+  // A chart draws its first four series; a fifth is no part to pin on.
+  return c.type === 'line' ? [...c.series.slice(0, SIZE.card.series).map((x) => x.name), ...c.xs] : c.xs;
+}
+
 // Round steps for an axis: 1, 2 or 5 times a power of ten.
 function niceStep(raw) {
   const p = Math.pow(10, Math.floor(Math.log10(raw || 1)));
@@ -117,8 +129,10 @@ const fit = (s, max = NAME_MAX) => (cols(s) > max ? [...s].slice(0, max - 1).joi
 const r1 = (v) => Math.round(v * 10) / 10;
 const text = (x, y, s, anchor, cls) => `<text class="${cls}" x="${r1(x)}" y="${r1(y)}" text-anchor="${anchor}" dominant-baseline="central">${esc(s)}</text>`;
 
-function layoutBars(c) {
+function layoutBars(c, Z, pinsOf) {
   const S = c.series.length;
+  const BAR_MAX = Z.barMax;
+  const BAR_FIT = Z.barFit;
   const names = c.xs.map((x) => fit(x));
   const labW = Math.max(1, ...names.map(cols)) * CH;
   const vals = c.series.flatMap((s) => s.values.map((x) => x.v)).filter((v) => v !== null);
@@ -156,7 +170,15 @@ function layoutBars(c) {
   });
   const bottom = key + names.length * rowH - 6;
   parts.push(`<path class="c-axis" d="M${r1(zero)},${key - 3} L${r1(zero)},${r1(bottom + 3)}"/>`);
-  const width = Math.ceil(zero + (vmax > 0 ? ((vmax - 0) / span) * BAR_PLOT + 4 + valW : 0) + 2);
+  let width = Math.ceil(zero + (vmax > 0 ? ((vmax - 0) / span) * BAR_PLOT + 4 + valW : 0) + 2);
+  // A row a card is pinned on carries its numerals past the longest value of the chart.
+  const pinX = width + PIN_SEP;
+  c.xs.forEach((x, i) => {
+    const pins = pinsOf(x);
+    if (!pins) return;
+    parts.push(`<g class="c-row pinned" data-part="${esc(partKey(x))}">${pinSvg(pins, pinX, key + i * rowH + groupH / 2)}</g>`);
+    width = Math.max(width, Math.ceil(pinX + pinsW(pins) + 2));
+  });
   return { width: Math.max(width, x0 + BAR_PLOT), height: Math.ceil(bottom + 4), body: parts.join(''), cut: c.xs.filter((x) => cols(x) > NAME_MAX) };
 }
 
@@ -167,8 +189,10 @@ const MARK = [
   (x, y) => `<path d="M${r1(x)},${r1(y - 4)} L${r1(x + 4)},${r1(y)} L${r1(x)},${r1(y + 4)} L${r1(x - 4)},${r1(y)} Z"`,
 ];
 
-function layoutLine(c) {
+function layoutLine(c, Z, pinsOf) {
   const S = c.series.length;
+  const LINE_W = Z.lineW;
+  const LINE_H = Z.lineH;
   const n = c.xs.length;
   const X = c.xv.every((v) => v !== null) ? c.xv : c.xs.map((_, i) => i);
   const [xmin, xmax] = widen(Math.min(...X), Math.max(...X));
@@ -185,23 +209,48 @@ function layoutLine(c) {
   const ticks = [];
   for (let i = 0; i <= count; i++) ticks.push(Number((t0 + i * step).toPrecision(12)));
   const tickW = Math.max(...ticks.map((t) => cols(short(t)))) * CH + 8;
-  const top = S === 1 && c.series[0].name ? 20 : 8;
   const px = (x) => tickW + ((x - xmin) / (xmax - xmin)) * LINE_W;
-  const py = (v) => top + LINE_H - ((v - t0) / (t1 - t0 || 1)) * LINE_H;
   const parts = [];
-  if (top > 8) parts.push(text(tickW, 6, c.series[0].name, 'start', 'c-key'));
+  // A line a card is pinned on carries its numerals after its name: at its end, or in the key.
+  const keyPins = S === 1 ? pinsOf(c.series[0].name) : null;
+  // A point on x a card is pinned on gets a rule across the plot, and its numerals above it.
+  const marks = c.xs.map((x, i) => ({ x, i, pins: pinsOf(x) })).filter((m) => m.pins);
+  const keyH = S === 1 && (c.series[0].name || keyPins) ? 20 : 8;
+  const top = keyH + (marks.length ? 22 : 0);
+  const py = (v) => top + LINE_H - ((v - t0) / (t1 - t0 || 1)) * LINE_H;
+  if (keyH > 8) {
+    parts.push(text(tickW, 6, c.series[0].name, 'start', 'c-key'));
+    if (keyPins) parts.push(`<g class="c-key pinned" data-part="${esc(partKey(c.series[0].name))}">${pinSvg(keyPins, tickW + cols(c.series[0].name) * CH + PIN_SEP, 6)}</g>`);
+  }
+  let free = -Infinity;
+  for (const m of marks) {
+    const xm = px(X[m.i]);
+    const w = pinsW(m.pins);
+    const at = Math.max(xm - w / 2, free + 3);
+    free = at + w;
+    parts.push(`<g class="c-at pinned" data-part="${esc(partKey(m.x))}"><path class="c-rule" d="M${r1(xm)},${r1(top - 6)} L${r1(xm)},${r1(top + LINE_H)}"/>${pinSvg(m.pins, at, top - 14)}</g>`);
+  }
   ticks.forEach((t) => {
     parts.push(`<path class="c-grid" d="M${r1(tickW)},${r1(py(t))} L${r1(tickW + LINE_W)},${r1(py(t))}"/>`);
     parts.push(text(tickW - 6, py(t), short(t), 'end', 'c-tick'));
   });
-  // Names on x: as many as fit without touching, evenly chosen, the last always.
-  const nameW = Math.max(1, ...c.xs.map((x) => cols(fit(x, 12)))) * CH + 12;
-  const every = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(LINE_W / nameW))));
-  c.xs.forEach((x, i) => {
-    if (i % every && i !== n - 1) return;
-    if (i !== n - 1 && n - 1 - i < every && (n - 1) % every) return;
-    parts.push(text(px(X[i]), top + LINE_H + 12, fit(x, 12), i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle', 'c-tick'));
-  });
+  // Names on x, where they stand: the first starts at its point, the last ends at its point,
+  // the rest are centred. Left to right, a name is kept when it clears the last one kept by
+  // 12px; the last name is always kept, and the one before it gives way when they touch.
+  // Points need not be evenly spaced: dates skip weekends, or leave a gap.
+  const anchor = (i) => (i === 0 && n > 1 ? 'start' : i === n - 1 && n > 1 ? 'end' : 'middle');
+  const span = (i) => {
+    const w = cols(fit(c.xs[i], 12)) * CH;
+    const x = px(X[i]);
+    return anchor(i) === 'start' ? [x, x + w] : anchor(i) === 'end' ? [x - w, x] : [x - w / 2, x + w / 2];
+  };
+  const kept = [];
+  for (let i = 0; i < n; i++) {
+    const [a] = span(i);
+    if (i === n - 1) { while (kept.length && span(kept[kept.length - 1])[1] + 12 > a) kept.pop(); kept.push(i); }
+    else if (!kept.length || span(kept[kept.length - 1])[1] + 12 <= a) kept.push(i);
+  }
+  for (const i of kept) parts.push(text(px(X[i]), top + LINE_H + 12, fit(c.xs[i], 12), anchor(i), 'c-tick'));
   const ends = [];
   c.series.forEach((s, k) => {
     let d = '';
@@ -218,29 +267,37 @@ function layoutLine(c) {
       });
     }
     const last = [...s.values.keys()].reverse().find((i) => s.values[i].v !== null);
-    if (S > 1 && last !== undefined) ends.push({ y: py(s.values[last].v), x: px(X[last]) + 8, name: s.name, k });
+    if (S > 1 && last !== undefined) ends.push({ y: py(s.values[last].v), x: px(X[last]) + 8, name: s.name, k, pins: pinsOf(s.name) });
   });
   // Each line is named at its end; names that would touch move apart.
   ends.sort((a, b) => a.y - b.y);
-  for (let i = 1; i < ends.length; i++) if (ends[i].y < ends[i - 1].y + 14) ends[i].y = ends[i - 1].y + 14;
-  ends.forEach((e) => parts.push(text(e.x, e.y, e.name, 'start', `c-end s${e.k}`)));
-  const right = Math.max(0, ...ends.map((e) => e.x + cols(e.name) * CH)) ;
+  for (let i = 1; i < ends.length; i++) if (ends[i].y < ends[i - 1].y + (ends[i - 1].pins ? 18 : 14)) ends[i].y = ends[i - 1].y + (ends[i - 1].pins ? 18 : 14);
+  ends.forEach((e) => {
+    parts.push(text(e.x, e.y, e.name, 'start', `c-end s${e.k}`));
+    if (e.pins) parts.push(`<g class="c-end pinned" data-part="${esc(partKey(e.name))}">${pinSvg(e.pins, e.x + cols(e.name) * CH + PIN_SEP, e.y)}</g>`);
+  });
+  const right = Math.max(free, ...ends.map((e) => e.x + cols(e.name) * CH + (e.pins ? PIN_SEP + pinsW(e.pins) : 0)), 0);
   return { width: Math.ceil(Math.max(tickW + LINE_W + 4, right + 2)), height: top + LINE_H + 20, body: parts.join(''), cut: [] };
 }
 
-export function chartIssues(c, L) {
+export function chartIssues(c, L, room = ROOMS.card) {
   const out = [];
-  if (c.series.length > CHART_LIMITS.series) out.push({ code: 'too-many', msg: `the chart has ${c.series.length} series and shows ${CHART_LIMITS.series}; split it` });
-  const most = c.type === 'line' ? CHART_LIMITS.points : CHART_LIMITS.bars;
-  if (c.xs.length > most) out.push({ code: 'too-many', msg: `the chart has ${c.xs.length} rows; a ${c.type} chart reads up to ${most}: keep the rows that matter` });
+  const Z = sizeOf(room);
+  if (c.series.length > Z.series) out.push({ code: 'too-many', msg: `the chart has ${c.series.length} series and shows ${Z.series}; split it` });
+  const most = c.type === 'line' ? Z.points : Z.bars;
+  if (c.xs.length > most) out.push({ code: 'too-many', msg: `the chart has ${c.xs.length} rows; a ${c.type} chart ${room === ROOMS.sheet ? 'on a sheet ' : ''}reads up to ${most}: keep the rows that matter${room === ROOMS.sheet ? '' : ', or make it a sheet'}` });
   for (const x of L.cut) out.push({ code: 'box-cut', msg: `the name "${x}" is cut after ${NAME_MAX} columns; shorten it` });
-  if (L.width > FIG_MAX) out.push({ code: 'too-wide', msg: `the chart is ${L.width} px wide, and a card on the desk shows ${FIG_MAX} px of it; shorten the names` });
+  if (L.width > room.max) out.push({ code: 'too-wide', msg: tooWide(L.width, room, 'shorten the names') });
   return out;
 }
 
 export function chart(src, caption, label, ctx = {}) {
   const c = parseChart(src);
-  c.series = c.series.slice(0, CHART_LIMITS.series);
+  const room = roomOf(ctx);
+  const Z = sizeOf(room);
+  const all = c.series.length;
+  c.series = c.series.slice(0, Z.series);
+  const pinsOf = (name) => (ctx.pins && ctx.pins.get(partKey(name))) || null;
   const T = ctx.t || en;
   const cap = caption && (ctx.plain ? ctx.plain(caption) : caption);
   const head = cap ? T('fig_chart_named', { caption: cap }) : T('fig_chart');
@@ -250,7 +307,7 @@ export function chart(src, caption, label, ctx = {}) {
     const issues = c.series.length && c.xs.length ? [{ code: 'no-numbers', msg: 'the chart has no numbers yet; fill the cells, or draw it when they come' }] : [];
     return { html: frame('chart', body, caption, label, ctx), width: 0, problems: c.problems, issues };
   }
-  const L = c.type === 'line' ? layoutLine(c) : layoutBars(c);
+  const L = c.type === 'line' ? layoutLine(c, Z, pinsOf) : layoutBars(c, Z, pinsOf);
   // A screen reader hears the numbers: each series, row by row (the first 40 values).
   let budget = 40;
   const said = c.series.map((s) => (s.name ? s.name + ': ' : '') + s.values.filter(() => budget-- > 0)
@@ -259,5 +316,5 @@ export function chart(src, caption, label, ctx = {}) {
   const W = L.width + 4;
   const H = L.height + 4;
   const svg = `<svg class="chart" data-type="${c.type}" viewBox="-2 -2 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${aria}">${L.body}</svg>`;
-  return { html: frame('chart', svg, caption, label, ctx), width: W + 2 * FIG_PAD, problems: c.problems, issues: chartIssues(c, L) };
+  return { html: frame('chart', svg, caption, label, ctx), width: W + 2 * FIG_PAD, problems: c.problems, issues: chartIssues({ ...c, series: { length: all } }, L, room) };
 }

@@ -428,6 +428,39 @@ svg.chart { display: block; overflow: visible; }
 .chart .c-end { fill: var(--fg-2); }
 .chart-none { margin: 0; font-size: var(--t-xs); color: var(--fg-3); }
 
+/* ---------- the sheet: a card that is one drawing ---------- */
+
+/* A sheet leads its section, as wide as its drawing needs. The card is the drawing's frame,
+   so the drawing has no frame of its own; the gist under it reads as its caption. On a
+   narrow screen the drawing scales down to three fifths, then scrolls inside the sheet. */
+.sheets { display: flex; flex-wrap: wrap; align-items: flex-start; gap: calc(var(--s5) + var(--tab-h) / 2) var(--s4); margin-top: calc(var(--s4) + var(--tab-h)); }
+.card.sheet { width: max(var(--sheet-w, 0px), var(--card-min)); max-width: 100%; }
+/* A done sheet lies back as one line, as a done card does: it asks for no room. */
+.card.sheet[data-status="done"]:not(.open) { width: var(--card-min); }
+.sheet > .fig { margin: 0; }
+.sheet > .fig .fig-body { padding: var(--s2) var(--s3); border: 0; }
+.sheet > .fig .fig-body svg { max-width: 100%; height: auto; min-width: calc((var(--sheet-w, 0px) - 60px) * 0.6); }
+.sheet .gist { max-width: 68ch; font-size: var(--t-s); }
+/* The numeral of a sheet is the figure's number: Fig. 3. */
+.sheet .addr .n { padding: 0 6px; }
+
+/* A card pinned on a part carries its numeral there, as a part of a patent drawing carries
+   its reference numeral. It is the card numeral's own mark; a click goes to the card. In
+   focus the part and the numeral light, in the color of focus. A done card's numeral lies
+   back, with the dashed edge of the done card. */
+.pin { cursor: pointer; }
+.pin rect { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1; }
+:is(.flow, .chart) .pin text { font-family: var(--font); font-weight: var(--w-strong); fill: var(--fg); paint-order: normal; stroke: none; }
+.pin:hover rect { stroke: var(--accent); }
+:is(.flow, .chart) .pin:hover text { fill: var(--accent); }
+.pin.on rect { fill: var(--accent-soft); stroke: var(--accent); }
+:is(.flow, .chart) .pin.on text { fill: var(--accent); }
+.pin.done rect { stroke-dasharray: 2 2; }
+:is(.flow, .chart) .pin.done text { fill: var(--fg-3); font-weight: var(--w-regular); }
+.flow :is(.fn, .fg).lit :is(rect, path) { stroke: var(--accent); stroke-width: 2; }
+.chart .c-rule { fill: none; stroke: var(--line-strong); stroke-width: 1; }
+.chart .lit .c-rule { stroke: var(--accent); }
+
 /* ---------- files: an image, an excerpt, a chip ---------- */
 
 /* An image is a figure: it fills its frame edge to edge, and opens full size
@@ -558,6 +591,8 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 .view-desk.alt-claim .card:not(.open) > .fig[data-kind="image"] figcaption { display: none; }
 .view-desk.alt-claim .card:not(.open) > .fig[data-kind="image"] img { max-height: 132px; width: auto; }
 .card:not(.focused) .context { display: none; }
+/* A sheet is its drawing: it shows at every level, as the map of the cards pinned on it. */
+.alt-claim .card.sheet:not(.open):not([data-status="done"]) > .fig { display: flex; }
 
 /* Claim altitude on the rack is an index: one ruled row per card, so density really changes.
    On the desk, the same altitude makes small tiles. */
@@ -565,18 +600,18 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
   grid-template-columns: minmax(0, 1fr); gap: 0; max-width: none; margin-top: var(--s3);
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
 }
-.view-rack.alt-claim .card:not(.open) {
+.view-rack.alt-claim .slots > .card:not(.open) {
   flex-direction: row; align-items: baseline; gap: var(--s3); padding: 7px var(--s3);
   background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none;
 }
-.view-rack.alt-claim .card:not(.open):last-child { border-bottom: 0; }
-.view-rack.alt-claim .card:not(.open) .addr { display: contents; }
-.view-rack.alt-claim .card:not(.open) .claim { order: 1; flex: 1; min-width: 0; font-size: var(--t-m); }
-.view-rack.alt-claim .card:not(.open) .addr > :not(.n) { order: 2; font-size: var(--t-xs); }
-.view-rack.alt-claim .card:not(.open) .tab { position: static; order: 3; margin: 0; height: 20px; border-bottom: 1px solid; border-radius: var(--r-s); }
-.view-rack.alt-claim .card:not(.open) .acts { top: 3px; }
-.view-rack.alt-claim .card.open { margin: calc(var(--tab-h) + var(--s3)) var(--s3) var(--s3); }
-.view-rack.alt-claim .card.focused:not(.open) { box-shadow: inset 0 0 0 2px var(--accent); }
+.view-rack.alt-claim .slots > .card:not(.open):last-child { border-bottom: 0; }
+.view-rack.alt-claim .slots > .card:not(.open) .addr { display: contents; }
+.view-rack.alt-claim .slots > .card:not(.open) .claim { order: 1; flex: 1; min-width: 0; font-size: var(--t-m); }
+.view-rack.alt-claim .slots > .card:not(.open) .addr > :not(.n) { order: 2; font-size: var(--t-xs); }
+.view-rack.alt-claim .slots > .card:not(.open) .tab { position: static; order: 3; margin: 0; height: 20px; border-bottom: 1px solid; border-radius: var(--r-s); }
+.view-rack.alt-claim .slots > .card:not(.open) .acts { top: 3px; }
+.view-rack.alt-claim .slots > .card.open { margin: calc(var(--tab-h) + var(--s3)) var(--s3) var(--s3); }
+.view-rack.alt-claim .slots > .card.focused:not(.open) { box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* settled work recedes */
 .card[data-status="done"] { background: var(--surface-2); border-style: dashed; border-color: var(--line-strong); box-shadow: none; }
@@ -642,6 +677,16 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
 .view-desk.alt-full .shelf { width: max(var(--desk-col), var(--col-w, 0px), var(--col-wf, 0px)); }
 .view-desk.alt-claim .shelf { width: var(--desk-col); }
 .view-desk .shelf-head h2 { white-space: normal; }
+/* A section with sheets: the sheets in a lane of their own, the section's cards beside them. */
+.view-desk .shelf.has-sheets { display: grid; grid-template-columns: max-content max(var(--desk-col), var(--col-w, 0px)); column-gap: var(--s7); align-items: start; width: max-content; }
+.view-desk.alt-full .shelf.has-sheets { grid-template-columns: max-content max(var(--desk-col), var(--col-w, 0px), var(--col-wf, 0px)); }
+.view-desk.alt-claim .shelf.has-sheets { grid-template-columns: max-content var(--desk-col); }
+.view-desk .shelf.only-sheets, .view-desk.alt-full .shelf.only-sheets, .view-desk.alt-claim .shelf.only-sheets { grid-template-columns: max-content; }
+.view-desk .shelf.has-sheets > .shelf-top { grid-column: 1 / -1; }
+.view-desk .sheets { flex-wrap: nowrap; gap: 0 var(--s7); }
+.view-desk .card.sheet { width: max(var(--sheet-w, 0px), var(--desk-col)); max-width: none; }
+.view-desk .card.sheet[data-status="done"]:not(.open) { width: var(--desk-col); }
+.view-desk.free .sheets { display: contents; }
 .view-desk .slots, .view-desk .slots[data-layout] { grid-template-columns: minmax(0, 1fr); max-width: none; }
 .view-desk .card { cursor: default; }
 .view-desk .card.wide { grid-column: auto; }
@@ -860,7 +905,7 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
   .acts { position: static; display: flex; padding: 0; margin: 0 calc(var(--s2) * -1); border: 0; background: none; }
   /* A claim row is one line: number, claim, state. Its marks show when the row is opened;
      in the row they would take the whole width and leave the claim none. */
-  .view-rack.alt-claim .card:not(.open) .acts { display: none; }
+  .view-rack.alt-claim .slots > .card:not(.open) .acts { display: none; }
   .act.reply-btn { margin-left: auto; }
   .act, .seg button, .send, .icon-btn, .bar select, .search input, .btn, .rail-tab, .history summary { min-height: 44px; }
   .seg button { min-width: 44px; }

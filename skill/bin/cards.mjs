@@ -9,7 +9,7 @@ import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE, addIds, setStat
 import { lint, formatWarnings } from '../lib/lint.mjs';
 import { buildBoard, outline, safeHome } from '../lib/compile.mjs';
 import { resolveAssets } from '../lib/assets.mjs';
-import { resolveBoard, listBoards, readLog, fold, unread, markRead, boardsRoot, addSay, addSend } from '../lib/store.mjs';
+import { resolveBoard, listBoards, readLog, fold, unread, markRead, boardsRoot, addSay, addSend, numeralsOf } from '../lib/store.mjs';
 import { serve, validItems } from '../lib/serve.mjs';
 import { parseReply, replyItems } from '../lib/ingest.mjs';
 import { family, translationChecks } from '../lib/siblings.mjs';
@@ -166,7 +166,7 @@ const commands = {
     const ref = resolveBoard(a._[0]);
     if (!fs.existsSync(ref.file)) die(`no board at ${rel(ref.file)}`, 1);
     const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file });
-    const ws = lint(board);
+    const ws = lint(board, { nOf: numeralsOf(ref.dir, board) });
     if (!board.errors.length) {
       // The files a board shows must exist and be safe to put into the page.
       const assets = resolveAssets(board, ref.dir);

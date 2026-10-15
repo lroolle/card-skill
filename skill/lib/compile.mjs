@@ -3,12 +3,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseBoard, anatomy, syntaxOf, parseCard } from './board.mjs';
+import { parseBoard, anatomy, syntaxOf, parseCard, pinsOn } from './board.mjs';
 import { lint } from './lint.mjs';
 import { esc, renderBlocks, parseFacts } from './md.mjs';
 import { renderFigure, isFigure, figuresIn, WIDE, cols } from './figure.mjs';
 import { resolveAssets, assetHtml, assetKey, imageFigure } from './assets.mjs';
-import { sync, fold, readLog, markBuild, markFont } from './store.mjs';
+import { sync, fold, readLog, markBuild, markFont, numeralsOf } from './store.mjs';
 import { strings as uiStrings, t } from './i18n.mjs';
 import { family, translationChecks } from './siblings.mjs';
 import { VERSION, HOME } from './version.mjs';
@@ -62,8 +62,10 @@ function tableWidth(b, plain) {
 }
 
 // Figures are numbered per card, in source order: Fig. 12.1 is the first
-// figure on card 12, so a human can point at it in words.
-function cardView(card, ctx, n = '?') {
+// figure on card 12, so a human can point at it in words. A sheet is its first
+// figure: the claim is its caption and the numeral its number (Fig. 12), and
+// pins (board.pinsOn) put the numerals of the cards pinned on its parts into it.
+function cardView(card, ctx, n = '?', pins = null) {
   const a = card.anatomy || anatomy(card);
   const inline = ctx.inline;
   // A figure's number is its place in the source, wherever the page shows it:
@@ -74,7 +76,9 @@ function cardView(card, ctx, n = '?') {
     ...ctx,
     figure: (b) => (isFigure(b) ? figureOf(b, label(b), ctx).html : null),
   };
-  const fig = a.figure ? figureOf(a.figure, label(a.figure), ctx) : null;
+  const fig = !a.figure ? null : card.sheet
+    ? figureOf(a.figure, null, { ...ctx, room: 'sheet', pins })
+    : figureOf(a.figure, label(a.figure), ctx);
   return {
     title_html: inline(card.title, ctx),
     gist_html: a.gist ? `<p>${inline(a.gist.text, ctx)}</p>` : '',
@@ -125,8 +129,9 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
   // A published copy names index.html in full, so the link also works when the files are opened from a disk.
   const hrefOf = (id) => (publish ? `../${id}/index.html` : live ? `/b/${id}` : `../${id}/board.html`);
   const cards = {};
+  const pins = pinsOn(board, nOf);
   for (const c of board.cards) {
-    const v = cardView(c, ctx, nOf(c.id));
+    const v = cardView(c, ctx, nOf(c.id), c.sheet ? pins.get(c.id) || null : null);
     const rec = st.cards.get(c.id);
     const past = rec && !publish ? rec.history.slice(0, -1).slice(-HISTORY_KEEP).reverse() : [];
     cards[c.id] = {
@@ -161,7 +166,11 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       needs: c.needs,
       when: c.when || {},
       refs: c.anatomy.refs,
-      tags: c.tags,
+      // A sheet is a kind of card, not a label: its tag is not shown.
+      tags: c.tags.filter((x) => x !== 'sheet'),
+      sheet: !!c.sheet,
+      // [sheet, part]: the parts of sheets this card is pinned on.
+      on: (c.on || []).filter((p) => p.part).map((p) => [p.sheet, p.part]),
       multi: c.multi,
       suggest: c.suggest || null,
       progress: c.progress,
@@ -296,7 +305,7 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
     return { errors: [{ line: 0, msg: `no board at ${path.relative(cwd, ref.file)}`, fix: `cards new ${ref.id}` }], warnings: [] };
   }
   const board = parseBoard(fs.readFileSync(ref.file, 'utf8'), { id: ref.id, file: ref.file });
-  const warnings = lint(board);
+  const warnings = lint(board, { nOf: numeralsOf(ref.dir, board) });
   if (board.errors.length) return { board, errors: board.errors, warnings };
   // Files the board shows are read now, once: they travel inside the page.
   board.assets = resolveAssets(board, ref.dir);

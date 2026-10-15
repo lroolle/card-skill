@@ -1,9 +1,9 @@
 ---
 name: card-skill
-description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up. Not for one answer, one explanation, or chat.
+description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up; when the report is a picture (a system, a flow of calls, numbers over time), the board draws it from text as a sheet and pins each finding on the part it is about. Not for one answer, one explanation, or chat.
 license: MIT
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
 ---
 
 # card-skill
@@ -19,7 +19,7 @@ Wherever this file or the CLI's own output says `cards`, run:
 node <skill>/bin/cards.mjs <command>
 ```
 
-This is cards 0.3.0. `cards render` ends with the version of the build
+This is cards 0.4.0. `cards render` ends with the version of the build
 that ran. If it names another version, this text is older than the code: a
 session keeps the SKILL.md it loaded at its start. Read `<skill>/SKILL.md`
 and `<skill>/CHANGES.md` again from disk. Do not edit this copy of the
@@ -56,7 +56,7 @@ write `board.org` from scratch. Pick the pattern by the human's job:
 | Pattern | Use when | Shape |
 |---|---|---|
 | decide | options end in one choice | a section of requirement cards, a `:compare:` section of options, one `:ASK: choose` |
-| review | findings need a go/no-go | a `:list:` of findings, worst first, one `:ASK: approve` |
+| review | findings need a go/no-go | a sheet of what was reviewed, a `:list:` of findings pinned on its parts, worst first, one `:ASK: approve` |
 | plan | steps depend on each other | a `:list:` of steps with TODO keywords and `:NEEDS:` |
 | brief | the human must understand, then react | claims with evidence in depth |
 | status | work is in flight | `DOING` / `BLOCKED` / `DONE` cards, a gate if needed |
@@ -114,21 +114,9 @@ Writing rules. `cards check` enforces the mechanical ones.
   25 words at most, active verbs in the present tense, the same word for the
   same thing, and plain words ("use", not "utilize" or "leverage").
 - Show, then tell. When a claim is about a shape (a layout, a view, a flow,
-  a structure, an order of calls, a set of numbers), draw it under the gist:
-  `#+caption:`, then one of four blocks.
-  `sketch`: a layout in text characters.
-  `flow`: what feeds what, as `a -> b: label` lines; `group Cloud: a, b`
-  frames boxes that belong together, `store: a` marks a box that holds data.
-  `sequence`: who calls whom, in time order: `a -> b: call`, `b --> a: reply`.
-  `chart`: numbers, as an Org table; names in the first column give bars,
-  numbers or dates there give a line.
-  The compiler places, routes and scales everything. A decision about a view
-  or a UI shows each option as a figure; numbers that decide something go in
-  a chart, not only in prose. Do not draw a single fact. Prefer a flow that
-  runs down: a card is narrow. `cards check` says what a reader would
-  misread in a drawing (a label on a line, a frame around a stranger, a
-  drawing wider than a card) and how to fix it; fix each one before you hand
-  the board over.
+  a structure, an order of calls, a set of numbers), draw it under the gist.
+  When the drawing is what several cards talk about, make it a sheet. See
+  "Draw it", at the end of this section.
 - Show the evidence itself when it is a file. A screenshot or a chart:
   `#+caption:` then `[[file:../../shots/x.png]]` alone on a line. Code or a
   log: `#+include: "../../src/x.js" src js :lines "40-61"` (lines 40 to 60;
@@ -189,6 +177,70 @@ Writing rules. `cards check` enforces the mechanical ones.
   in `:FROM:`.
 - Never write layout, colors, SVG or HTML. The renderer owns the look. A
   figure is content: you say what connects to what; the compiler draws it.
+
+### Draw it
+
+A drawing is text in a block, under `#+caption:`. Pick the kind by what the
+claim is about:
+
+| The claim is about | Block | You write |
+|---|---|---|
+| a layout, a screen | `sketch` | text characters, as the screen looks |
+| what feeds what: a system, a pipeline, a loop | `flow` | `a -> b: label`; `group Cloud: a, b` frames boxes that belong together; `store: a` is a box that holds data |
+| who calls whom, in time order | `sequence` | `a -> b: call`, `b --> a: reply` |
+| numbers: a comparison, a change over time | `chart` | an Org table; names in the first column give bars, numbers or dates give a line |
+
+The compiler places, routes and scales everything. A decision about a view
+or a UI shows each option as a figure; numbers that decide something go in
+a chart, not only in prose. Do not draw a single fact.
+
+A figure in a card shares a narrow column with the card's words: 12 boxes,
+502 px. When the drawing is the point of a section (the system a review
+covers, the numbers a decision rests on, the flow a plan changes), make it
+a sheet: tag the card `:sheet:`. A sheet is one drawing on the board, at the
+width it needs (24 boxes, 1120 px). Its claim says what the drawing shows,
+its first paragraph what to look at; the drawing needs no caption. It leads
+its section: on the desk it lies beside the section's cards.
+
+```org
+** Every upload passes one queue before it is stored  :sheet:
+:PROPERTIES:
+:CUSTOM_ID: system
+:BASIS: fact
+:END:
+Read from the deploy files on 2026-10-15.
+
+#+begin_src flow
+  group Cloud: api, queue, resizer
+  app -> api: HTTPS
+  api -> queue: job
+  queue -> resizer
+#+end_src
+```
+
+Pin each card that is about a part of the drawing on that part:
+`:ON: system/queue` (the sheet's id, a slash, the part's name in lower
+case, with a dash for each space: `web app` is `web-app`). A part is a box or a group of a flow, a part of a sequence, a
+row of a bar chart, a line or a point on x of a line chart. The part then
+shows the card's numeral, and focus on either one lights the other. So a
+review pins each finding on the box it is about, and an incident pins each
+cause on the day in the chart. Pin what a card is about, not every box it
+names.
+
+Work on a drawing as on code that must pass a check:
+
+1. Write the whole drawing at once, with no coordinates. One main path;
+   side branches leave the box nearest to them. Cut a line before you add
+   a group.
+2. `cards check <board>`. Each drawing warning names the part (a label, an
+   arrow, a frame) and the change that fixes it.
+3. Make that one change and check again. Fix the drawing's own faults
+   first (a line through a box, a frame around a stranger), then labels.
+   Shorten a label before you drop it; drop it only when the two boxes
+   already say it.
+4. Stop when the drawing is clean. If two rounds in a row do not lower the
+   number of warnings, stop and say in the card's depth what is left.
+5. Look at it: `cards shot <board>`. A check sees geometry, not sense.
 
 ## 3. Ask only what is real and essential
 

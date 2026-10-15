@@ -1,12 +1,13 @@
 # Status
 
-Version 0.3.0, tagged and released on 2026-10-15. What works, what nobody has checked yet, and
+Version 0.4.0, not tagged yet: sheets and pins (D42). 0.3.0 is the release
+of 2026-10-15. What works, what nobody has checked yet, and
 what is known to be missing. The reasons are in `docs/DECISIONS.md`; what
 comes next is the board `.cards/roadmap`.
 
 ## What works, with a test behind it
 
-`npm test`: 148 tests. 24 of them drive a real browser; on GitHub they run
+`npm test`: 162 tests. 25 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
@@ -25,6 +26,9 @@ from `site/` and the boards under `.cards/`.
 - Figures: sketch, flow (right angles, groups, stores), sequence and chart,
   with the checks that `cards check` runs on each drawing's geometry. 2000
   generated flows of real shape: 98.6% with no fault the checks know.
+- Sheets and pins (D42): a drawing that leads its section on both views, at
+  the room of a sheet, and the numerals of the cards pinned on its parts,
+  with focus both ways. Tested in Chromium, Firefox and WebKit.
 - Full screen (Shift + F), and a reading view that packs its cards into
   columns without moving the page under a click.
 - Asks: the lint tells of an ask that is not a real decision.
@@ -80,13 +84,16 @@ from `site/` and the boards under `.cards/`.
 - `cards shot` needs Playwright, which the skill does not install. Its
   pictures are only as true as the fonts of the machine that takes them.
 - A flow label can still sit beside a crowded line (29 of 2000 generated
-  flows of real shape); `cards check` says where. A flow drawn left to
+  flows of real shape); `cards check` says where. A group's name can still
+  lie on a line: 54 of 2000 flows with a group, 37 of them running right. A flow drawn left to
   right is often wider than a card; the check names `direction: down`.
 - Two groups whose boxes cross each other's ranks cannot both keep their
   frames apart; the boxes stay where the layout put them, and the check
   says so.
 - A drawing does not open full size; it scrolls in its frame and zooms on
   the desk.
+- Focus on a card zooms the desk to that card; the part it is pinned on may
+  then lie outside the window.
 
 ## How to work on it
 

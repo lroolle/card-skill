@@ -1,7 +1,26 @@
 #+title: Review of the retry change in payments-client
 #+todo: TODO DOING BLOCKED | DONE
 
-Example board from the review pattern. Replace every card. One finding per card, worst first. The gate at the end asks before anything changes.
+Example board from the review pattern. Replace every card. A sheet draws what was reviewed; each finding is pinned on the part it is about, worst first. The gate at the end asks before anything changes.
+
+* What the change does
+
+** A retry after a timeout sends the same charge again  :sheet:
+:PROPERTIES:
+:CUSTOM_ID: retry-path
+:BASIS: fact
+:END:
+Read from the client's retry loop and the server's charge handler. The numerals are the findings below.
+
+#+begin_src sequence
+  worker -> payments client: charge(order)
+  payments client -> payments api: POST /charges
+  payments api -> ledger: insert charge
+  payments api --> payments client: timeout
+  payments client -> payments client: wait, double the delay
+  payments client -> payments api: POST /charges again
+  payments api -> ledger: insert charge
+#+end_src
 
 * Findings  :list:
 
@@ -9,6 +28,7 @@ Example board from the review pattern. Replace every card. One finding per card,
 :PROPERTIES:
 :CUSTOM_ID: double-charge
 :BASIS: inference
+:ON: retry-path/ledger
 :END:
 The client retries on timeout, but the server may have committed the first charge. Without an idempotency key the retry is a second charge.
 
@@ -21,6 +41,7 @@ The client retries on timeout, but the server may have committed the first charg
 :PROPERTIES:
 :CUSTOM_ID: backoff-ceiling
 :BASIS: fact
+:ON: retry-path/payments-client
 :END:
 The delay doubles on every attempt with no maximum. After 12 attempts one job waits more than an hour.
 

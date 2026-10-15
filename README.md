@@ -92,6 +92,9 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
   diagram (a flow with groups and stores, or a sequence of calls), a chart
   drawn from an Org table. They travel inside the one HTML file, and
   `cards check` says what a reader would misread in each drawing.
+- **Sheets.** A drawing can be a card of its own, at the size it needs. The
+  agent pins each finding on the part of the drawing it is about: the part
+  shows the card's number, and a click on it opens the card.
 - **Two views.** The desk lays every card on a table and draws the links
   between them; you place each card and set its width. The rack packs the
   cards into columns for reading. Shift + F gives either one the whole

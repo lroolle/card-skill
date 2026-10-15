@@ -1534,3 +1534,107 @@ test('rack placement: cards pack into columns in board order; no hole beside a w
     await browser.close();
   }
 });
+
+test('sheets: a drawing leads its section, side by side on the rack and in a lane on the desk; a numeral in it goes to its card, and focus lights the part', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const ref = resolveBoard('sheets', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  const card = (id, claim, props, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n${props}:END:\n${body}\n`;
+  const days = Array.from({ length: 7 }, (_, i) => `  | 2026-10-0${i + 2} | ${i < 4 ? 420 + i * 5 : 900 + i} |`).join('\n');
+  fs.writeFileSync(ref.file, `#+title: Sheets\n\n* The system\n\n${[
+    card('system', 'Every upload passes one queue  :sheet:', '', 'Read from the deploy files.\n\n#+begin_src flow\n  group Cloud: api, queue, resizer\n  app -> api: HTTPS\n  api -> queue: job\n  queue -> resizer\n#+end_src'),
+    card('latency', 'The p95 doubled on 6 October  :sheet:', '', `From the gateway logs.\n\n#+begin_src chart\n  | day | p95 ms |\n  |---+---|\n${days}\n#+end_src`),
+    card('note', 'The api runs in one region today', ':FROM: system\n', 'A card of the section, beside the sheets on the desk.'),
+  ].join('\n')}\n* Findings\n\n${[
+    card('dlq', 'The queue has no dead-letter topic', ':ON: system/queue\n', 'A job that fails three times is lost.'),
+    card('worker', 'The resizer runs one worker since the deploy', ':ON: system/resizer latency/2026-10-06\n', 'The queue grows at the peak.'),
+  ].join('\n')}`);
+  const r = buildBoard(ref, { cwd });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(r.warnings.map((w) => w.msg), []);
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url + '?view=rack&level=gist');
+    await page.waitForSelector('.board.view-rack');
+    const box = (sel) => page.evaluate((s) => { const q = document.querySelector(s).getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom, w: q.width }; }, sel);
+
+    // The rack: the sheets lead the section, side by side, each at the width of its drawing.
+    const sys = await box('#c-system');
+    const lat = await box('#c-latency');
+    const note = await box('#c-note');
+    assert.ok(Math.abs(sys.t - lat.t) < 2 && sys.r < lat.l, 'two sheets stand side by side');
+    assert.ok(note.t > Math.max(sys.b, lat.b), 'the cards of the section come after its sheets');
+    assert.equal(await page.textContent('#c-system .addr .n'), 'Fig. 1');
+    const drawn = await page.evaluate(() => { const s = document.querySelector('#c-latency svg'); return [s.getBoundingClientRect().width, +s.getAttribute('width')]; });
+    assert.ok(Math.abs(drawn[0] - drawn[1]) < 1, `a sheet that fits shows its drawing at full size: ${drawn}`);
+
+    // Focus on a pinned card lights its parts and its numerals, and names it on the sheets.
+    await page.click('#c-worker .claim');
+    assert.deepEqual(await page.$$eval('.sheet svg .lit', (els) => els.map((e) => e.dataset.part)), ['resizer', '2026-10-06']);
+    assert.equal(await page.$$eval('.sheet svg .pin.on', (els) => els.length), 2);
+    assert.equal(await page.textContent('#c-system .rel'), '#5 points here');
+    // A numeral in a drawing is its card: a click focuses it.
+    await page.click('#c-system svg .pin[data-card="dlq"]');
+    assert.equal(await page.getAttribute('#c-dlq', 'class').then((c) => c.includes('focused')), true);
+    assert.deepEqual(await page.$$eval('.sheet svg .lit', (els) => els.map((e) => e.dataset.part)), ['queue']);
+    // Focus on the sheet lights the cards pinned on it.
+    await page.click('#c-system .claim');
+    assert.equal(await page.textContent('#c-dlq .rel'), 'On #1');
+    await page.keyboard.press('Escape');
+    // At Claim the sheet still shows its drawing; the ledger of cards does not take it in.
+    await page.keyboard.press('1');
+    assert.ok(await page.isVisible('#c-system svg'));
+    assert.ok(await page.isHidden('#c-dlq .gist'));
+
+    // On a phone the drawing does not widen the page: it scales down, then scrolls in its sheet.
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await phone.goto(url + '?view=rack&level=gist');
+    await phone.waitForSelector('.board.view-rack');
+    assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= 390), 'the page stays as wide as the phone');
+    const fb = await phone.evaluate(() => { const b = document.querySelector('#c-latency .fig-body'); const s = b.querySelector('svg'); return { scroll: b.scrollWidth > b.clientWidth, k: s.getBoundingClientRect().width / +s.getAttribute('width') }; });
+    assert.ok(fb.k >= 0.59, `the chart keeps three fifths of its size: ${fb.k}`);
+    assert.ok(fb.scroll, 'the chart scrolls inside its sheet');
+    await phone.close();
+
+    // The desk: each sheet a column of its own, the section's cards in the lane beside them.
+    await page.goto(url + '?view=desk&level=gist');
+    await page.waitForSelector('.board.view-desk');
+    await page.waitForTimeout(200);
+    const plane = (sel) => page.evaluate((s) => { const el = document.querySelector(s); let x = 0, y = 0; for (let n = el; n && !n.classList.contains('plane'); n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; } return { l: x, t: y, r: x + el.offsetWidth, b: y + el.offsetHeight, w: el.offsetWidth }; }, sel);
+    const ds = await plane('#c-system');
+    const dl = await plane('#c-latency');
+    const dn = await plane('#c-note');
+    const df = await plane('#c-dlq');
+    assert.ok(Math.abs(ds.t - dl.t) < 2 && ds.r < dl.l && dl.r < dn.l && dn.r < df.l, `sheets, then the section's cards, then the next section: ${JSON.stringify([ds, dl, dn, df])}`);
+    const sheetW = ds.w;
+    // The line from the sheet to the card beside it runs in the gap, not over a drawing.
+    assert.equal(await page.$$eval('.wires .wire', (w) => w.length), 1);
+    // A card you move freezes the table; a sheet keeps the width of its drawing.
+    const handle = await page.locator('#c-dlq .addr').boundingBox();
+    await page.mouse.move(handle.x + 30, handle.y + 5);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + 90, handle.y + 60, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForSelector('.board.free');
+    assert.equal((await plane('#c-system')).w, sheetW);
+    assert.deepEqual(errors, []);
+
+    // A done sheet lies back as one line, as narrow as a card, on both views.
+    fs.writeFileSync(ref.file, fs.readFileSync(ref.file, 'utf8').replace('** The p95 doubled', '** DONE The p95 doubled'));
+    buildBoard(ref, { cwd });
+    const done = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await done.goto(url + '?view=rack&level=gist');
+    await done.waitForSelector('.board.view-rack');
+    assert.ok(await done.evaluate(() => document.querySelector('#c-latency').offsetWidth) <= 302);
+    await done.goto(url + '?view=desk&level=gist');
+    await done.waitForSelector('.board.view-desk');
+    assert.equal(await done.evaluate(() => document.querySelector('#c-latency').offsetWidth), 288);
+    await done.close();
+  } finally {
+    await browser.close();
+  }
+});

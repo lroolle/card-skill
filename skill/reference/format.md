@@ -84,7 +84,7 @@ The gist: one paragraph, under 60 words.
 | heading text | one sentence | the claim |
 | TODO keyword | `TODO` (or none), `DOING`, `BLOCKED`, `DONE` | the status; DONE cards recede |
 | `[3/8]` or `[40%]` cookie | at the end of the heading | a thin progress meter |
-| `:tag:` at the end | lowercase slug | free label; searchable |
+| `:tag:` at the end | lowercase slug | free label; searchable. `:sheet:` is not a label: it makes the card a sheet (see Sheets) |
 | `:CUSTOM_ID:` | lowercase letters, digits, dashes; max 48 | required; stable across revisions |
 | `:ASK:` | `choose`, `approve`, `answer`, `do` | what the card asks of the human; at most one |
 | `:MULTI:` | `t` | with `choose`: any number of options |
@@ -92,6 +92,7 @@ The gist: one paragraph, under 60 words.
 | `:BASIS:` | `fact`, `inference`, `guess` | how you know the claim |
 | `:FROM:` | ids, space-separated | this card exists because of those cards |
 | `:NEEDS:` | ids, space-separated; on an ask also `id=value` or `id=*` | this card waits on those cards (see Asks for the forms with `=`) |
+| `:ON:` | `sheet/part`, space-separated | this card is about that part of a sheet's drawing (see Sheets) |
 
 You may write a card as a heading and its text, with no drawer.
 `cards ids <board>` then gives every such card a `:CUSTOM_ID:` made from its
@@ -123,7 +124,7 @@ three levels.
 |---|---|---|
 | claim | the heading text | Claim, Gist, Full |
 | gist | the first paragraph | Gist, Full |
-| figure | the first `sketch`, `flow`, `sequence` or `chart` block, or image | Gist, Full |
+| figure | the first `sketch`, `flow`, `sequence` or `chart` block, or image; on a sheet it comes before the gist and shows at every level | Gist, Full |
 | facts | the first description list (`- key :: value`) | Gist, Full |
 | options | the first checkbox list, on `:ASK: choose` | Gist, Full |
 | depth | every other block | Full, or when the card is opened |
@@ -209,6 +210,9 @@ the keyword on every ask that has an answer on disk.
   claim, and follows on click. `[[#id][words]]` shows your words instead of
   the claim. On the desk, a dashed line, shown only for the card in focus.
   Inside `=verbatim=` or `~code~` it is plain text.
+- `:ON: sheet/part`: a pin. No line: the part of the sheet's drawing shows
+  the card's numeral. Focus lights the sheet as "N points here" and the
+  pinned cards as "On N" (see Pins).
 
 When two cards link in more than one way, the most specific name wins.
 A line always points toward the card that uses the other one. The desk lays
@@ -359,19 +363,93 @@ view, a flow, a structure, an order of calls or a set of numbers, draw it.
   figure on card 12.
 - The first figure shows under the gist. Later figures are depth.
 - A figure wider than its column makes its card two columns wide on the
-  rack, and widens its column on the desk up to 560px.
-- In a `:compare:` section, draw every option or none.
-- Figures belong in cards, not in the lede or a section note.
+  rack, and widens its column on the desk up to 560px. A wider drawing is a
+  sheet.
+- In a `:compare:` section, draw every option or none. A sheet in the
+  section is not an option.
+- Figures belong in cards, not in the lede or a section note. A drawing
+  that stands on its own is a sheet.
 
 None of these blocks can carry colors, styles or markup. A sketch is escaped
 text; a flow, a sequence and a chart become SVG that the compiler writes, in
 the card's one ink: series differ by tone and mark, never by color.
 
 `cards check` reads each drawing as a reader would and says what is wrong in
-it, by name, with the change that fixes it: a label on a line or over a box,
-two labels on each other, a line through a box, two arrows on one run, a
-frame that takes in a box that is not in its group, a box name cut after
-three lines, and a drawing wider than the 502px a card on the desk shows.
+it, by name, with the change that fixes it: a label on a line or over a box
+(a line within 1px of a label is on it), two labels on each other, a line
+through a box, two arrows on one run, a frame that takes in a box that is not
+in its group, a box name cut after three lines, and a drawing wider than the
+502px a card on the desk shows (on a sheet: 1120px).
+
+### Sheets
+
+A sheet is a card that is one drawing: tag it `:sheet:`. Use it when the
+drawing is what a section is about, and other cards talk about its parts:
+the system a review covers, the numbers a decision rests on.
+
+```
+** Every upload passes one queue before it is stored  :sheet:
+:PROPERTIES:
+:CUSTOM_ID: system
+:BASIS: fact
+:END:
+Read from the deploy files on 2026-10-15.
+
+#+begin_src flow
+  group Cloud: api, queue, resizer
+  store: photos
+  app -> api: HTTPS
+  api -> queue: job
+  api -> photos
+  queue -> resizer
+#+end_src
+```
+
+- The claim says what the drawing shows; the first paragraph says what to
+  look at. The first figure is the drawing: it needs no `#+caption:`, and
+  its number is the card's own (Fig. 1). Later figures are depth, as on a
+  card.
+- A sheet is as wide as its drawing. It has the room of a sheet: 24 boxes
+  and 8 groups in a flow, 10 parts and 32 messages in a sequence, 30 bars
+  or 200 points in a chart, 160 columns in a sketch; up to 1120 px shows at
+  full size. A chart on a sheet is drawn larger.
+- It leads its section. On the rack the sheets stand side by side above
+  the section's cards; on the desk each sheet is a column, and the
+  section's cards lie in the lane beside them. A sheet shows its drawing at
+  every level, Claim too. On a narrow screen the drawing scales down to
+  three fifths and then scrolls inside the sheet.
+- It is a card in every other way: it takes marks, a reply, an ask (approve
+  the drawing), `:FROM:` and `:NEEDS:`, and it has versions.
+
+### Pins
+
+`:ON: system/queue` pins a card on a part of a sheet: the sheet's id, a
+slash, and the part's name. A name is folded: lower case, and every run of
+spaces and marks is one dash; letters, digits, `+`, `#`, `.` and the minus
+of a number stay. `Web app` is `web-app`, `C++` is `c++`, `board.org` is
+`board.org`, `POST /charges` is `post-charges`, `-1` is `-1`.
+A card may be pinned on several parts: `:ON: system/queue latency/2026-10-12`.
+
+| Drawing | A part is |
+|---|---|
+| `flow` | a box, or a group (its name) |
+| `sequence` | a part (a column) |
+| `chart`, bars | a row (the name in the first column) |
+| `chart`, line | a line (the head of its column), or a point on x (`2026-10-12`) |
+
+The part shows the numeral of each card pinned on it, as a part of a patent
+drawing shows its reference numeral: in a box after its name, on a group
+after its name, after a bar's value, after a line's name, and above a point
+on x with a rule across the chart. A click on a numeral goes to its card.
+Focus on the card lights its part and its numeral; focus on the sheet
+lights its cards. A pin draws no line on the desk: the numeral is the link.
+
+A pin is part of the pinned card's meaning, not the sheet's: pinning a card
+makes a new version of that card only. These are errors, with a fix: a pin
+on a card that is not a sheet, on a sheet whose drawing has no parts (a
+sketch, an image), on a part the drawing does not have (the fix lists the
+parts), on a name two parts share once folded (`Web app` and `web-app`, or
+a box and a group both named `api`: rename one), and on the card itself.
 
 ## Files: images, excerpts, other files
 
@@ -445,11 +523,12 @@ A warning does not stop a render. Each one is a writing rule:
   permission or feedback with nothing named ("Shall I proceed?"); it is a
   choice whose claim is a question although you suggest an option; it is a
   choice with one option; its first paragraph does not give the stakes.
-- A figure or an image with no caption; a sketch over 72 columns; a flow over 12 boxes
-  or 4 groups; a flow line that points a box at itself; a box in two groups; a
-  sequence over 6 parts or 16 messages; a chart cell that is not a number; a
-  figure in the lede or a note; a `:compare:` section where only some options
-  have a figure.
+- A figure or an image with no caption (a sheet's drawing needs none); a sketch over 72
+  columns; a flow over 12 boxes or 4 groups; a flow line that points a box at itself; a
+  box in two groups; a sequence over 6 parts or 16 messages; a chart cell that is not a
+  number; a figure in the lede or a note; a `:compare:` section where only some options
+  have a figure. On a sheet the limits are the sheet's (see Sheets).
+- A sheet with no drawing.
 - A drawing a reader would misread (see Figures): each fault by name, with its fix.
 - An image over 1 MB; files over 8 MB on one board; an excerpt over 120
   lines.

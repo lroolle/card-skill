@@ -30,3 +30,4 @@
 {"t":"card","id":"pick-directions","n":16,"v":2,"rev":6,"at":"2026-10-15T14:20:18.844Z","hash":"f9cb8dabdf0edc91","src":"** Proofs, a record in the card, and the agenda come first after 0.1\n:PROPERTIES:\n:CUSTOM_ID: pick-directions\n:ASK: choose\n:MULTI: t\n:END:\nI would take the two trust directions first. They change what a card is\nworth: a claim you can run again, and a file that holds its own record.\nThe agenda is third because it is cheap and only reads.\n\n- [X] [[#proof]]\n- [X] [[#record]]\n- [X] [[#agenda]]\n- [ ] [[#sources]]\n- [ ] [[#priority]]\n- [ ] [[#archive]]\n- [ ] [[#cross-board]]\n- [ ] [[#apply]]\n- [ ] [[#states]]\n- [ ] [[#emacs]]\n- [ ] [[#drafts]]","fmt":"org"}
 {"t":"rev","rev":6,"at":"2026-10-15T14:20:18.844Z","hash":"33f3a34207e03900"}
 {"t":"build","v":"0.3.0","at":"2026-10-15T14:20:18.845Z"}
+{"t":"build","v":"0.4.0","at":"2026-10-15T17:00:51.343Z"}

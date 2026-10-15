@@ -16,7 +16,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { esc } from './md.mjs';
-import { IMAGE_EXT, extOf, isImage, frame, WIDE } from './figure.mjs';
+import { IMAGE_EXT, extOf, isImage, frame, WIDE, SHEET_MAX } from './figure.mjs';
 import { syntaxOf } from './board.mjs';
 import { en } from './i18n.mjs';
 
@@ -244,8 +244,11 @@ export function imageFigure(a, caption, label, ctx = {}) {
   const named = esc(T(ctx, 'img_open_named', { alt }));
   const body = `<button type="button" class="fig-zoom" aria-label="${named}" title="${open}">${img}</button>`;
   const src = `<span class="fig-file"${ctx.publish ? '' : ` title="${esc(a.rel)}"`}>${esc(a.name)}${a.w ? ` · ${a.w} × ${a.h}` : ''}</span>`;
-  const html = frame('image', body, caption, label, ctx).replace('</figcaption>', ` ${src}</figcaption>`);
-  return { html, width: w ? Math.min(w, 2 * WIDE) : WIDE };
+  const fig = frame('image', body, caption, label, ctx);
+  // The file's name and size always go under an image, also where it has no caption.
+  const html = fig.includes('</figcaption>') ? fig.replace('</figcaption>', ` ${src}</figcaption>`) : fig.replace('</figure>', `<figcaption>${src}</figcaption></figure>`);
+  // On a sheet a picture is the drawing, and shows up to the width of a sheet.
+  return { html, width: w ? Math.min(w, ctx.room === 'sheet' ? SHEET_MAX : 2 * WIDE) : WIDE };
 }
 
 // An excerpt: the file's lines with their numbers, the path and range on top.

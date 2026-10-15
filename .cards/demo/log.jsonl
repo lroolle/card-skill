@@ -8,3 +8,4 @@
 {"t":"card","id":"oat-milk","n":8,"v":1,"rev":1,"at":"2026-10-15T14:55:37.080Z","hash":"df50e175433990c7","src":"** Oat milk goes on the weekly order, next to dairy\n:PROPERTIES:\n:CUSTOM_ID: oat-milk\n:BASIS: inference\n:END:\nFour people asked for it in the kitchen thread, and it adds €6 a week. Drop this card if the team keeps to dairy.","fmt":"org"}
 {"t":"rev","rev":1,"at":"2026-10-15T14:55:37.080Z","hash":"77cbeff907815e41"}
 {"t":"build","v":"0.3.0","at":"2026-10-15T14:55:37.082Z"}
+{"t":"build","v":"0.4.0","at":"2026-10-15T17:00:50.054Z"}

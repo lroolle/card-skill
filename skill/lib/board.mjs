@@ -16,7 +16,7 @@
 
 import { parseBlocks, plain, fenceOpen, fenceCloses, inline, renderBlocks, esc } from './md.mjs';
 import { parseOrgBlocks, orgInline, orgPlain, orgRefs } from './org.mjs';
-import { FIGURE_LANGS, parseFlow, parseSequence, sketchLines, isFigure } from './figure.mjs';
+import { FIGURE_LANGS, parseFlow, parseSequence, sketchLines, isFigure, partKey, partsOf } from './figure.mjs';
 import { parseChart } from './chart.mjs';
 
 // do: an action only the human can take outside the board (a login, a payment);
@@ -25,7 +25,9 @@ export const ASKS = ['choose', 'approve', 'answer', 'do'];
 export const STATUSES = ['open', 'doing', 'done', 'blocked'];
 export const BASES = ['fact', 'inference', 'guess'];
 export const LAYOUTS = ['grid', 'compare', 'list'];
-export const CARD_KEYS = ['ask', 'status', 'basis', 'from', 'needs', 'progress'];
+export const CARD_KEYS = ['ask', 'status', 'basis', 'from', 'needs', 'progress', 'on'];
+// A card tagged :sheet: is one drawing on the board; other cards are pinned on its parts.
+export const SHEET = 'sheet';
 export const CARD_FLAGS = ['multi'];
 export const ID_RE = /^[a-z0-9][a-z0-9-]{0,47}$/;
 
@@ -76,6 +78,13 @@ function parseAttrs(text) {
 }
 
 const list = (v) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []);
+
+// :ON: system/queue system/api  ->  the parts of sheets this card is pinned on.
+// A token with no part keeps part null; crossChecks says how to write it.
+const onList = (tokens) => tokens.map((raw) => {
+  const at = raw.indexOf('/');
+  return at < 0 ? { raw, sheet: raw, part: null } : { raw, sheet: raw.slice(0, at), part: partKey(raw.slice(at + 1)) };
+});
 
 // boardTitle(src) -> the title, or null. One reader for every caller.
 export function boardTitle(src, file = '') {
@@ -214,6 +223,8 @@ function parseMdBoard(src, id) {
       from: list(kv.from),
       needs: list(kv.needs),
       when: {},
+      on: onList(list(kv.on)),
+      sheet: attrs.tags.includes(SHEET),
       tags: attrs.tags,
       multi,
       suggest: null,
@@ -240,7 +251,7 @@ function parseMdBoard(src, id) {
 // ---- board.org ----
 
 const TODO = { TODO: 'open', DOING: 'doing', BLOCKED: 'blocked', DONE: 'done' };
-const ORG_CARD_PROPS = ['CUSTOM_ID', 'ASK', 'MULTI', 'SUGGEST', 'BASIS', 'FROM', 'NEEDS', 'ID'];
+const ORG_CARD_PROPS = ['CUSTOM_ID', 'ASK', 'MULTI', 'SUGGEST', 'BASIS', 'FROM', 'NEEDS', 'ON', 'ID'];
 // The keywords before the first heading that this build reads. Any other is
 // valid Org and does nothing here; lint says so, because an agent that wrote
 // one expected an effect.
@@ -433,7 +444,7 @@ function parseOrgBoard(src, id) {
     for (const [k, at] of d.at) {
       if (!ORG_CARD_PROPS.includes(k) && !ORG_OWNED.test(k)) {
         const hint = k === 'STATUS' ? '; status is the TODO keyword: ** DOING The claim' : k === 'PROGRESS' ? '; progress is a cookie: ** The claim [3/7]' : '';
-        err(c.line + 1 + at, `unknown property :${k}:`, `allowed: CUSTOM_ID, ASK, MULTI, SUGGEST, BASIS, FROM, NEEDS${hint}`);
+        err(c.line + 1 + at, `unknown property :${k}:`, `allowed: CUSTOM_ID, ASK, MULTI, SUGGEST, BASIS, FROM, NEEDS, ON${hint}`);
       }
     }
     const enumCheck = (key, value, allowed) => {
@@ -470,6 +481,8 @@ function parseOrgBoard(src, id) {
       from: orgList(p.FROM),
       needs: needs.ids,
       when: needs.when,
+      on: onList(p.ON ? p.ON.split(/\s+/).filter(Boolean) : []),
+      sheet: h.tags.includes(SHEET),
       tags: h.tags,
       multi,
       suggest: suggest === 'none' ? 'none' : null,
@@ -682,6 +695,8 @@ export function canonical(card) {
     renderBlocks(sx.blocks(card.body), ctx).replace(/\s+/g, ' '),
     ...(card.suggest ? [card.suggest] : []),
     ...(card.when && Object.keys(card.when).length ? [card.when] : []),
+    // A pin means its sheet and its part: "sys/API" and "sys/api" are one pin, in any order.
+    ...(card.on && card.on.length ? [{ on: [...new Set(card.on.map((p) => `${p.sheet}/${p.part ?? ''}`))].sort() }] : []),
   ]);
 }
 
@@ -717,6 +732,30 @@ function crossChecks(board) {
     }
     for (const ref of card.anatomy.refs) {
       if (!ids.has(ref)) err(card.line - 1, `${refText(ref)} names no card`, known());
+    }
+    // :ON: sheet/part pins this card on a part of a sheet's drawing.
+    for (const p of card.on || []) {
+      const fix = board.fmt === 'org' ? ':ON: system/api   (a sheet\'s id, a slash, the name of a part)' : 'on=system/api';
+      const target = board.cards.find((c) => c.id === p.sheet);
+      if (!p.part) { err(card.line - 1, `:ON: ${p.raw}: name a part of a sheet, after a slash`, fix); continue; }
+      if (!target) { err(card.line - 1, `:ON: ${p.raw}: ${p.sheet} names no card`, known()); continue; }
+      if (target === card) { err(card.line - 1, `:ON: ${p.raw}: a sheet is not pinned on itself`, `remove ${p.raw}`); continue; }
+      if (!target.sheet) {
+        err(card.line - 1, `:ON: ${p.raw}: ${p.sheet} is not a sheet; a card is pinned only on a part of a drawing on a sheet`,
+          board.fmt === 'org' ? `** ${target.title}  :sheet:   (tag that card), or link it: :FROM: ${p.sheet}` : `{#${p.sheet} .sheet}`);
+        continue;
+      }
+      const fig = target.anatomy.figure;
+      const parts = fig && fig.type === 'code' ? partsOf(fig) : new Map();
+      if (!parts.size) { err(card.line - 1, `:ON: ${p.raw}: the sheet ${p.sheet} draws nothing with parts (a flow, a sequence or a chart)`, `:FROM: ${p.sheet}`); continue; }
+      if (!parts.has(p.part)) {
+        err(card.line - 1, `:ON: ${p.raw}: the sheet ${p.sheet} has no part "${p.raw.slice(p.raw.indexOf('/') + 1)}"`,
+          `its parts: ${[...parts.keys()].slice(0, 16).map((k) => `${p.sheet}/${k}`).join(' ')}`);
+      } else if (parts.get(p.part).length > 1) {
+        // A pin would mark every part of that name: the drawing must tell them apart.
+        err(card.line - 1, `:ON: ${p.raw}: ${parts.get(p.part).map((x) => `"${x}"`).join(' and ')} on the sheet ${p.sheet} share the name ${p.part}`,
+          `rename one of them in the drawing of ${p.sheet}`);
+      }
     }
     // a=value and a=* say which answer of the ask `a` this ask is written for.
     for (const [ref, want] of Object.entries(card.when || {})) {
@@ -800,6 +839,27 @@ function refsIn(blocks, refs) {
   };
   walk(blocks);
   return found;
+}
+
+// pinsOn(board, nOf) -> Map(sheet id -> Map(part key -> [{ id, n, done, title }])): the cards
+// pinned on each part of each sheet, in the order of their numerals. nOf gives a card's
+// numeral; the order of the board stands in for it where the log is not read.
+export function pinsOn(board, nOf = null) {
+  const sx = syntaxOf(board.fmt);
+  const num = nOf || ((id) => board.cards.findIndex((c) => c.id === id) + 1);
+  const out = new Map();
+  for (const c of board.cards) {
+    for (const p of c.on || []) {
+      if (!p.part) continue;
+      if (!out.has(p.sheet)) out.set(p.sheet, new Map());
+      const parts = out.get(p.sheet);
+      if (!parts.has(p.part)) parts.set(p.part, []);
+      const list = parts.get(p.part);
+      if (!list.some((x) => x.id === c.id)) list.push({ id: c.id, n: num(c.id), done: c.status === 'done', title: sx.plain(c.title) });
+    }
+  }
+  for (const parts of out.values()) for (const list of parts.values()) list.sort((a, b) => a.n - b.n);
+  return out;
 }
 
 export function formatErrors(errors, file = 'board.md') {

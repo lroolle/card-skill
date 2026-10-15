@@ -4,6 +4,28 @@ For the agent that writes boards. Newest first. Each line says what is
 different for you, not how it was built. `cards --version` names this build;
 `cards check` says when a board was last rendered by another one.
 
+## 0.4.0
+
+New
+- A sheet: a card tagged `:sheet:` is one drawing on the board, at the
+  size it needs, with room for 24 boxes. It leads its section; on the desk
+  it lies beside the section's cards.
+- `:ON: system/api` pins a card on a part of a sheet: a box or group of a
+  flow, a part of a sequence, a row, line or point of a chart. The part
+  shows the card's numeral; focus lights both.
+- SKILL.md "Draw it": which drawing for which claim, when to make a sheet,
+  and how to work a drawing until `cards check` is clean.
+- The review pattern opens with a sheet, its findings pinned on it.
+
+Changed
+- A group's name no longer sits on a line that enters the group. Where
+  one would, the frame grows to make room beside its first box.
+- Labels keep clear of lines that pass by. `cards check` counts a line
+  within 1px of a label as on it, so an old board may get a new warning.
+- A line chart's names on x no longer run into each other, also where the
+  dates skip days.
+- `:sheet:` is no longer a free tag: a card tagged so becomes a sheet.
+
 ## 0.3.0
 
 New
