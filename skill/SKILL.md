@@ -112,10 +112,21 @@ Writing rules. `cards check` enforces the mechanical ones.
   25 words at most, active verbs in the present tense, the same word for the
   same thing, and plain words ("use", not "utilize" or "leverage").
 - Show, then tell. When a claim is about a shape (a layout, a view, a flow,
-  a structure, a before and after), draw it under the gist: `#+caption:`,
-  then `#+begin_src sketch` (text characters) or `#+begin_src flow`
-  (`a -> b: label` lines; the compiler places the boxes). A decision about a
-  view or a UI shows each option as a figure. Do not draw a single fact.
+  a structure, an order of calls, a set of numbers), draw it under the gist:
+  `#+caption:`, then one of four blocks.
+  `sketch`: a layout in text characters.
+  `flow`: what feeds what, as `a -> b: label` lines; `group Cloud: a, b`
+  frames boxes that belong together, `store: a` marks a box that holds data.
+  `sequence`: who calls whom, in time order: `a -> b: call`, `b --> a: reply`.
+  `chart`: numbers, as an Org table; names in the first column give bars,
+  numbers or dates there give a line.
+  The compiler places, routes and scales everything. A decision about a view
+  or a UI shows each option as a figure; numbers that decide something go in
+  a chart, not only in prose. Do not draw a single fact. Prefer a flow that
+  runs down: a card is narrow. `cards check` says what a reader would
+  misread in a drawing (a label on a line, a frame around a stranger, a
+  drawing wider than a card) and how to fix it; fix each one before you hand
+  the board over.
 - Show the evidence itself when it is a file. A screenshot or a chart:
   `#+caption:` then `[[file:../../shots/x.png]]` alone on a line. Code or a
   log: `#+include: "../../src/x.js" src js :lines "40-61"` (lines 40 to 60;

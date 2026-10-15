@@ -394,6 +394,38 @@ svg.flow { display: block; overflow: visible; }
 .flow .fe text { fill: var(--fg-2); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
 .flow .fe.hot path { stroke: var(--fg); stroke-width: 1.75; }
 .flow .fe.hot text { fill: var(--fg); }
+/* A store is a cylinder; a group is a frame of inset stock with its name inside the top edge. */
+.flow .fn path { fill: var(--surface); stroke: var(--fg-3); stroke-width: 1; }
+.flow .fn:hover path { stroke: var(--fg); }
+.flow .fn.strong path { stroke: var(--fg); stroke-width: 2; }
+.flow .fg rect { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.flow .fg-name text { fill: var(--fg-2); font-weight: var(--w-strong); paint-order: stroke; stroke: var(--surface-2); stroke-width: 4px; stroke-linejoin: round; }
+/* A sequence: each part has its line down the page; the messages cross between them. */
+.flow .life { fill: none; stroke: var(--line-strong); stroke-width: 1; }
+
+/* A chart, in the card's one ink: series differ by tone and by mark. */
+svg.chart { display: block; overflow: visible; }
+.chart text { font-family: var(--mono); font-size: var(--t-xs); fill: var(--fg-2); }
+.chart .c-cat { fill: var(--fg); }
+.chart :is(.c-tick, .c-key) { fill: var(--fg-3); }
+.chart .c-grid { fill: none; stroke: var(--line); stroke-width: 1; }
+.chart .c-axis { fill: none; stroke: var(--fg-3); stroke-width: 1; }
+.chart .c-bar.s0 { fill: var(--fg-2); }
+.chart .c-bar.s1 { fill: var(--line-strong); }
+.chart .c-bar.s2 { fill: var(--surface); stroke: var(--fg-2); stroke-width: 1; }
+.chart .c-bar.s3 { fill: var(--surface-2); stroke: var(--fg-3); stroke-width: 1; }
+.chart .c-ln { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.chart .c-ln.s0 { stroke: var(--fg); }
+.chart .c-ln.s1 { stroke: var(--fg-3); }
+.chart .c-ln.s2 { stroke: var(--fg-2); }
+.chart .c-ln.s3 { stroke: var(--line-strong); }
+.chart .c-mk { stroke-width: 1.25; }
+.chart .c-mk.s0 { fill: var(--fg); stroke: var(--fg); }
+.chart .c-mk.s1 { fill: var(--surface); stroke: var(--fg-3); }
+.chart .c-mk.s2 { fill: var(--fg-2); stroke: var(--fg-2); }
+.chart .c-mk.s3 { fill: var(--surface); stroke: var(--line-strong); }
+.chart .c-end { fill: var(--fg-2); }
+.chart-none { margin: 0; font-size: var(--t-xs); color: var(--fg-3); }
 
 /* ---------- files: an image, an excerpt, a chip ---------- */
 

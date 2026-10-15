@@ -123,7 +123,7 @@ three levels.
 |---|---|---|
 | claim | the heading text | Claim, Gist, Full |
 | gist | the first paragraph | Gist, Full |
-| figure | the first `sketch` or `flow` block, or image | Gist, Full |
+| figure | the first `sketch`, `flow`, `sequence` or `chart` block, or image | Gist, Full |
 | facts | the first description list (`- key :: value`) | Gist, Full |
 | options | the first checkbox list, on `:ASK: choose` | Gist, Full |
 | depth | every other block | Full, or when the card is opened |
@@ -266,8 +266,15 @@ and macros.
 ## Figures
 
 A card shows the shape it talks about. When a claim is about a layout, a
-view, a flow or a structure, draw it. `#+caption:` on the line above the
-block names it.
+view, a flow, a structure, an order of calls or a set of numbers, draw it.
+`#+caption:` on the line above the block names it. Four kinds:
+
+| Kind | Draw it when the claim is about | You write | The compiler |
+|---|---|---|---|
+| `sketch` | a layout, a screen, anything spatial | text characters | shows them as written |
+| `flow` | what feeds what: a pipeline, an architecture, a loop | arrows, groups, stores | places every box and routes every arrow |
+| `sequence` | who calls whom, in time order | one message per line | places the columns and rows |
+| `chart` | numbers: a comparison, or a change over time | an Org table | picks bars or a line, the scale and the marks |
 
 ```
 #+caption: Rack view: card 6 in focus
@@ -282,29 +289,89 @@ block names it.
   *board.org* -> cards render: agent writes
   cards render -> board.html
   board.html -> you --> agent
+  store: board.org
+#+end_src
+
+#+caption: A web service in two zones
+#+begin_src flow
+  group Browser: web app
+  group Cloud: api, worker, orders
+  store: orders
+  web app -> api: HTTPS
+  api -> orders: write
+  api -> worker: enqueue
+  worker -> orders: update
+#+end_src
+
+#+caption: Placing an order
+#+begin_src sequence
+  client -> api: POST /order
+  api -> api: check stock
+  api -> db: insert
+  db --> api: id 42
+  api --> client: 201 Created
+#+end_src
+
+#+caption: p95 latency by queue, in ms
+#+begin_src chart
+  | queue | p95 ms |
+  |-------+--------|
+  | NATS  |      4 |
+  | Kafka |     11 |
+  | SQS   |     38 |
 #+end_src
 ```
 
 - `sketch`: a drawing in text characters, shown exactly as written in a
   monospace face. Use box characters (`┌─┐│└┘├┤┬┴►`). 72 columns at most.
   CJK characters do not keep the columns; use Latin labels in a sketch.
-- `flow`: one arrow per line. `a -> b` is an arrow, `a --> b` is dashed (a
-  later, optional or weak step), `a -> b: label` labels the arrow, `a -> b
-  -> c` is a chain (a label goes on the last hop), `*a*` (or `**a**`) is a
-  bold box for the part under discussion (bold it once; every mention is the
-  same box), a line with one name adds a box,
-  and `direction: right` lays it out left to right (the default is down).
-  The compiler places every box. 12 boxes at most.
+- `flow`: one statement per line.
+  - `a -> b` is an arrow, `a --> b` is dashed (a later, optional or weak
+    step), `a -> b: label` labels the arrow, `a -> b -> c` is a chain (a
+    label goes on the last hop).
+  - `*a*` (or `**a**`) is a bold box for the part under discussion; bold it
+    once, and every mention is the same box. A line with one name adds a box.
+  - `group Cloud: api, worker` draws one frame, named Cloud, around those
+    boxes, and keeps them next to each other. A box is in one group at most;
+    4 groups at most.
+  - `store: orders, log.jsonl` draws those boxes as cylinders: they hold
+    data.
+  - `direction: right` lays it out left to right (the default is down).
+    Down fits a card better; use right for a short chain.
+
+  The compiler places every box and routes every arrow at right angles, each
+  on a track of its own; an arrow back up the flow goes around the side. 12
+  boxes at most.
+- `sequence`: one message per line, in time order from the top. `a -> b:
+  what` is a call, `a --> b: what` is dashed (a reply, or a message that does
+  not wait), `a -> a: what` is a call to itself, `*a*` is bold. The columns
+  follow the order in which the names first appear; a line with one name
+  fixes that order. 6 parts and 16 messages at most.
+- `chart`: an Org table. The first row names the columns, and a rule
+  (`|---+---|`) goes under it. The first column names each row; every other
+  column is a series of numbers, named by its head. Put the unit in the head
+  (`p95 ms`), not in the cells; `1,200` and `12%` are numbers, an empty cell
+  or `-` is no value. Names in the first column give horizontal bars, with
+  each value printed; numbers or dates (`2026-10`, `2026-10-15`) give a line
+  over x, each line named at its end. `type: bar` or `type: line` on a line
+  of its own says otherwise. 4 series, 16 bars or 60 points at most.
 - Figures are numbered per card in source order: Fig. 12.1 is the first
   figure on card 12.
 - The first figure shows under the gist. Later figures are depth.
-- A figure wider than about 330px makes its card two columns wide on the
-  rack, and widens its column on the desk.
+- A figure wider than its column makes its card two columns wide on the
+  rack, and widens its column on the desk up to 560px.
 - In a `:compare:` section, draw every option or none.
 - Figures belong in cards, not in the lede or a section note.
 
-Neither block can carry colors, styles or markup. A sketch is escaped text;
-a flow becomes SVG that the compiler writes.
+None of these blocks can carry colors, styles or markup. A sketch is escaped
+text; a flow, a sequence and a chart become SVG that the compiler writes, in
+the card's one ink: series differ by tone and mark, never by color.
+
+`cards check` reads each drawing as a reader would and says what is wrong in
+it, by name, with the change that fixes it: a label on a line or over a box,
+two labels on each other, a line through a box, two arrows on one run, a
+frame that takes in a box that is not in its group, a box name cut after
+three lines, and a drawing wider than the 502px a card on the desk shows.
 
 ## Files: images, excerpts, other files
 
@@ -371,12 +438,15 @@ A warning does not stop a render. Each one is a writing rule:
   `:PROPERTIES:` drawer.
 - Syntax that does nothing here: a `#+keyword:` this build does not read; a
   block type with no look of its own; a `#+begin_src` language that names a
-  drawing this build does not draw (`image`, `mermaid`, `chart`, ...).
+  drawing this build does not draw (`image`, `mermaid`, `plot`, ...).
 - On a translation: the differences from its source (see File keywords).
 - More than 7 cards in a section, more than 30 on a board, more than 5 open asks.
-- A figure or an image with no caption; a sketch over 72 columns; a flow over 12 boxes;
-  a flow line that points a box at itself; a figure in the lede or a note;
-  a `:compare:` section where only some options have a figure.
+- A figure or an image with no caption; a sketch over 72 columns; a flow over 12 boxes
+  or 4 groups; a flow line that points a box at itself; a box in two groups; a
+  sequence over 6 parts or 16 messages; a chart cell that is not a number; a
+  figure in the lede or a note; a `:compare:` section where only some options
+  have a figure.
+- A drawing a reader would misread (see Figures): each fault by name, with its fix.
 - An image over 1 MB; files over 8 MB on one board; an excerpt over 120
   lines.
 - English boards only (see `writing.md`): a sentence over 25 words, a

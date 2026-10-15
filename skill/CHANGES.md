@@ -11,6 +11,20 @@ The page
   header folds to one line (whose turn, the title, the ask tabs); the rack
   drops its width limit and the desk gets the height. Where the browser
   allows it, the page takes the real full screen; Esc leaves.
+- Figures: two new kinds. `#+begin_src sequence` draws calls between
+  parts in time order (`a -> b: call`, `b --> a: reply`, `a -> a: self`).
+  `#+begin_src chart` draws an Org table: names in the first column give
+  bars with their values, numbers or dates give a line. See
+  `reference/format.md`, Figures.
+- A flow draws its arrows at right angles, each on a track of its own, and
+  an arrow back up the flow goes around the side. `group Cloud: a, b` frames
+  boxes that belong together; `store: a, b` draws boxes that hold data as
+  cylinders. A flow you wrote before keeps its meaning and its version.
+- `cards check` and `cards render` read each drawing as a reader would: a
+  label on a line or a box, two labels on each other, a line through a box,
+  two arrows on one run, a frame around a stranger, a cut box name, a
+  drawing wider than a card on the desk. Each warning names the parts and
+  the fix.
 - The reading view packs the cards of a section into columns, in board
   order: a short card no longer leaves a hole under it, and the card after
   a wide one stands beside it when there is room. A compare section keeps

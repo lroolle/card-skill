@@ -16,7 +16,8 @@
 
 import { parseBlocks, plain, fenceOpen, fenceCloses, inline, renderBlocks, esc } from './md.mjs';
 import { parseOrgBlocks, orgInline, orgPlain, orgRefs } from './org.mjs';
-import { FIGURE_LANGS, parseFlow, sketchLines, isFigure } from './figure.mjs';
+import { FIGURE_LANGS, parseFlow, parseSequence, sketchLines, isFigure } from './figure.mjs';
+import { parseChart } from './chart.mjs';
 
 // do: an action only the human can take outside the board (a login, a payment);
 // the answer is done or cannot.
@@ -656,8 +657,18 @@ export function canonical(card) {
     ref: (id, label) => `[ref:${id}${label ? '|' + label : ''}]`,
     figure: (b) => {
       if (b.type !== 'code' || !FIGURE_LANGS.includes(b.lang)) return null;
-      const g = b.lang === 'flow' ? parseFlow(b.text) : null;
-      const body = g ? JSON.stringify([g.dir, g.nodes, g.edges]) : sketchLines(b.text).join('\n');
+      // What a drawing means, not how its text is spaced: a re-aligned chart table is the same chart.
+      let body;
+      if (b.lang === 'flow') {
+        const g = parseFlow(b.text);
+        body = JSON.stringify([g.dir, g.nodes, g.edges, ...(g.groups.length ? [g.groups] : [])]);
+      } else if (b.lang === 'sequence') {
+        const q = parseSequence(b.text);
+        body = JSON.stringify([q.parts, q.msgs]);
+      } else if (b.lang === 'chart') {
+        const c = parseChart(b.text);
+        body = JSON.stringify([c.type, c.head, c.xs, c.series.map((x) => x.values.map((v) => v.raw))]);
+      } else body = sketchLines(b.text).join('\n');
       return `[fig:${b.lang}|${esc(sx.inline(b.info || '', ctx))}|${esc(body)}]`;
     },
     // A file stands for its path here; what the file holds is versioned by

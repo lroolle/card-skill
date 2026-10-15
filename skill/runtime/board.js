@@ -749,6 +749,10 @@
       var cols = cs.gridTemplateColumns.split(' ').length;
       var gap = parseFloat(cs.rowGap) || 0;
       if (cols < 2) return;
+      // A card takes two columns when its first figure is wider than one column holds
+      // (the card's padding and border: 34px). Full screen has narrower columns than the
+      // 330px that compile.mjs assumes, so the page decides here, on the real width.
+      var colW = parseFloat(cs.gridTemplateColumns) || 0;
       slots.classList.add('packed');
       var unit = parseFloat(getComputedStyle(slots).gridAutoRows) || 4; // a packed grid has rows of --s1
       var bottom = [];
@@ -757,7 +761,9 @@
         // board.css gives a wide card "grid-column: span 2", which is its start.
         var gc = getComputedStyle(el);
         var m = (gc.gridColumnStart + ' ' + gc.gridColumnEnd).match(/span (\d+)/);
-        var w = m ? Math.min(+m[1], cols) : 1;
+        var c = B.cards[el.dataset.id];
+        var fw = c && c.fig_w && c.status !== 'done' ? c.fig_w + 34 : 0;
+        var w = Math.min(Math.max(m ? +m[1] : 1, fw > colW + 1 ? 2 : 1), cols);
         var tops = [];
         for (var x = 0; x + w <= cols; x++) tops.push(Math.max.apply(null, bottom.slice(x, x + w)));
         var low = Math.min.apply(null, tops);

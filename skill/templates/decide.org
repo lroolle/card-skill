@@ -12,6 +12,18 @@ Example board from the decide pattern; the numbers are illustrative. Replace eve
 :END:
 Measured from the October replay of production traffic.
 
+#+caption: Messages a second in the October replay, by hour of the day
+#+begin_src chart
+| hour | k msg/s |
+|------+---------|
+|    0 |       4 |
+|    4 |       3 |
+|    8 |      12 |
+|   12 |      80 |
+|   16 |      22 |
+|   20 |       6 |
+#+end_src
+
 ** A broker restart must not lose messages
 :PROPERTIES:
 :CUSTOM_ID: need-durable

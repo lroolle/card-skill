@@ -3,7 +3,8 @@
 // Errors stop a render. Warnings do not; they are the writing rules from
 // SKILL.md made checkable, so an agent hears them at the moment it can act.
 
-import { LIMITS as FIG, parseFlow, sketchLines, cols, isFigure, figuresIn } from './figure.mjs';
+import { LIMITS as FIG, parseFlow, layoutFlow, flowIssues, parseSequence, layoutSequence, sequenceIssues, sketchLines, cols, isFigure, figuresIn } from './figure.mjs';
+import { chart } from './chart.mjs';
 import { syntaxOf } from './board.mjs';
 
 export const LIMITS = {
@@ -126,11 +127,25 @@ function figureWarnings(c, warn0, sx) {
       const w = Math.max(0, ...sketchLines(b.text).map(cols));
       if (w > FIG.sketchCols) warn(c.line, `sketch is ${w} columns wide; draw it in ${FIG.sketchCols} or fewer`);
       if (!sketchLines(b.text).length) warn(c.line, 'sketch is empty');
-    } else {
+    } else if (b.lang === 'flow') {
       const g = parseFlow(b.text);
       for (const p of g.problems) warn(c.line, `flow: ${p.msg}`);
       if (g.nodes.length > FIG.flowBoxes) warn(c.line, `flow has ${g.nodes.length} boxes; split it (<= ${FIG.flowBoxes})`);
+      if (g.groups.length > FIG.flowGroups) warn(c.line, `flow has ${g.groups.length} groups; draw ${FIG.flowGroups} or fewer`);
       if (!g.edges.length) warn(c.line, 'flow has no arrows; write a -> b');
+      // What a reader would misread in the drawing itself: found on its own geometry.
+      if (g.nodes.length && g.nodes.length <= 2 * FIG.flowBoxes) for (const x of flowIssues(g, layoutFlow(g))) warn(c.line, `flow: ${x.msg}`);
+    } else if (b.lang === 'sequence') {
+      const q = parseSequence(b.text);
+      for (const p of q.problems) warn(c.line, `sequence: ${p.msg}`);
+      if (q.parts.length > FIG.sequenceParts) warn(c.line, `sequence has ${q.parts.length} parts; split it (<= ${FIG.sequenceParts})`);
+      if (q.msgs.length > FIG.sequenceMsgs) warn(c.line, `sequence has ${q.msgs.length} messages; split it (<= ${FIG.sequenceMsgs})`);
+      if (!q.msgs.length) warn(c.line, 'sequence has no messages; write a -> b: what a asks of b');
+      else for (const x of sequenceIssues(q, layoutSequence(q))) warn(c.line, `sequence: ${x.msg}`);
+    } else if (b.lang === 'chart') {
+      const r = chart(b.text, '', '', {});
+      for (const p of r.problems) warn(c.line, `chart: ${p.msg}`);
+      for (const x of r.issues) warn(c.line, `chart: ${x.msg}`);
     }
   }
 }
@@ -141,9 +156,9 @@ const slugKey = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').repla
 // language that names a drawing we do not draw is shown as code; a block type
 // we do not know shows its content as plain text. Both are silent on the
 // page, so they are said here.
-const DRAWS = ['sketch', 'flow'];
+const DRAWS = ['sketch', 'flow', 'sequence', 'chart'];
 const WIDGETS = ['tradeoffs', 'diff', 'facts'];
-const DRAW_LIKE = ['image', 'img', 'picture', 'photo', 'figure', 'fig', 'chart', 'graph', 'plot', 'diagram', 'mermaid', 'dot', 'graphviz', 'plantuml', 'ditaa', 'svg', 'canvas', 'bars', 'table'];
+const DRAW_LIKE = ['image', 'img', 'picture', 'photo', 'figure', 'fig', 'graph', 'plot', 'diagram', 'mermaid', 'dot', 'graphviz', 'plantuml', 'ditaa', 'svg', 'canvas', 'bars', 'table', 'seq', 'sequencediagram'];
 const BLOCKS = ['src', 'example', 'quote', 'comment', 'center', 'verse'];
 function blockWarnings(c, warn) {
   let inside = null;

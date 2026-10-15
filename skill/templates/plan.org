@@ -30,6 +30,7 @@ The flag flips per region, smallest region first, so a bad read path hits few us
   app -> region flag
   region flag -> *Postgres*: flag on
   region flag --> Redis: flag off
+  store: Postgres, Redis
 #+end_src
 
 ** Redis writes stop after one clean week

@@ -2,9 +2,10 @@
 //   node --test test/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseFlow, layoutFlow, flow, sketch, cols } from '../skill/lib/figure.mjs';
+import { parseFlow, layoutFlow, flowIssues, flow, sketch, cols, parseSequence, layoutSequence, sequence } from '../skill/lib/figure.mjs';
+import { parseChart, chart } from '../skill/lib/chart.mjs';
 import { parseBlocks } from '../skill/lib/md.mjs';
-import { parseBoard } from '../skill/lib/board.mjs';
+import { parseBoard, canonical } from '../skill/lib/board.mjs';
 import { lint, sentences } from '../skill/lib/lint.mjs';
 import { pageData } from '../skill/lib/compile.mjs';
 
@@ -53,27 +54,145 @@ test('flow: labels are text in the SVG, never markup', () => {
   assert.match(html, /aria-label="Diagram: cap &lt;b&gt;\. &lt;script&gt;x&lt;\/script&gt; to b/);
 });
 
-test('flow: a label never sits on a line, its own included', () => {
-  // The figure from the design-review board where a dashed line ran through "[[id]]".
-  for (const src of [
-    'direction: right\nsource card -> card: from=\nneeded card -> card: needs=\noption -> decision: listed as an option\nmentioned card --> card: [[id]], focus only',
-    'Send -> cards serve: served page\ncards serve -> log.jsonl\nlog.jsonl -> agent: cards wait\nSend -> clipboard: file page\nclipboard -> chat: you paste\nchat -> agent',
-  ]) {
-    const L = layoutFlow(parseFlow(src));
-    const bez = (s0, p0, s1, p1, t) => [s0 * (1 - 3 * t * t + 2 * t ** 3) + s1 * (3 * t * t - 2 * t ** 3),
-      p0 * (1 - 1.5 * t + 1.5 * t * t - t ** 3) + p1 * (1.5 * t - 1.5 * t * t + t ** 3)];
-    const down = L.dir === 'down';
-    const points = L.edges.flatMap((e) => (e.pts || []).slice(1).flatMap((q, x) => {
-      const [s0, p0] = e.pts[x];
-      return Array.from({ length: 33 }, (_, k) => bez(s0, p0, q[0], q[1], k / 32)).map(([sv, pv]) => (down ? [sv, pv] : [pv, sv]));
-    }));
-    for (const e of L.edges.filter((x) => x.label)) {
-      const tw = cols(e.label.text) * 7.2;
-      const x0 = e.label.anchor === 'start' ? e.label.x : e.label.anchor === 'end' ? e.label.x - tw : e.label.x - tw / 2;
-      const hits = points.filter(([x, y]) => x > x0 && x < x0 + tw && y > e.label.y - 6 && y < e.label.y + 6);
-      assert.equal(hits.length, 0, `"${e.label.text}" touches a line`);
+// Flows from the design-review board and two shapes that faulted in a field report (invented names).
+const FLOWS = [
+  'direction: right\nsource card -> card: from=\nneeded card -> card: needs=\noption -> decision: listed as an option\nmentioned card --> card: [[id]], focus only',
+  'Send -> cards serve: served page\ncards serve -> log.jsonl\nlog.jsonl -> agent: cards wait\nSend -> clipboard: file page\nclipboard -> chat: you paste\nchat -> agent',
+  'user -> client: chat\nclient -> adapter: API\nadapter -> executor: HTTP\nexecutor -> printer: driver\nclient --> model: completions\nadapter -> workers: audit job\nworkers -> printer: driver\nadapter -> package: export\npackage -> scanner: pages\nscanner -> verifiers: lines\nverifiers -> review: sheet',
+  'group Browser: web app\ngroup Cloud: *api*, worker, orders, queue\nstore: orders, queue\nweb app -> api: HTTPS\napi -> orders: write\napi -> queue: enqueue\nqueue -> worker\nworker -> orders: update\nworker --> email: notify',
+  '*board.org* -> cards render: agent writes\ncards render -> board.html\nboard.html -> you: open\nyou -> log.jsonl: Send\nlog.jsonl -> agent: cards wait\nagent -> board.org: revise\nstore: log.jsonl, board.org',
+];
+
+test('flow: arrows run at right angles, and none of these flows has a fault a reader would misread', () => {
+  for (const src of FLOWS) {
+    const g = parseFlow(src);
+    const L = layoutFlow(g);
+    for (const e of L.edges) {
+      e.xy.slice(1).forEach((q, x) => {
+        const p = e.xy[x];
+        assert.ok(Math.abs(p[0] - q[0]) < 0.01 || Math.abs(p[1] - q[1]) < 0.01, `a run of ${e.a} -> ${e.b} is not straight`);
+      });
     }
+    assert.deepEqual(flowIssues(g, L), [], src.split('\n')[0]);
   }
+});
+
+test('flow: the checks see a label on a line, a line through a box, a cut name and a drawing too wide', () => {
+  const g = parseFlow('a -> b: over');
+  const L = layoutFlow(g);
+  const e = L.edges[0];
+  // Put the label on its own line, and a stranger box across the arrow.
+  e.label = { x: e.xy[0][0], y: (e.xy[0][1] + e.xy[1][1]) / 2, anchor: 'middle', text: 'over' };
+  L.boxes.push({ k: 99, label: 'stranger', x: e.xy[0][0] - 5, y: e.xy[0][1] + 2, w: 10, h: 4, lines: ['x'], cut: false });
+  g.nodes.push({ k: 99, label: 'stranger' });
+  const codes = flowIssues(g, L).map((x) => x.code);
+  assert.ok(codes.includes('label-on-line'));
+  assert.ok(codes.includes('line-through-box'));
+  const long = parseFlow('a box whose name runs on and on and on past three whole lines of its text -> b');
+  assert.ok(flowIssues(long, layoutFlow(long)).some((x) => x.code === 'box-cut' && /shorten its name/.test(x.msg)));
+  const chain = parseFlow('direction: right\n' + Array.from({ length: 9 }, (_, i) => `step ${i} -> step ${i + 1}`).join('\n'));
+  const wide = flowIssues(chain, layoutFlow(chain)).find((x) => x.code === 'too-wide');
+  assert.match(wide.msg, /write direction: down/);
+});
+
+test('flow: a group is one frame around its boxes and no other; a store is a cylinder', () => {
+  const g = parseFlow('group Cloud: api, db\nstore: db\nweb -> api -> db\nweb -> cdn\ncdn -> api\napi -> mail');
+  assert.deepEqual(g.groups, [{ label: 'Cloud', members: [0, 1] }]);
+  assert.equal(g.nodes.find((n) => n.label === 'db').store, true);
+  assert.equal('store' in g.nodes.find((n) => n.label === 'api'), false, 'a node keeps its old shape when nothing is said');
+  const L = layoutFlow(g);
+  assert.equal(L.frames.length, 1);
+  assert.deepEqual(flowIssues(g, L), []);
+  const html = flow('group Cloud: api, db\nstore: db\nweb -> api -> db', 'Two zones', '2.1').html;
+  assert.match(html, /<g class="fg"><rect /);
+  assert.match(html, /<g class="fn store" data-n="1"><path d="M/);
+  assert.match(html, /<g class="fg-name"><text[^>]*>Cloud<\/text>/);
+  assert.match(parseFlow('group Cloud: a\ngroup Edge: a, b').problems[0].msg, /in two groups/);
+  // Many generated flows with a group: the frame never takes in a box that is not in it.
+  let seed = 3;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  const names = ['api', 'web', 'worker', 'queue', 'db', 'cache', 'auth', 'mail', 'cdn'];
+  for (let t = 0; t < 300; t++) {
+    const n = 4 + Math.floor(rnd() * 5);
+    const lines = [];
+    for (let b = 1; b < n; b++) lines.push(`${names[Math.floor(rnd() * b)]} -> ${names[b]}`);
+    for (let i = 0; i < 2; i++) { const a = Math.floor(rnd() * n); const b = Math.floor(rnd() * n); if (a !== b) lines.push(`${names[a]} -> ${names[b]}`); }
+    const k = 2 + Math.floor(rnd() * 2);
+    const s = Math.floor(rnd() * (n - k));
+    lines.push(`group Zone: ${names.slice(s, s + k).join(', ')}`);
+    if (rnd() < 0.3) lines.unshift('direction: right');
+    const gg = parseFlow(lines.join('\n'));
+    const LL = layoutFlow(gg);
+    assert.deepEqual(flowIssues(gg, LL).filter((x) => x.code === 'frame-cuts-box'), [], lines.join(' | '));
+    assert.ok(LL.width < 4000, 'a frame does not push the drawing out of bounds');
+  }
+});
+
+// ---------- sequence ----------
+
+test('sequence: columns in order of first mention, a row per message, replies dashed, a call to itself', () => {
+  const q = parseSequence('client\nclient -> api: POST /order\napi -> api: check stock\napi -> db: insert\ndb --> api: id 42\napi --> client: 201');
+  assert.deepEqual(q.parts.map((p) => p.label), ['client', 'api', 'db']);
+  assert.deepEqual(q.msgs.map((m) => [m.a, m.b, m.dashed, m.label]), [[0, 1, false, 'POST /order'], [1, 1, false, 'check stock'], [1, 2, false, 'insert'], [2, 1, true, 'id 42'], [1, 0, true, '201']]);
+  const L = layoutSequence(q);
+  const xs = L.parts.map((p) => p.cx);
+  assert.ok(xs[0] < xs[1] && xs[1] < xs[2], 'columns left to right');
+  const ys = L.rows.map((r) => r.y);
+  assert.ok(ys.every((y, i) => !i || y > ys[i - 1]), 'rows top to bottom');
+  // A label fits between the two lines it joins.
+  const r0 = L.rows[0];
+  assert.ok(xs[1] - xs[0] >= cols('POST /order') * 7.2 + 24 - 0.01);
+  assert.equal(r0.text.anchor, 'middle');
+  const html = sequence('a -> b: <x>\nb --> a', 'Calls', '3.1').html;
+  assert.match(html, /<svg class="flow seq"/);
+  assert.match(html, /<g class="fe dash" data-a="1" data-b="0">/);
+  assert.ok(html.includes('&lt;x&gt;') && !html.includes('<x>'));
+  assert.match(html, /aria-label="Sequence: Calls\. a to b \(&lt;x&gt;\); b to a"/);
+});
+
+// ---------- chart ----------
+
+const BARS = '| queue | p95 ms |\n|-------+--------|\n| NATS  |      4 |\n| Kafka |  1,100 |\n| SQS   |        |';
+
+test('chart: an Org table gives bars for names and a line for numbers or dates; a unit stays in the head', () => {
+  const c = parseChart(BARS);
+  assert.equal(c.type, 'bar');
+  assert.deepEqual(c.xs, ['NATS', 'Kafka', 'SQS']);
+  assert.deepEqual(c.series.map((x) => [x.name, x.values.map((v) => v.v)]), [['p95 ms', [4, 1100, null]]]);
+  assert.deepEqual(c.problems, []);
+  assert.equal(parseChart('| month | asks |\n|---|---|\n| 2026-08 | 9 |\n| 2026-09 | 6 |\n| 2026-10 | 3 |').type, 'line');
+  assert.equal(parseChart('type: bar\n| year | n |\n|---|---|\n| 2024 | 1 |\n| 2025 | 2 |\n| 2026 | 3 |').type, 'bar');
+  const bad = parseChart('| q | ms |\n|---|---|\n| NATS | fast |\n| SQS | 38 ms |');
+  assert.deepEqual(bad.problems.map((p) => p.msg.slice(0, 32)), ['"fast" in the column "ms" is not', '"38 ms" in the column "ms" is no']);
+  assert.match(parseChart('| a | 1 |\n| b | 2 |').problems[0].msg, /first row is read as the names of the columns/);
+  const html = chart(BARS, 'p95 by queue', '4.1').html;
+  assert.equal((html.match(/<rect class="c-bar s0"/g) || []).length, 2, 'an empty cell draws no bar');
+  assert.match(html, /aria-label="Chart: p95 by queue\. p95 ms: NATS 4, Kafka 1,100, SQS -"/);
+  const line = chart('| round | asks | cards |\n|---|---|---|\n| 1 | 9 | 22 |\n| 2 | 6 | 27 |\n| 3 | 3 | 30 |', 'Per round', '4.2').html;
+  assert.equal((line.match(/<path class="c-ln s\d"/g) || []).length, 2);
+  assert.match(line, />asks<\/text>/, 'each line is named at its end');
+});
+
+test('lint: sequence and chart are drawn kinds; their faults are said with a fix; a wide flow says how to fit', () => {
+  const m = msgs('## A card with a chart and a sequence {#a}\nGist.\n\n```chart Numbers\n| q | ms |\n|---|---|\n| NATS | fast |\n```\n\n```sequence Calls\na\n```\n');
+  assert.ok(!m.some((x) => /shown as code/.test(x)), m.join('\n'));
+  assert.ok(m.some((x) => x.startsWith('chart: "fast" in the column "ms" is not a number')));
+  assert.ok(m.some((x) => x.startsWith('sequence has no messages')));
+  const wide = msgs('## A wide flow is said to be too wide {#a}\nGist.\n\n```flow Steps\ndirection: right\n' + Array.from({ length: 9 }, (_, i) => `step ${i} -> step ${i + 1}`).join('\n') + '\n```\n');
+  assert.ok(wide.some((x) => /^flow: the drawing is \d+ px wide, and a card on the desk shows \d+ px of it; write direction: down/.test(x)), wide.join('\n'));
+});
+
+test('versions: a chart table re-aligned is the same chart; a flow with no group or store means what it meant', () => {
+  const card = (body) => parseBoard(board(`## A card with a figure here {#a}\nGist.\n\n${body}\n`)).cards[0];
+  const a = card('```chart N\n| q | ms |\n|---|---|\n| NATS | 4 |\n```');
+  const b = card('```chart N\n|  q   |  ms |\n|------+-----|\n| NATS |   4 |\n```');
+  const c = card('```chart N\n| q | ms |\n|---|---|\n| NATS | 5 |\n```');
+  assert.equal(canonical(a), canonical(b));
+  assert.notEqual(canonical(a), canonical(c));
+  // The meaning of an old flow is the JSON it had before groups and stores existed.
+  const f = card('```flow F\n*a* -> b: x\nb --> c\n```');
+  const g = parseFlow('*a* -> b: x\nb --> c');
+  assert.ok(canonical(f).includes(JSON.stringify([g.dir, g.nodes, g.edges]).replace(/"/g, '&quot;')), canonical(f));
 });
 
 // ---------- sketch ----------

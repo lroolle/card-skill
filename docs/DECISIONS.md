@@ -872,3 +872,83 @@ most screen readers speak and some may not; the card's edge has a contrast
 of 1.4:1 against the rack (1.8:1 at night), up from 1.2:1, and is carried
 by the fill and the shadow as well.
 Tests: `test/e2e.test.mjs` "resize, as a reviewer broke it".
+
+## D39. Full screen, and a reading view that packs its cards
+
+2026-10-15. Built. The human asked for "full screen mode for the board" and
+"better layout and card placement in non-desk mode".
+What was wrong: on the desk at 1440x900 the header took about a third of
+the window, so the table had about 65% of it. In the reading view a grid
+section set its cards in rows: a wide card left the third column empty when
+the next card was wide too, and a short card left a hole as tall as its
+neighbour. The page also stopped at 1280px on any screen.
+What is built:
+- Full screen: Shift + F or a button beside Desk. The header folds to one
+  line (whose turn, the title, the ask tabs), the reading view drops its
+  width limit, and the desk gets the height (about 85% at 1440x900). Where
+  the browser allows it the page asks for the real full screen, and leaving
+  that leaves the mode. A phone has no switch: its first row of tools has
+  no room, and most phones give a page no full screen.
+- Packing: in a grid section each card goes, in board order, to the column
+  that is free highest; a wide card to the two neighbouring columns that
+  are. Columns level within 32px count as level and the leftmost wins, so
+  cards of like height still read in rows. A card takes two columns when
+  its figure is wider than its real column, which full screen makes
+  narrower than the compiler's guess. Compare sections keep their rows (the
+  facts line up), lists one column, Claim the ledger.
+Why not strict rows with the holes: the holes were empty rack, not
+structure. Why not CSS masonry: no engine ships it in all three browsers.
+Why the order may bend: a later short card may stand beside an earlier
+tall one; the numerals say the order, and the page order (keys, screen
+reader) is board order.
+Rejected: a knob for the number of columns (D3); keeping the full screen
+across a reload (a browser enters it only on a press).
+Tests: `test/e2e.test.mjs` "full screen" and "rack placement" (the second
+fails with the packing turned off).
+
+## D40. Figures draw like an architecture tool, and check themselves
+
+2026-10-15. Built. Supersedes the list of kinds in D13; the rest of D13
+stands (figures are content, the compiler draws, one ink). The human asked
+for "built in archify style diagrams and charts rendering and support".
+The handoff of 2026-10-14 measured card-skill 0.2.0 against archify 2.16:
+archify validates its drawings and card-skill did not, and 0.2.0's flows
+showed the faults (a label run through by two edges, a figure wider than
+its card that `cards check` called ok, two long edges on one lane, a box
+name cut with no word).
+What is built:
+- Flow routes at right angles. Each run across a gap gets a track; runs
+  are ordered so a line that arrives beside another that leaves never runs
+  along it (a must), and so lines cross less (a should). Bends are rounded.
+  An arrow back up the flow goes out to a lane and around, entering its box
+  from the near side like every other arrow. Labels have a band under
+  their box, in rows when several labelled arrows leave one box, and may
+  sit along their arrow's run when the band is crowded.
+- `group Name: a, b`: one frame, named inside its top edge. Members stay
+  together in each rank; anything else leaves the frame's band on its own
+  side, so no member moves with it. `store: a`: a cylinder.
+- `sequence`: parts as columns in order of first mention, one row per
+  message, replies dashed, calls to itself as a loop.
+- `chart`: an Org table. Names give horizontal bars with values printed;
+  numbers or dates give a line over x, each line named at its end. One ink:
+  series differ by tone and mark.
+- Checks on the drawing's own geometry, in `cards check` and `render`, each
+  naming its parts and a fix: label on a line, on a box, on a label; line
+  through a box; two arrows on one run; a frame around a stranger; a cut
+  box name; wider than the 502px a desk card shows.
+Measured, 2000 generated flows of real shape (4 to 10 boxes, a few cross
+links, 40% labelled, some loops, groups and stores): 98.6% have no fault
+the checks know; the rest are a label on a line. Dense random graphs (up to
+two links a box) fault more, and the checks say where.
+Borrowed from archify (MIT, tt-a1i), as ideas and not as code: the list of
+faults, a diagnostic that names its subject and a fix, right-angle routes.
+Not borrowed: its placement (it has none; ours is a layered layout), its
+colour per node type, its viewer.
+Rejected: shelling out to archify for a figure (a dependency, a second
+look, colour by type); Mermaid (D13); auto-switching `direction: right` to
+down when too wide (the direction is the author's; the check names the fix);
+a button that opens a drawing full size (it would hide the drawing's spoken
+list of arrows; the drawing scrolls in its frame and zooms on the desk).
+Cost: `figure.mjs` grows to about 900 lines and `chart.mjs` is new.
+Tests: `test/figure.test.mjs` (routes, checks, groups over 300 generated
+flows, sequence, chart, lint, versions).

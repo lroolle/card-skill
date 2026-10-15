@@ -16,6 +16,18 @@ Every nightly since 2026-09-12 misses the dependency cache and rebuilds it from 
 - after :: 23 min median
 - cache hit rate :: 96% to 0%
 
+#+caption: Median nightly build, minutes, by week
+#+begin_src chart
+| week       | minutes |
+|------------+---------|
+| 2026-08-24 |      14 |
+| 2026-08-31 |      14 |
+| 2026-09-07 |      15 |
+| 2026-09-14 |      23 |
+| 2026-09-21 |      23 |
+| 2026-09-28 |      22 |
+#+end_src
+
 ** A toolchain bump on 2026-09-12 put its version into the cache key
 :PROPERTIES:
 :CUSTOM_ID: toolchain
@@ -23,6 +35,15 @@ Every nightly since 2026-09-12 misses the dependency cache and rebuilds it from 
 :FROM: cache-key
 :END:
 The new toolchain writes a patch version into the lockfile hash. The patch version changes on every runner image update.
+
+#+caption: One nightly run since the bump
+#+begin_src sequence
+runner -> toolchain: install
+toolchain -> lockfile: patch version
+runner -> cache: get by hash
+cache --> runner: miss
+runner -> registry: fetch all
+#+end_src
 
 ** Runner size and test count are ruled out
 :PROPERTIES:
