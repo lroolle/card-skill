@@ -1061,3 +1061,51 @@ agent never places); embedding archify's HTML (D40); new drawing kinds in
 this round (a timeline and a scatter are candidates on the roadmap).
 Tests: `test/sheet.test.mjs` (parts, pins, errors, room, versions, lint,
 names on x); `test/e2e.test.mjs` "sheets" in Chromium, Firefox and WebKit.
+
+## D43. A class diagram is drawn from Mermaid's lines; Mermaid itself never runs
+
+2026-10-16. Built. Adds a kind to D40; D13 and D40 stand.
+The human, on a real board: "the UML are likely not good and non-rendered;
+maybe we should introduce mermaid for the diagrams and charts?"
+What was wrong: the board drew its class diagrams as text in `sketch`
+blocks, up to 190 columns wide, because no kind drew classes.
+They read at full size only; on the desk they were noise, and no card
+could be pinned on a class.
+What is built: `#+begin_src class` reads a subset of Mermaid's
+`classDiagram`: classes with fields and methods (static, abstract),
+annotations, shown names and generics, the seven relations with their
+counts and labels, `namespace` as a frame, `direction`. The compiler draws
+it with the flow's layout: a class is a box of compartments, the parent and
+the whole stand above, each end carries its UML mark on a straight stem.
+The flow's checks, the room of a sheet and pins hold, with a class or a
+namespace as a part. What Mermaid styles, and its notes, are said by
+`cards check`, not drawn; a `mermaid` block that holds a `classDiagram` is
+told to be a `class` block.
+Measured, 2000 generated class diagrams of real shape (3 to 12 classes, a
+tree and a few cross links, a third of the lines counted or labelled,
+namespaces, a fifth left to right): 98.8% with no fault the checks know,
+on three seeds; the rest are a label on a line. The first build had 87.3%
+on a set with other names; most faults were counts on a neighbour's line.
+A box now widens (or, left to right, grows taller) to hold the counted
+lines at a side, a count takes the side away from the middle of its box
+first, and a loop's label has seven places instead of one. 23 of these 2000
+drawings are wider than a sheet, and the check names `direction LR` or a
+split. A denser set (up to six cross links, two thirds labelled) has 91%
+with no fault; the rest are a label on a crossing line, or two lines on
+one run.
+Why Mermaid's lines: agents write them well and often unasked, and the
+human reached for them first. Why not Mermaid itself: its
+bundle is 3.57 MB (`mermaid.min.js`, v11, measured 2026-10-16), against a
+whole board of 0.8 MB with its font; it draws in the browser, so
+`cards check` could not see a fault and the agent, who cannot see the page,
+would be blind; its output has no parts to pin on and its own colors and
+styles. Each of these breaks a rule that D13, D40 or D42 set.
+Rejected: Mermaid in the page, or from a CDN (above; a CDN also needs the
+network and leaks that a board was opened); a `mermaid` block that reads
+`flowchart` and `sequenceDiagram` as well (two syntaxes for one drawing;
+the next step only if agents keep writing them); `erDiagram` (a class
+diagram with fields and counts says the same for now).
+Cost: about 350 lines in `figure.mjs`; a class diagram's look is ours, so
+an agent who knows Mermaid's picture sees a different one.
+Tests: `test/class.test.mjs` (members, relations, ranks, problems,
+markup, stems and counts, 300 generated diagrams, pins, lint, versions).

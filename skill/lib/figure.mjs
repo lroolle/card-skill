@@ -3,6 +3,7 @@
 //   #+begin_src sketch    a drawing in text characters, shown as written
 //   #+begin_src flow      boxes and arrows; this file does the layout
 //   #+begin_src sequence  calls between parts in time order; this file does the layout
+//   #+begin_src class     classes and how they relate, in Mermaid's classDiagram lines
 //   #+begin_src chart     numbers from an Org table (chart.mjs)
 //
 // The agent never writes SVG and never places a box. A sketch is escaped
@@ -25,7 +26,7 @@ import { esc, inline } from './md.mjs';
 import { en } from './i18n.mjs';
 import { chart, chartParts } from './chart.mjs';
 
-export const FIGURE_LANGS = ['sketch', 'flow', 'sequence', 'chart'];
+export const FIGURE_LANGS = ['sketch', 'flow', 'sequence', 'class', 'chart'];
 // An image file shown in a card is a figure too: numbered, captioned, under the gist.
 export const IMAGE_EXT = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml' };
 export const extOf = (p) => (String(p).match(/\.([a-z0-9]+)$/i) || [, ''])[1].toLowerCase();
@@ -41,7 +42,7 @@ export function figuresIn(blocks, acc = []) {
   }
   return acc;
 }
-export const LIMITS = { sketchCols: 72, flowBoxes: 12, flowGroups: 4, sequenceParts: 6, sequenceMsgs: 16 };
+export const LIMITS = { sketchCols: 72, flowBoxes: 12, flowGroups: 4, sequenceParts: 6, sequenceMsgs: 16, classBoxes: 6 };
 
 const CH = 7.2;     // advance of one column of 12px monospace
 const LH = 16;      // line height inside a box
@@ -65,7 +66,8 @@ export function cols(s) {
 // A sheet is a card that is one drawing (a card tagged :sheet:). Another card is pinned
 // on a part of it with :ON: sheet/part, and the part then carries that card's numeral,
 // as a part of a patent drawing carries its reference numeral. A part is anything the
-// drawing names: a box or a group of a flow, a part of a sequence, a row of a bar chart,
+// drawing names: a box or a group of a flow, a class or a namespace of a class diagram,
+// a part of a sequence, a row of a bar chart,
 // a line or a point of a line chart. Its key is its name, folded: lower case, and each run of
 // spaces and other marks one dash. Letters, digits, + # and . stay, and so does the minus of a
 // number: "Web app" is web-app, "C++" is c++, "board.org" is board.org, "-1" is -1.
@@ -109,6 +111,10 @@ export function partsOf(b) {
     const g = parseFlow(b.text);
     g.nodes.forEach((nd) => add(nd.label));
     g.groups.forEach((gr) => add(gr.label));
+  } else if (b.lang === 'class') {
+    const g = parseClass(b.text);
+    g.nodes.forEach((nd) => add(nd.label));
+    g.groups.forEach((gr) => add(gr.label));
   } else if (b.lang === 'sequence') {
     parseSequence(b.text).parts.forEach((p) => add(p.label));
   } else if (b.lang === 'chart') {
@@ -123,7 +129,7 @@ export function partsOf(b) {
 export const SHEET_MAX = 1120;
 export const ROOMS = {
   card: { ...LIMITS, max: FIG_MAX },
-  sheet: { sketchCols: 160, flowBoxes: 24, flowGroups: 8, sequenceParts: 10, sequenceMsgs: 32, max: SHEET_MAX },
+  sheet: { sketchCols: 160, flowBoxes: 24, flowGroups: 8, sequenceParts: 10, sequenceMsgs: 32, classBoxes: 20, max: SHEET_MAX },
 };
 export const roomOf = (ctx) => ROOMS[ctx && ctx.room === 'sheet' ? 'sheet' : 'card'];
 // What a check says when a drawing is wider than its room.
@@ -381,6 +387,35 @@ function arrowHead(from, tip) {
   const at = (k, m) => [tip[0] - u[0] * k + v[0] * m, tip[1] - u[1] * k + v[1] * m];
   return ` M${fmt(at(6, 4))} L${fmt(tip)} L${fmt(at(6, -4))}`;
 }
+// The end of a class diagram's line at a box: its mark, and how wide its count is.
+function portEnd(e, end) {
+  return e.ends ? { mark: !!e.ends[end], count: e.counts[end] ? cols(e.counts[end]) * CH : 0 } : {};
+}
+// How far apart the lines at one side of a box stand. A diamond or a triangle is wider than
+// a line, and a count stands beside its line: then they stand far enough apart for it.
+// Running down, a count stands beside its line and takes its width; running right, it
+// stands over or under its line and takes a line of text.
+function portStep(list, down) {
+  const count = Math.max(0, ...list.map((o) => o.count || 0));
+  return Math.max(list.some((o) => o.mark) ? 20 : 14, count ? (down ? count + 18 : 30) : 0);
+}
+// How far the outermost line stands in from the box's corner: a count beside it stays over the box.
+function portEdge(list, down) {
+  const count = Math.max(0, ...list.map((o) => o.count || 0));
+  return count ? (down ? count + 10 : 20) : 8;
+}
+// The marks at the end of a class diagram's line, with the tip on the box: a hollow
+// triangle (is a kind of), a filled diamond (owns), a hollow diamond (holds).
+const MARKS = ['tri', 'dia', 'odia'];
+const MARK_STEM = 16; // the longest mark, and a little line before the first bend
+function markPath(kind, from, tip) {
+  const len = Math.hypot(tip[0] - from[0], tip[1] - from[1]) || 1;
+  const u = [(tip[0] - from[0]) / len, (tip[1] - from[1]) / len];
+  const v = [-u[1], u[0]];
+  const at = (k, m) => [tip[0] - u[0] * k + v[0] * m, tip[1] - u[1] * k + v[1] * m];
+  if (kind === 'tri') return `M${fmt(tip)} L${fmt(at(10, 6))} L${fmt(at(10, -6))} Z`;
+  return `M${fmt(tip)} L${fmt(at(6, 4))} L${fmt(at(12, 0))} L${fmt(at(6, -4))} Z`;
+}
 
 // A group's frame keeps room for its name beside its first box only where the name would
 // land on a line: a frame that grows for nothing makes the whole drawing wider. So the
@@ -412,6 +447,17 @@ function layoutPass(g, room) {
   const n = g.nodes.length;
   const groups = g.groups || [];
   const els = g.nodes.map((nd) => {
+    if (nd.cls) {
+      const { w, h } = classSize(nd);
+      // A count stands beside its line. A box long enough, across the ranks, for the counted
+      // lines that leave it and for those that come in has a place for each count between them.
+      const room = (end) => {
+        const list = g.edges.filter((e) => e[end] === nd.k).map((e) => portEnd(e, end));
+        return list.length ? portStep(list, down) * (list.length - 1) + 2 * portEdge(list, down) : 0;
+      };
+      const across = Math.max(room('a'), room('b'));
+      return { real: true, k: nd.k, node: nd, lines: [nd.label], cut: false, w: down ? Math.max(w, across) : w, h: down ? h : Math.max(h, across), rank: 0, pred: [], succ: [], group: nd.group ?? -1 };
+    }
     const { lines, cut } = wrapBox(nd.label);
     const w = Math.max(48, Math.ceil(lineWidth(lines, nd.pins)) + 2 * PAD_X);
     const h = lines.length * LH + 2 * PAD_Y + (nd.store ? 2 * RY : 0);
@@ -682,19 +728,22 @@ function layoutPass(g, room) {
   const routes = [];
   for (const i of fwd) {
     const ch = chains.get(i);
-    const rt = { i, ch, o: { toward: els[ch[1]].s }, t: { toward: els[ch[ch.length - 2]].s } };
+    const e = g.edges[i];
+    const rt = { i, ch, o: { toward: els[ch[1]].s, ...portEnd(e, 'a') }, t: { toward: els[ch[ch.length - 2]].s, ...portEnd(e, 'b') } };
     addPort(outPorts, ch[0], rt.o); addPort(inPorts, ch[ch.length - 1], rt.t);
     routes.push(rt);
   }
   [...back].sort((x, y) => x - y).forEach((i, k) => {
     const e = g.edges[i];
-    const rt = { i, back: true, o: { toward: 1e9 + k }, t: { toward: 1e9 + k } };
+    const rt = { i, back: true, o: { toward: 1e9 + k, ...portEnd(e, 'a') }, t: { toward: 1e9 + k, ...portEnd(e, 'b') } };
     addPort(outPorts, e.a, rt.o); addPort(inPorts, e.b, rt.t);
     routes.push(rt);
   });
   const spread = (j, list) => {
     const sorted = list.slice().sort((a, b) => a.toward - b.toward);
-    const span = Math.min(sizeS(els[j]) * 0.6, 14 * (sorted.length - 1));
+    const step = portStep(sorted, down);
+    const counted = sorted.some((o) => o.count);
+    const span = Math.min(counted ? sizeS(els[j]) - 2 * portEdge(sorted, down) : sizeS(els[j]) * (step > 14 ? 0.8 : 0.6), step * (sorted.length - 1));
     sorted.forEach((o, x) => { o.s = els[j].s + (sorted.length > 1 ? -span / 2 + (span * x) / (sorted.length - 1) : 0); });
   };
   outPorts.forEach((l, j) => spread(j, l));
@@ -792,16 +841,32 @@ function layoutPass(g, room) {
     padAfter.set(b.r1, FRAME_PAD);
     padBefore.set(b.r0, FRAME_PAD + (down ? FRAME_LABEL : 0));
   }
+  // The ends of a class diagram's lines. A marker (a triangle, a diamond) or a count beside
+  // its box needs a straight stem before the line may bend: room after the rank a line
+  // leaves, and before the rank it enters.
+  const endAfter = new Map();
+  const endBefore = new Map();
+  const stem = (mark, count) => Math.max(mark ? MARK_STEM : 0, count ? (down ? LH + 6 : Math.ceil(cols(count) * CH) + 14) : 0);
+  for (const rt of routes) {
+    const e = g.edges[rt.i];
+    if (!e.ends) continue;
+    const ra = els[e.a].rank;
+    const rb = els[e.b].rank;
+    endAfter.set(ra, Math.max(endAfter.get(ra) || 0, stem(e.ends.a, e.counts.a)));
+    endBefore.set(rb, Math.max(endBefore.get(rb) || 0, stem(e.ends.b, e.counts.b)));
+  }
   const parts = (r) => {
     const a = padAfter.get(r) || 0;
+    const ea = endAfter.get(r) || 0;
     const lab = labelBand.get(r) ? labelBand.get(r) + 8 : 0;
     const t = tracks.get(r) ? tracks.get(r) * TRACK + 8 : 0;
+    const eb = endBefore.get(r + 1) || 0;
     const b = padBefore.get(r + 1) || 0;
-    return { a, lab, t, b };
+    return { a, ea, lab, t, eb, b };
   };
   const gapSize = (r) => {
     const q = parts(r);
-    const need = q.a + q.lab + q.t + q.b;
+    const need = q.a + q.ea + q.lab + q.t + q.eb + q.b;
     if (r < 0 || r >= R - 1) return need + (q.t ? 4 : 0);
     return Math.max(down ? 30 : 40, need + 8);
   };
@@ -820,12 +885,12 @@ function layoutPass(g, room) {
   const trackAt = (r, t) => {
     const [g0, g1] = G.get(r);
     const q = parts(r);
-    const top = g0 + q.a + q.lab;
-    const room = g1 - q.b - top;
+    const top = g0 + q.a + q.ea + q.lab;
+    const room = g1 - q.b - q.eb - top;
     const used = (tracks.get(r) || 0) * TRACK;
     return top + Math.max(4, (room - used) / 2) + t * TRACK + TRACK / 2;
   };
-  const labelAt = (r, row) => G.get(r)[0] + (padAfter.get(r) || 0) + 4 + (labelUnit.get(r) || 0) * (row + 0.5);
+  const labelAt = (r, row) => G.get(r)[0] + (padAfter.get(r) || 0) + (endAfter.get(r) || 0) + 4 + (labelUnit.get(r) || 0) * (row + 0.5);
 
   const pt = (s, p) => (down ? [s, p] : [p, s]);
   const edges = routes.map((rt) => {
@@ -849,13 +914,14 @@ function layoutPass(g, room) {
       sp = [[rt.o.s, far(a)], [rt.o.s, y1], [rt.lane, y1], [rt.lane, y2], [rt.t.s, y2], [rt.t.s, near(b)]];
     }
     sp = simplify(sp);
-    return { a: e.a, b: e.b, dashed: e.dashed, back: !!rt.back, text: e.label, sp, xy: sp.map((q) => pt(...q)), label: null, lane: rt.lane };
+    return { a: e.a, b: e.b, dashed: e.dashed, back: !!rt.back, text: e.label, sp, xy: sp.map((q) => pt(...q)), label: null, lane: rt.lane,
+      ends: e.ends || null, counts: [] };
   });
 
   // Boxes and frames, in page coordinates.
   const boxes = els.filter((e) => e.real).map((e) => {
     const [x, y] = pt(e.s - sizeS(e) / 2, e.p - sizeP(e) / 2);
-    return { k: e.k, label: e.node.label, strong: e.node.strong, store: !!e.node.store, cut: e.cut, lines: e.lines, pins: e.node.pins || null, x, y, w: e.w, h: e.h };
+    return { k: e.k, label: e.node.label, strong: e.node.strong, store: !!e.node.store, cls: e.node.cls ? e.node : null, cut: e.cut, lines: e.lines, pins: e.node.pins || null, x, y, w: e.w, h: e.h };
   });
   const frames = B.map((b) => {
     const ms = els.filter((e) => e.real && e.group === b.gi);
@@ -885,7 +951,11 @@ function layoutPass(g, room) {
     placed.forEach((q) => { if (meets(r, q)) cost += 100; });
     return cost;
   };
-  edges.forEach((ed, ei) => {
+  // A return loop's label has one place, beside its lane. In a class diagram it is placed
+  // first, so no other label takes that place.
+  const labelOrder = edges.map((ed, ei) => ei);
+  if (edges.some((ed) => ed.ends)) labelOrder.sort((x, y) => Number(edges[y].back) - Number(edges[x].back) || x - y);
+  labelOrder.map((ei) => [edges[ei], ei]).forEach(([ed, ei]) => {
     if (!ed.text) return;
     const cands = [];
     if (ed.back) {
@@ -893,6 +963,12 @@ function layoutPass(g, room) {
       const p2 = ed.sp[3] ? ed.sp[3][1] : p1;
       const pm = (p1 + p2) / 2;
       cands.push(down ? { x: ed.lane + 6, y: pm, anchor: 'start' } : { x: pm, y: ed.lane + 12, anchor: 'middle' });
+      // A class diagram's loop label may also sit inside its lane, and nearer either end of it.
+      if (ed.ends) {
+        [pm, p1 + (p2 - p1) / 4, p2 - (p2 - p1) / 4].forEach((pv) => [1, -1].forEach((side) => cands.push(down
+          ? { x: ed.lane + side * 6, y: pv, anchor: side > 0 ? 'start' : 'end' }
+          : { x: pv, y: ed.lane + side * 12, anchor: 'middle' })));
+      }
     } else {
       const [s0] = ed.sp[0];
       const next = ed.sp.length > 2 ? ed.sp[2][0] : s0;
@@ -900,11 +976,13 @@ function layoutPass(g, room) {
       const r = els[ed.a].rank;
       for (let row = 0; row < (labelRows.get(r) || 1); row++) {
         const at = labelAt(r, row);
-        [away, -away].forEach((side) => [6, 10, 16, 24, 36].forEach((off) => {
-          cands.push(down
-            ? { x: s0 + side * off, y: at, anchor: side < 0 ? 'end' : 'start' }
-            : { x: at, y: s0 + side * (off + 5), anchor: 'middle' });
-        }));
+        const place = (side, off) => cands.push(down
+          ? { x: s0 + side * off, y: at, anchor: side < 0 ? 'end' : 'start' }
+          : { x: at, y: s0 + side * (off + 5), anchor: 'middle' });
+        // A class diagram's lines stand further apart at a box (counts, marks): more places,
+        // further out, and the near places on both sides before the far ones.
+        if (ed.ends) [6, 10, 16, 24, 36, 52, 72, 96].forEach((off) => [away, -away].forEach((side) => place(side, off)));
+        else [away, -away].forEach((side) => [6, 10, 16, 24, 36].forEach((off) => place(side, off)));
       }
       // Where the band is crowded: along the arrow's first run across the gap, on either side of it.
       if (ed.sp.length > 2) {
@@ -925,6 +1003,32 @@ function layoutPass(g, room) {
     });
     ed.label = bestL.l;
     placed.push(textBox(bestL.l, 2));
+  });
+  // How many, at each end of a class diagram's line: beside the stem, next to its box, on
+  //    whichever side touches the least.
+  edges.forEach((ed, ei) => {
+    if (!ed.ends) return;
+    const e = g.edges[routes[ei].i];
+    [['a', 0, 1], ['b', ed.sp.length - 1, -1]].forEach(([end, at, inward]) => {
+      const text = e.counts[end];
+      if (!text) return;
+      const [s, p] = ed.sp[at];
+      const tw = cols(text) * CH;
+      // First the side away from the middle of the box: the gaps between its lines stay free
+      // for the counts of the lines in the middle.
+      const out = s >= els[end === 'a' ? e.a : e.b].s ? 1 : -1;
+      const cands = down
+        ? [out, -out].map((side) => ({ x: s + side * 7, y: p + inward * 10, anchor: side > 0 ? 'start' : 'end' }))
+        : [out, -out].map((side) => ({ x: p + inward * (tw / 2 + 7), y: s + side * 10, anchor: 'middle' }));
+      let bestL = null;
+      cands.forEach((l, ci) => {
+        l.text = text;
+        const c = costOf(l, ei, ci * 0.3);
+        if (!bestL || c < bestL.c) bestL = { c, l };
+      });
+      ed.counts.push(bestL.l);
+      placed.push(textBox(bestL.l, 2));
+    });
   });
   // A frame's name: inside its top edge, at the left, or at the right where a line crosses the left.
   frames.forEach((f) => {
@@ -977,14 +1081,27 @@ function layoutPass(g, room) {
     }
   });
 
-  edges.forEach((ed) => { ed.d = routePath(ed.xy); });
+  // A flow's arrow has its head at the end. A class diagram's line has a mark at either end,
+  // or none: an open head is part of the line, a triangle or a diamond is a shape of its own.
+  edges.forEach((ed) => {
+    if (!ed.ends) { ed.d = routePath(ed.xy); return; }
+    const n = ed.xy.length;
+    ed.d = routePath(ed.xy, ed.ends.b === 'arrow') + (ed.ends.a === 'arrow' && n > 1 ? arrowHead(ed.xy[1], ed.xy[0]) : '');
+    ed.marks = [];
+    if (MARKS.includes(ed.ends.a) && n > 1) ed.marks.push({ kind: ed.ends.a, d: markPath(ed.ends.a, ed.xy[1], ed.xy[0]) });
+    if (MARKS.includes(ed.ends.b) && n > 1) ed.marks.push({ kind: ed.ends.b, d: markPath(ed.ends.b, ed.xy[n - 2], ed.xy[n - 1]) });
+  });
 
   // The drawing's bounds: boxes, frames, labels, and lines.
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   const take = (r) => { x0 = Math.min(x0, r.x0); y0 = Math.min(y0, r.y0); x1 = Math.max(x1, r.x1); y1 = Math.max(y1, r.y1); };
   boxes.forEach((b) => take(boxRect(b)));
   frames.forEach((f) => take(frameRect(f)));
-  edges.forEach((ed) => { ed.xy.forEach(([x, y]) => take({ x0: x, y0: y, x1: x, y1: y })); if (ed.label) take(textBox(ed.label, 2)); });
+  edges.forEach((ed) => {
+    ed.xy.forEach(([x, y]) => take({ x0: x, y0: y, x1: x, y1: y }));
+    if (ed.label) take(textBox(ed.label, 2));
+    ed.counts.forEach((l) => take(textBox(l, 2)));
+  });
   if (!boxes.length) take({ x0: 0, y0: 0, x1: 0, y1: 0 });
   return { x: x0, y: y0, width: Math.ceil(x1 - x0), height: Math.ceil(y1 - y0), boxes, edges, frames, dir: down ? 'down' : 'right', tangled: !settled };
 }
@@ -1001,6 +1118,7 @@ export function flowIssues(g, L, room = ROOMS.card) {
   const labels = [
     // A line within 1px of a label's text touches it, to a reader.
     ...L.edges.filter((ed) => ed.label).map((ed) => ({ text: ed.label.text, r: textBox(ed.label, 1), what: `the label "${ed.label.text}"`, fix: 'shorten the label' })),
+    ...L.edges.flatMap((ed) => (ed.counts || []).map((l) => ({ text: l.text, r: textBox(l, 1), what: `the count "${l.text}" of ${arrow(ed)}`, fix: 'shorten the count' }))),
     ...L.frames.map((f) => ({ text: f.label, r: textBox(f.text, 1), what: `the name of the group "${f.label}"`, fix: 'shorten the name of the group' })),
     ...L.frames.filter((f) => f.pinAt && !f.text.pad).map((f) => ({ r: { x0: f.pinAt.x - 1, x1: f.pinAt.x + pinsW(f.pins) + 1, y0: f.pinAt.y - PIN_H / 2, y1: f.pinAt.y + PIN_H / 2 },
       what: `the numerals on the group "${f.label}"`, fix: 'shorten the name of the group, or pin fewer cards on the group' })),
@@ -1244,8 +1362,225 @@ export function sequence(text, caption, label, ctx = {}) {
   return { html: frame('sequence', svg, caption, label, ctx), width: L.width + 4 + 2 * FIG_PAD, problems: q.problems, boxes: q.parts.length, issues: sequenceIssues(q, L, roomOf(ctx)) };
 }
 
+// ---------- class ----------
+//
+// Classes, records and types, and how they relate: a UML class diagram. The lines are
+// Mermaid's classDiagram, which agents already write well; this file reads a subset of it
+// and draws it with the flow's layout, so the flow's checks and a sheet's pins hold here
+// too. Mermaid itself never runs. One statement per line:
+//   classDiagram                         may come first, as in Mermaid
+//   class Order {                        a class and its members, one a line; a member
+//     +id: str                           with name( is a method. $ at the end: static;
+//     +total() int                       * at the end: abstract
+//   }
+//   Order : +paid bool                   a member, outside the braces
+//   class Order["Order (v2)"]            a name to show other than the id
+//   <<interface>> Store                  an annotation over the name (or inside the braces)
+//   Base <|-- Order                      Order is a kind of Base (also --|>); ..|> realizes
+//   Order *-- Line                       owns: a line has no life without its order
+//   Order o-- Coupon                     holds
+//   Order --> Customer : placed by       refers to; ..> uses or creates; -- and .. link
+//   Order "1" *-- "1..*" Line            how many, at each end
+//   namespace Billing { ... }            one frame around the classes declared inside
+//   direction LR                         left to right; TB is down, the default
+// A parent and a whole stand above what they hold; an arrow runs down. What Mermaid
+// styles (style, classDef, :::, click) and notes are said, not drawn.
+
+const END = { '<|': 'tri', '|>': 'tri', '*': 'dia', o: 'odia', '<': 'arrow', '>': 'arrow' };
+const RELATION = /^(\S+?)\s+(?:"([^"]*)"\s+)?(<\||\*|o|<)?(--|\.\.)(\|>|\*|o|>)?\s+(?:"([^"]*)"\s+)?([^\s:"]+)\s*(?::\s*(.*))?$/;
+const LOOKS = /^(style|classDef|cssClass|click|link|callback)\b/;
+const generic = (s) => s.replace(/~([^~]*)~/g, '<$1>');
+
+// parseClass(text) -> { nodes, edges, groups, dir, problems }, in the flow's shape: a node is
+// { k, label, cls: true, ann, fields, methods }, an edge { a, b, dashed, label, ends, counts }
+// with a above b, and ends and counts named by those two ends.
+export function parseClass(text) {
+  const nodes = new Map();
+  const edges = [];
+  const spaces = [];
+  const problems = [];
+  let dir = 'down';
+  let open = null;   // the class whose braces are open
+  let space = null;  // the namespace whose braces are open
+  const cls = (raw, line) => {
+    let s = String(raw).trim();
+    if (/:::/.test(s)) { problems.push({ line, msg: `":::${s.split(':::')[1]}" is a style; it is not drawn (the page has one ink)` }); s = s.split(':::')[0]; }
+    let shown = null;
+    const lm = s.match(/^([^\s["]+)\s*\[\s*"(.*)"\s*\]$/);
+    if (lm) { s = lm[1]; shown = lm[2].trim(); }
+    const id = s.replace(/~[^~]*~/g, '');
+    if (!id) { problems.push({ line, msg: 'a class has an empty name' }); return null; }
+    let n = nodes.get(id);
+    if (!n) { n = { k: nodes.size, label: generic(s), cls: true, ann: '', fields: [], methods: [] }; nodes.set(id, n); }
+    if (shown) n.label = shown;
+    else if (s !== id) n.label = generic(s);
+    if (space && n.space === undefined) n.space = space.at;
+    return n;
+  };
+  const member = (n, raw) => {
+    let t = generic(String(raw).trim());
+    const ann = t.match(/^<<\s*(.+?)\s*>>$/);
+    if (ann) { n.ann = ann[1]; return; }
+    const mark = /[$*]$/.test(t) ? t.slice(-1) : '';
+    if (mark) t = t.slice(0, -1).trimEnd();
+    if (!t) return;
+    // A method is a name and its parentheses; "(orders.py:12)" alone is not one.
+    (/[^\s(]\(/.test(t) ? n.methods : n.fields).push({ text: t, static: mark === '$', abstract: mark === '*' });
+  };
+  String(text).split('\n').forEach((raw, line) => {
+    const t = raw.trim();
+    if (!t || t.startsWith('%%') || t.startsWith('//')) return;
+    if (open) {
+      if (t === '}') open = null;
+      else member(open, t);
+      return;
+    }
+    if (/^classDiagram(-v2)?$/.test(t)) return;
+    const d = t.match(/^direction\s*:?\s*(TB|TD|BT|LR|RL|down|right)$/i);
+    if (d) { dir = /^(LR|RL|right)$/i.test(d[1]) ? 'right' : 'down'; return; }
+    const ns = t.match(/^namespace\s+(\S+)\s*\{$/);
+    if (ns) {
+      if (space) problems.push({ line, msg: `namespace "${ns[1]}" is inside "${space.label}"; a class belongs to one frame, so close the first one with }` });
+      space = { label: ns[1], at: spaces.length };
+      spaces.push(space);
+      return;
+    }
+    if (t === '}') {
+      if (space) space = null;
+      else problems.push({ line, msg: 'a } closes nothing' });
+      return;
+    }
+    const c = t.match(/^class\s+(.+?)\s*(\{\s*\}?)?$/);
+    if (c) {
+      const n = cls(c[1], line);
+      if (n && c[2] && !c[2].includes('}')) open = n;
+      return;
+    }
+    const an = t.match(/^<<\s*(.+?)\s*>>\s+(\S+)$/);
+    if (an) { const n = cls(an[2], line); if (n) n.ann = an[1]; return; }
+    if (/^note\b/i.test(t)) { problems.push({ line, msg: 'a note is not drawn; say it in the card' }); return; }
+    if (LOOKS.test(t)) { problems.push({ line, msg: `"${t.split(/\s/)[0]}" is not drawn: the compiler owns the look, and a figure has one ink` }); return; }
+    const r = t.match(RELATION);
+    if (r) {
+      const [, l, cl, lm, way, rm, cr, rr, label] = r;
+      const left = cls(l, line);
+      const right = cls(rr, line);
+      if (!left || !right) return;
+      if (left === right) { problems.push({ line, msg: `"${left.label}" relates to itself; say that in a member` }); return; }
+      const el = END[lm] || null;
+      const er = END[rm] || null;
+      // Which end stands above: a parent or a whole; else the end an arrow leaves; else the left.
+      const big = (m) => m === 'tri' || m === 'dia' || m === 'odia';
+      const leftUp = big(el) !== big(er) ? big(el) : (el === 'arrow') !== (er === 'arrow') ? er === 'arrow' : true;
+      const [a, b, ea, eb, ca, cb] = leftUp ? [left, right, el, er, cl, cr] : [right, left, er, el, cr, cl];
+      const ends = { a: ea, b: eb };
+      if (edges.some((e) => e.a === a.k && e.b === b.k && e.ends.a === ea && e.ends.b === eb)) return;
+      edges.push({ a: a.k, b: b.k, dashed: way === '..', label: (label || '').trim(), ends, counts: { a: (ca || '').trim(), b: (cb || '').trim() } });
+      return;
+    }
+    const m = t.match(/^([^\s:]+)\s*:\s*(.+)$/);
+    if (m) { const n = cls(m[1], line); if (n) member(n, m[2]); return; }
+    if (/^\S+$/.test(t)) { cls(t, line); return; }
+    problems.push({ line, msg: `"${t}" is not read; write a class, a member, or a relation such as A <|-- B` });
+  });
+  if (open) problems.push({ line: 0, msg: `the braces of class "${open.label}" are not closed; end its members with }` });
+  if (space) problems.push({ line: 0, msg: `namespace "${space.label}" is not closed; end it with }` });
+  // A namespace with no class in it draws nothing; the rest are frames, in the order written.
+  const list = [...nodes.values()];
+  const groups = [];
+  spaces.forEach((sp) => {
+    const members = list.filter((n) => n.space === sp.at).map((n) => n.k);
+    if (!members.length) { problems.push({ line: 0, msg: `namespace "${sp.label}" holds no class; declare them inside it: class A` }); return; }
+    members.forEach((k) => { list[k].group = groups.length; });
+    groups.push({ label: sp.label, members });
+  });
+  list.forEach((n) => { delete n.space; });
+  return { nodes: list, edges, groups, dir, problems };
+}
+
+const MEM_PAD = 4; // above and below the members of one compartment
+// A class is a box of compartments: the annotation and the name, the fields, the methods.
+function classSize(nd) {
+  const w = Math.max(
+    nd.ann ? cols(`«${nd.ann}»`) * CH : 0,
+    lineWidth([nd.label], nd.pins),
+    ...nd.fields.map((m) => cols(m.text) * CH),
+    ...nd.methods.map((m) => cols(m.text) * CH),
+  );
+  const comp = (list) => (list.length ? list.length * LH + 2 * MEM_PAD : 0);
+  return { w: Math.max(48, Math.ceil(w) + 2 * PAD_X), h: (nd.ann ? 2 : 1) * LH + 2 * PAD_Y + comp(nd.fields) + comp(nd.methods) };
+}
+function classBoxSvg(b) {
+  const nd = b.cls;
+  const cx = b.x + b.w / 2;
+  const out = [`<rect x="${round(b.x)}" y="${round(b.y)}" width="${b.w}" height="${b.h}" rx="3"/>`];
+  let y = b.y + PAD_Y + LH / 2;
+  if (nd.ann) { out.push(`<text class="ann" x="${round(cx)}" y="${round(y)}" text-anchor="middle" dominant-baseline="central">${esc(`«${nd.ann}»`)}</text>`); y += LH; }
+  if (b.pins) {
+    // The name and the numerals after it are centred as one.
+    const tw = cols(b.label) * CH;
+    const x0 = cx - (tw + PIN_SEP + pinsW(b.pins)) / 2;
+    out.push(`<text class="name" x="${round(x0)}" y="${round(y)}" text-anchor="start" dominant-baseline="central">${esc(b.label)}</text>` + pinSvg(b.pins, x0 + tw + PIN_SEP, y));
+  } else out.push(`<text class="name" x="${round(cx)}" y="${round(y)}" text-anchor="middle" dominant-baseline="central">${esc(b.label)}</text>`);
+  let top = b.y + 2 * PAD_Y + (nd.ann ? 2 : 1) * LH;
+  for (const list of [nd.fields, nd.methods]) {
+    if (!list.length) continue;
+    out.push(`<path class="sep" d="M${round(b.x)},${round(top)} H${round(b.x + b.w)}"/>`);
+    list.forEach((m, i) => {
+      const cl = ['mem', m.static ? 'static' : '', m.abstract ? 'abstract' : ''].filter(Boolean).join(' ');
+      out.push(`<text class="${cl}" x="${round(b.x + PAD_X)}" y="${round(top + MEM_PAD + LH * (i + 0.5))}" text-anchor="start" dominant-baseline="central">${esc(m.text)}</text>`);
+    });
+    top += list.length * LH + 2 * MEM_PAD;
+  }
+  return `<g class="fn cls${b.pins ? ' pinned' : ''}" data-n="${b.k}" data-part="${esc(partKey(b.label))}">${out.join('')}</g>`;
+}
+
+// What a reader would misread: the flow's checks, said in the words of a class diagram.
+export function classIssues(g, L, room = ROOMS.card) {
+  return flowIssues(g, L, room).map((x) => (x.code !== 'too-wide' ? x : {
+    code: x.code,
+    msg: tooWide(L.width, room, L.dir === 'right' ? 'write direction TB, or split it' : 'write direction LR (then the classes of a rank stand in a column), or split it'),
+  }));
+}
+
+export function classDiagram(text, caption, label, ctx = {}) {
+  const g = parseClass(text);
+  g.nodes.forEach((nd) => { nd.pins = pinsFor(ctx, nd.label); });
+  g.groups.forEach((gr) => { gr.pins = pinsFor(ctx, gr.label); });
+  const L = layoutFlow(g);
+  const T = ctx.t || en;
+  const name = (k) => g.nodes[k].label;
+  // Said as the relation means it: "Order owns Line", not "Order to Line".
+  const rel = (e) => {
+    const [up, low] = [name(e.a), name(e.b)];
+    const s = e.ends.a === 'tri' ? T('fig_kind_of', { a: low, b: up }) : e.ends.b === 'tri' ? T('fig_kind_of', { a: up, b: low })
+      : e.ends.a === 'dia' ? T('fig_owns', { a: up, b: low }) : e.ends.b === 'dia' ? T('fig_owns', { a: low, b: up })
+        : e.ends.a === 'odia' ? T('fig_holds', { a: up, b: low }) : e.ends.b === 'odia' ? T('fig_holds', { a: low, b: up })
+          : e.ends.a === 'arrow' && e.ends.b !== 'arrow' ? T('fig_edge', { a: low, b: up }) : T('fig_edge', { a: up, b: low });
+    return e.label ? T('fig_rel_label', { rel: s, label: e.label }) : s;
+  };
+  const cap = caption && (ctx.plain ? ctx.plain(caption) : caption);
+  const head = cap ? T('fig_class_named', { caption: cap }) : T('fig_class');
+  const said = g.edges.map(rel).join(T('fig_list_sep'));
+  const aria = esc(T('fig_said', { head, parts: said || g.nodes.map((nd) => nd.label).join(T('fig_node_sep')) }));
+  const parts = [];
+  for (const f of L.frames) {
+    parts.push(`<g class="fg${f.pins ? ' pinned' : ''}" data-part="${esc(partKey(f.label))}"><rect x="${round(f.x)}" y="${round(f.y)}" width="${round(f.w)}" height="${round(f.h)}" rx="6"/></g>`);
+  }
+  for (const e of L.edges) {
+    parts.push(`<g class="fe${e.dashed ? ' dash' : ''}${e.back ? ' back' : ''}" data-a="${e.a}" data-b="${e.b}"><path d="${e.d}"/>` +
+      e.marks.map((m) => `<path class="mk ${m.kind}" d="${m.d}"/>`).join('') +
+      (e.label ? textAt(e.label) : '') + e.counts.map((l) => textAt(l, 'count')).join('') + '</g>');
+  }
+  for (const b of L.boxes) parts.push(classBoxSvg(b));
+  for (const f of L.frames) parts.push(`<g class="fg-name">${frameName(f)}</g>`);
+  const svg = svgFrame('flow cls', L, parts.join(''), aria);
+  return { html: frame('class', svg, caption, label, ctx), width: L.width + 4 + 2 * FIG_PAD, problems: g.problems, boxes: g.nodes.length, issues: classIssues(g, L, roomOf(ctx)) };
+}
+
 // renderFigure(block, label, ctx) -> { html, width, problems?, issues? }
 export function renderFigure(b, label, ctx = {}) {
+  if (b.lang === 'class') return classDiagram(b.text, b.info, label, ctx);
   if (b.lang === 'flow') return flow(b.text, b.info, label, ctx);
   if (b.lang === 'sequence') return sequence(b.text, b.info, label, ctx);
   if (b.lang === 'chart') return chart(b.text, b.info, label, ctx);

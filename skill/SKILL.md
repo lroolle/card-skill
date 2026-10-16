@@ -1,9 +1,9 @@
 ---
 name: card-skill
-description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up; when the report is a picture (a system, a flow of calls, numbers over time), the board draws it from text as a sheet and pins each finding on the part it is about. Not for one answer, one explanation, or chat.
+description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up; when the report is a picture (a system, a flow of calls, a data model, numbers over time), the board draws it from text as a sheet and pins each finding on the part it is about. Not for one answer, one explanation, or chat.
 license: MIT
 metadata:
-  version: "0.4.0"
+  version: "0.5.0"
 ---
 
 # card-skill
@@ -19,7 +19,7 @@ Wherever this file or the CLI's own output says `cards`, run:
 node <skill>/bin/cards.mjs <command>
 ```
 
-This is cards 0.4.0. `cards render` ends with the version of the build
+This is cards 0.5.0. `cards render` ends with the version of the build
 that ran. If it names another version, this text is older than the code: a
 session keeps the SKILL.md it loaded at its start. Read `<skill>/SKILL.md`
 and `<skill>/CHANGES.md` again from disk. Do not edit this copy of the
@@ -188,6 +188,7 @@ claim is about:
 | a layout, a screen | `sketch` | text characters, as the screen looks |
 | what feeds what: a system, a pipeline, a loop | `flow` | `a -> b: label`; `group Cloud: a, b` frames boxes that belong together; `store: a` is a box that holds data |
 | who calls whom, in time order | `sequence` | `a -> b: call`, `b --> a: reply` |
+| classes, records, types: what owns, holds, extends or refers to what | `class` | Mermaid's `classDiagram` lines: `class Order { +id: str }`, `Base <\|-- Order`, `Order *-- Line`, `Order --> Customer : label`, `"1" o-- "0..*"` |
 | numbers: a comparison, a change over time | `chart` | an Org table; names in the first column give bars, numbers or dates give a line |
 
 The compiler places, routes and scales everything. A decision about a view
@@ -198,7 +199,7 @@ A figure in a card shares a narrow column with the card's words: 12 boxes,
 502 px. When the drawing is the point of a section (the system a review
 covers, the numbers a decision rests on, the flow a plan changes), make it
 a sheet: tag the card `:sheet:`. A sheet is one drawing on the board, at the
-width it needs (24 boxes, 1120 px). Its claim says what the drawing shows,
+width it needs (24 boxes, 20 classes, 1120 px). Its claim says what the drawing shows,
 its first paragraph what to look at; the drawing needs no caption. It leads
 its section: on the desk it lies beside the section's cards.
 
@@ -220,7 +221,7 @@ Read from the deploy files on 2026-10-15.
 
 Pin each card that is about a part of the drawing on that part:
 `:ON: system/queue` (the sheet's id, a slash, the part's name in lower
-case, with a dash for each space: `web app` is `web-app`). A part is a box or a group of a flow, a part of a sequence, a
+case, with a dash for each space: `web app` is `web-app`). A part is a box or a group of a flow, a class or a namespace of a class diagram, a part of a sequence, a
 row of a bar chart, a line or a point on x of a line chart. The part then
 shows the card's numeral, and focus on either one lights the other. So a
 review pins each finding on the box it is about, and an incident pins each

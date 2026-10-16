@@ -124,7 +124,7 @@ three levels.
 |---|---|---|
 | claim | the heading text | Claim, Gist, Full |
 | gist | the first paragraph | Gist, Full |
-| figure | the first `sketch`, `flow`, `sequence` or `chart` block, or image; on a sheet it comes before the gist and shows at every level | Gist, Full |
+| figure | the first `sketch`, `flow`, `sequence`, `class` or `chart` block, or image; on a sheet it comes before the gist and shows at every level | Gist, Full |
 | facts | the first description list (`- key :: value`) | Gist, Full |
 | options | the first checkbox list, on `:ASK: choose` | Gist, Full |
 | depth | every other block | Full, or when the card is opened |
@@ -271,13 +271,14 @@ and macros.
 
 A card shows the shape it talks about. When a claim is about a layout, a
 view, a flow, a structure, an order of calls or a set of numbers, draw it.
-`#+caption:` on the line above the block names it. Four kinds:
+`#+caption:` on the line above the block names it. Five kinds:
 
 | Kind | Draw it when the claim is about | You write | The compiler |
 |---|---|---|---|
 | `sketch` | a layout, a screen, anything spatial | text characters | shows them as written |
 | `flow` | what feeds what: a pipeline, an architecture, a loop | arrows, groups, stores | places every box and routes every arrow |
 | `sequence` | who calls whom, in time order | one message per line | places the columns and rows |
+| `class` | classes, records or types, and how they relate | Mermaid's `classDiagram` lines | places every class and routes every line |
 | `chart` | numbers: a comparison, or a change over time | an Org table | picks bars or a line, the scale and the marks |
 
 ```
@@ -316,6 +317,18 @@ view, a flow, a structure, an order of calls or a set of numbers, draw it.
   api --> client: 201 Created
 #+end_src
 
+#+caption: An order owns its lines and refers to its customer
+#+begin_src class
+  class Order {
+    +id: str
+    +total() int
+  }
+  <<interface>> Store
+  Order "1" *-- "1..*" Line
+  Order --> Customer : placed by
+  Store <|.. PgStore
+#+end_src
+
 #+caption: p95 latency by queue, in ms
 #+begin_src chart
   | queue | p95 ms |
@@ -351,6 +364,35 @@ view, a flow, a structure, an order of calls or a set of numbers, draw it.
   not wait), `a -> a: what` is a call to itself, `*a*` is bold. The columns
   follow the order in which the names first appear; a line with one name
   fixes that order. 6 parts and 16 messages at most.
+- `class`: the lines of Mermaid's `classDiagram`, a subset. Mermaid itself
+  never runs: the compiler reads the lines and draws them like a flow.
+  `classDiagram` may come first.
+  - `class Order { ... }` declares a class with its members, one a line, then
+    `}`. A member with a name and parentheses (`+total() int`) is a method;
+    the rest are fields. `$` at the end of a member: static (underlined);
+    `*` at the end: abstract (italic). `Order : +paid bool` adds a member
+    outside the braces. `class Order` or a relation declares a class with no
+    members. `class Order["Order v2"]` shows another name than the id;
+    `Shape~T~` shows as `Shape<T>`.
+  - `<<interface>> Store`, or `<<interface>>` inside the braces, puts an
+    annotation over the name.
+  - A relation is a line between two classes, with spaces around it:
+    `A <|-- B` (B is a kind of A; also `B --|> A`), `A <|.. B` (B realizes
+    A), `A *-- B` (A owns B), `A o-- B` (A holds B), `A --> B` (A refers to
+    B), `A ..> B` (A uses or creates B), `A -- B` and `A .. B` (a link).
+    `A "1" *-- "1..*" B` says how many at each end; `A --> B : label` labels
+    the line.
+  - The parent and the whole stand above; an arrow runs down. `direction LR`
+    lays it out left to right (`TB` is down, the default); a class with many
+    parts reads better left to right, where its parts stand in a column.
+  - `namespace Billing { ... }` draws one frame, named Billing, around the
+    classes declared inside it. A class is in one namespace at most.
+  - Not drawn, and `cards check` says so: `note`, `style`, `classDef`,
+    `cssClass`, `:::`, `click`, `link`, `callback`. Say a note in the card;
+    the compiler owns the look.
+
+  6 classes at most. A class box is as wide as its longest member, and wider
+  where several lines with a count leave it, so each count has a place.
 - `chart`: an Org table. The first row names the columns, and a rule
   (`|---+---|`) goes under it. The first column names each row; every other
   column is a series of numbers, named by its head. Put the unit in the head
@@ -371,11 +413,11 @@ view, a flow, a structure, an order of calls or a set of numbers, draw it.
   that stands on its own is a sheet.
 
 None of these blocks can carry colors, styles or markup. A sketch is escaped
-text; a flow, a sequence and a chart become SVG that the compiler writes, in
+text; a flow, a sequence, a class diagram and a chart become SVG that the compiler writes, in
 the card's one ink: series differ by tone and mark, never by color.
 
 `cards check` reads each drawing as a reader would and says what is wrong in
-it, by name, with the change that fixes it: a label on a line or over a box
+it, by name, with the change that fixes it: a label or a count on a line or over a box
 (a line within 1px of a label is on it), two labels on each other, a line
 through a box, two arrows on one run, a frame that takes in a box that is not
 in its group, a box name cut after three lines, and a drawing wider than the
@@ -410,7 +452,8 @@ Read from the deploy files on 2026-10-15.
   its number is the card's own (Fig. 1). Later figures are depth, as on a
   card.
 - A sheet is as wide as its drawing. It has the room of a sheet: 24 boxes
-  and 8 groups in a flow, 10 parts and 32 messages in a sequence, 30 bars
+  and 8 groups in a flow, 20 classes and 8 namespaces in a class diagram,
+  10 parts and 32 messages in a sequence, 30 bars
   or 200 points in a chart, 160 columns in a sketch; up to 1120 px shows at
   full size. A chart on a sheet is drawn larger.
 - It leads its section. On the rack the sheets stand side by side above
@@ -433,6 +476,7 @@ A card may be pinned on several parts: `:ON: system/queue latency/2026-10-12`.
 | Drawing | A part is |
 |---|---|
 | `flow` | a box, or a group (its name) |
+| `class` | a class (the name it shows), or a namespace |
 | `sequence` | a part (a column) |
 | `chart`, bars | a row (the name in the first column) |
 | `chart`, line | a line (the head of its column), or a point on x (`2026-10-12`) |
@@ -516,7 +560,9 @@ A warning does not stop a render. Each one is a writing rule:
   `:PROPERTIES:` drawer.
 - Syntax that does nothing here: a `#+keyword:` this build does not read; a
   block type with no look of its own; a `#+begin_src` language that names a
-  drawing this build does not draw (`image`, `mermaid`, `plot`, ...).
+  drawing this build does not draw (`image`, `mermaid`, `plot`, ...). A
+  `mermaid` block whose first line is `classDiagram` is told to be a `class`
+  block: the same lines draw there.
 - On a translation: the differences from its source (see File keywords).
 - More than 7 cards in a section, more than 30 on a board, more than 5 open asks.
 - An ask that is not a real decision (SKILL.md, section 3): it asks for
@@ -525,7 +571,8 @@ A warning does not stop a render. Each one is a writing rule:
   choice with one option; its first paragraph does not give the stakes.
 - A figure or an image with no caption (a sheet's drawing needs none); a sketch over 72
   columns; a flow over 12 boxes or 4 groups; a flow line that points a box at itself; a
-  box in two groups; a sequence over 6 parts or 16 messages; a chart cell that is not a
+  box in two groups; a class diagram over 6 classes or 4 namespaces, a class line it does not read, a
+  Mermaid style or note in it; a sequence over 6 parts or 16 messages; a chart cell that is not a
   number; a figure in the lede or a note; a `:compare:` section where only some options
   have a figure. On a sheet the limits are the sheet's (see Sheets).
 - A sheet with no drawing.

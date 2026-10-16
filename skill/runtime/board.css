@@ -403,6 +403,16 @@ svg.flow { display: block; overflow: visible; }
 /* A sequence: each part has its line down the page; the messages cross between them. */
 .flow .life { fill: none; stroke: var(--line-strong); stroke-width: 1; }
 .flow .fe .plate { fill: var(--surface); stroke: none; }
+/* A class diagram: a class is a box of compartments, the name in 600 over its members.
+   A line's end says the relation by its shape alone: a hollow triangle (a kind of), a
+   filled diamond (owns), a hollow diamond (holds), an open head (refers to). */
+.flow .fn.cls .name { font-weight: var(--w-strong); }
+.flow .fn.cls .ann { fill: var(--fg-2); }
+.flow .fn.cls .static { text-decoration: underline; }
+.flow .fn.cls .abstract { font-style: italic; }
+.flow .fe path.mk { fill: var(--surface); stroke-dasharray: none; }
+.flow .fe path.mk.dia { fill: var(--fg-3); }
+.flow .fe.hot path.mk.dia { fill: var(--fg); }
 
 /* A chart, in the card's one ink: series differ by tone and by mark. */
 svg.chart { display: block; overflow: visible; }

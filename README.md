@@ -89,8 +89,8 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
   for the choice. Change the choice, and the approval is held until the
   agent asks again.
 - **Evidence in the card.** A screenshot, lines 40 to 60 of a file, a
-  diagram (a flow with groups and stores, or a sequence of calls), a chart
-  drawn from an Org table. They travel inside the one HTML file, and
+  diagram (a flow with groups and stores, a sequence of calls, or a class
+  diagram in Mermaid's lines), a chart drawn from an Org table. They travel inside the one HTML file, and
   `cards check` says what a reader would misread in each drawing.
 - **Sheets.** A drawing can be a card of its own, at the size it needs. The
   agent pins each finding on the part of the drawing it is about: the part
@@ -189,7 +189,7 @@ DESIGN.md, TASTE.md   the visual material and its rulings
 npm test
 ```
 
-162 tests. The browser tests need Playwright and skip without it; three
+171 tests. The browser tests need Playwright and skip without it; three
 tests need Emacs (they run `org-lint` on the boards) and skip without it.
 On GitHub nothing skips: the suite runs in Chromium, Firefox and WebKit
 (`CARDS_BROWSER`), with Emacs and with the font tools.

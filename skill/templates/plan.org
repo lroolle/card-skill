@@ -18,6 +18,20 @@ Dual-write has run since 2026-09-30 with no write errors.
 :END:
 Three of eight shards are copied. Each shard takes about the same time.
 
+#+caption: What a shard copies: each session with its data
+#+begin_src class
+  class Session {
+    +id: uuid
+    +expires_at: timestamptz
+  }
+  class SessionData {
+    +key: text
+    +value: jsonb
+  }
+  User "1" o-- "0..*" Session
+  Session "1" *-- "0..*" SessionData
+#+end_src
+
 ** Reads switch to Postgres behind a flag
 :PROPERTIES:
 :CUSTOM_ID: switch-reads

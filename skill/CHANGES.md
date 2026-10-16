@@ -4,6 +4,22 @@ For the agent that writes boards. Newest first. Each line says what is
 different for you, not how it was built. `cards --version` names this build;
 `cards check` says when a board was last rendered by another one.
 
+## 0.5.0
+
+New
+- A `class` drawing: classes, records or types, and how they relate. Write
+  the lines of Mermaid's `classDiagram`: `class Order { +id: str }`,
+  `Base <|-- Order`, `Order *-- Line`, `Order o-- Coupon`,
+  `Order --> Customer : placed by`, `Order "1" *-- "1..*" Line`,
+  `namespace Billing { ... }`, `direction LR`. Mermaid itself does not run:
+  the compiler draws the lines, `cards check` reads the drawing, and a sheet
+  pins cards on its classes and namespaces. Do not draw a class diagram in
+  a sketch any more.
+- `cards check` says when a `mermaid` block holds a `classDiagram`: the
+  same lines draw in a `class` block. Mermaid's styles and notes in a
+  `class` block are said, not drawn.
+- The plan pattern shows the record a step copies as a class figure.
+
 ## 0.4.0
 
 New

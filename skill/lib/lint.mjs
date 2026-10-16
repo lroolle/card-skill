@@ -3,7 +3,7 @@
 // Errors stop a render. Warnings do not; they are the writing rules from
 // SKILL.md made checkable, so an agent hears them at the moment it can act.
 
-import { ROOMS, parseFlow, layoutFlow, flowIssues, parseSequence, layoutSequence, sequenceIssues, sketchLines, cols, isFigure, figuresIn, partKey } from './figure.mjs';
+import { ROOMS, parseFlow, layoutFlow, flowIssues, parseSequence, layoutSequence, sequenceIssues, parseClass, classIssues, sketchLines, cols, isFigure, figuresIn, partKey } from './figure.mjs';
 import { chart } from './chart.mjs';
 import { syntaxOf, pinsOn } from './board.mjs';
 
@@ -117,7 +117,7 @@ function figureWarnings(c, warn0, sx, pins = null) {
   for (const top of blocks) for (const f of figuresIn([top])) lineOfTop.set(f, top);
   // A sheet's first drawing is the sheet: it has the room of a sheet, and the claim is its caption.
   const main = c.sheet ? c.anatomy.figure : null;
-  if (c.sheet && !main) warn0(c.line, 'a sheet shows a drawing: put a flow, sequence, chart or sketch block under its first paragraph, or drop the :sheet: tag');
+  if (c.sheet && !main) warn0(c.line, 'a sheet shows a drawing: put a flow, sequence, class, chart or sketch block under its first paragraph, or drop the :sheet: tag');
   for (const b of figuresIn(blocks)) {
     const warn = (_line, msg) => warn0(lineOf(c, lineOfTop.get(b) || b), msg);
     const room = b === main ? ROOMS.sheet : ROOMS.card;
@@ -149,6 +149,16 @@ function figureWarnings(c, warn0, sx, pins = null) {
       g.groups.forEach((gr) => { gr.pins = pinned(gr.label); });
       // What a reader would misread in the drawing itself: found on its own geometry.
       if (g.nodes.length && g.nodes.length <= 2 * FIG.flowBoxes) for (const x of flowIssues(g, layoutFlow(g), room)) warn(c.line, `flow: ${x.msg}`);
+    } else if (b.lang === 'class') {
+      const g = parseClass(b.text);
+      for (const p of g.problems) warn(c.line, `class: ${p.msg}`);
+      const more = room === ROOMS.card ? ', or make it a sheet' : '';
+      if (g.nodes.length > FIG.classBoxes) warn(c.line, `class diagram has ${g.nodes.length} classes; split it (<= ${FIG.classBoxes})${more}`);
+      if (g.groups.length > FIG.flowGroups) warn(c.line, `class diagram has ${g.groups.length} namespaces; draw ${FIG.flowGroups} or fewer${more}`);
+      if (!g.nodes.length) warn(c.line, 'class diagram has no class; write: class Order { +id: str }');
+      g.nodes.forEach((nd) => { nd.pins = pinned(nd.label); });
+      g.groups.forEach((gr) => { gr.pins = pinned(gr.label); });
+      if (g.nodes.length && g.nodes.length <= 2 * FIG.classBoxes) for (const x of classIssues(g, layoutFlow(g), room)) warn(c.line, `class: ${x.msg}`);
     } else if (b.lang === 'sequence') {
       const q = parseSequence(b.text);
       for (const p of q.problems) warn(c.line, `sequence: ${p.msg}`);
@@ -201,9 +211,9 @@ const slugKey = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').repla
 // language that names a drawing we do not draw is shown as code; a block type
 // we do not know shows its content as plain text. Both are silent on the
 // page, so they are said here.
-const DRAWS = ['sketch', 'flow', 'sequence', 'chart'];
+const DRAWS = ['sketch', 'flow', 'sequence', 'class', 'chart'];
 const WIDGETS = ['tradeoffs', 'diff', 'facts'];
-const DRAW_LIKE = ['image', 'img', 'picture', 'photo', 'figure', 'fig', 'graph', 'plot', 'diagram', 'mermaid', 'dot', 'graphviz', 'plantuml', 'ditaa', 'svg', 'canvas', 'bars', 'table', 'seq', 'sequencediagram'];
+const DRAW_LIKE = ['image', 'img', 'picture', 'photo', 'figure', 'fig', 'graph', 'plot', 'diagram', 'mermaid', 'dot', 'graphviz', 'plantuml', 'ditaa', 'svg', 'canvas', 'bars', 'table', 'seq', 'sequencediagram', 'uml', 'classdiagram', 'er', 'erdiagram'];
 const BLOCKS = ['src', 'example', 'quote', 'comment', 'center', 'verse'];
 function blockWarnings(c, warn) {
   let inside = null;
@@ -218,7 +228,13 @@ function blockWarnings(c, warn) {
     if (kind === 'export') warn(at, '#+begin_export is not shown: a board never passes raw markup through');
     else if (!BLOCKS.includes(kind)) warn(at, `#+begin_${kind} has no look of its own here; its content shows as plain text (blocks: ${BLOCKS.join(', ')})`);
     else if (kind === 'src' && DRAW_LIKE.includes(lang)) {
-      warn(at, `#+begin_src ${lang} is shown as code, not drawn. Drawn kinds: ${DRAWS.join(', ')}; widgets: ${WIDGETS.join(', ')}. For a picture, put [[file:shot.png]] alone on a line`);
+      // Mermaid's class diagram is read as it is: the same lines, in a class block.
+      const first = String(c.body).split('\n').slice(k + 1).find((l) => l.trim()) || '';
+      if (/^\s*classDiagram\b/.test(first) || lang === 'classdiagram' || lang === 'uml') {
+        warn(at, `#+begin_src ${lang} is shown as code, not drawn. A class diagram is drawn from the same lines in #+begin_src class (Mermaid's classDiagram: class A { +id: str }, A <|-- B, A *-- B, A --> B : label)`);
+      } else {
+        warn(at, `#+begin_src ${lang} is shown as code, not drawn. Drawn kinds: ${DRAWS.join(', ')}; widgets: ${WIDGETS.join(', ')}. For a picture, put [[file:shot.png]] alone on a line`);
+      }
     }
   });
 }

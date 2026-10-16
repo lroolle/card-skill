@@ -16,7 +16,7 @@
 
 import { parseBlocks, plain, fenceOpen, fenceCloses, inline, renderBlocks, esc } from './md.mjs';
 import { parseOrgBlocks, orgInline, orgPlain, orgRefs } from './org.mjs';
-import { FIGURE_LANGS, parseFlow, parseSequence, sketchLines, isFigure, partKey, partsOf } from './figure.mjs';
+import { FIGURE_LANGS, parseFlow, parseSequence, parseClass, sketchLines, isFigure, partKey, partsOf } from './figure.mjs';
 import { parseChart } from './chart.mjs';
 
 // do: an action only the human can take outside the board (a login, a payment);
@@ -675,6 +675,9 @@ export function canonical(card) {
       if (b.lang === 'flow') {
         const g = parseFlow(b.text);
         body = JSON.stringify([g.dir, g.nodes, g.edges, ...(g.groups.length ? [g.groups] : [])]);
+      } else if (b.lang === 'class') {
+        const g = parseClass(b.text);
+        body = JSON.stringify([g.dir, g.nodes, g.edges, g.groups]);
       } else if (b.lang === 'sequence') {
         const q = parseSequence(b.text);
         body = JSON.stringify([q.parts, q.msgs]);

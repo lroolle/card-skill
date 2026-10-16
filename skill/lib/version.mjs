@@ -2,5 +2,5 @@
 // the page, the CLI and the tests agree. CHANGES.md lists what each version changed.
 
 export const NAME = 'card-skill';
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 export const HOME = 'https://github.com/lroolle/card-skill';
