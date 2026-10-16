@@ -132,7 +132,7 @@ is the product running; pool 7, roll 503b4783.
   </section>
 
   <section class="shelf far" id="more">
-    <div class="shelf-head"><h2>Two more things a card does</h2></div>
+    <div class="shelf-head"><h2>Three more things a card does</h2></div>
     <div class="shown">
       <div class="say">
         <h3>A changed card says so, and keeps what it said before</h3>
@@ -148,6 +148,14 @@ is the product running; pool 7, roll 503b4783.
         <p class="where">Card 11 of the same board: the two ways a reply gets back to the agent.</p>
       </div>
       <figure><picture><source media="(max-width: 900px) and (prefers-color-scheme: dark)" srcset="shots/figure-narrow-dark.png"><source media="(max-width: 900px)" srcset="shots/figure-narrow-light.png"><source media="(prefers-color-scheme: dark)" srcset="shots/figure-dark.png"><img src="shots/figure-light.png" alt="A card with a drawn figure: Send leads to a served page or a file page, and both lead to the agent" loading="lazy"></picture></figure>
+    </div>
+    <div class="shown">
+      <div class="say">
+        <h3>A drawing can be a card of its own, with the cards pinned on it</h3>
+        <p>When several cards talk about one drawing, the agent makes it a sheet: the drawing at the size it needs, first in its section. Each card about a part of it is pinned there, and the part shows the card's number. Click the number to go to the card.</p>
+        <p class="where">Card 1 of the sample above: cards 3 and 4 are pinned on the hour of the rush.</p>
+      </div>
+      <figure><picture><source media="(prefers-color-scheme: dark)" srcset="shots/sheet-dark.png"><img src="shots/sheet-light.png" alt="A line chart of cups an hour as a card of its own; at the peak at 9, the numbers 3 and 4 of the two machine cards" loading="lazy"></picture></figure>
     </div>
   </section>
 
@@ -166,12 +174,11 @@ is the product running; pool 7, roll 503b4783.
     <div class="shelf-head"><h2>Install</h2></div>
     <div class="steps">
       <div>
-<pre><code><span class="dim"># 1. Copy the skill. A real copy, not a link.</span>
+<pre><code><span class="dim"># 1. Install the skill. A real copy, not a link.</span>
 git clone https://github.com/{{REPO}}
-cp -R {{NAME}}/skill ~/.claude/skills/{{NAME}}
+cd {{NAME}} &amp;&amp; make install
 
 <span class="dim"># 2. See a board without an agent.</span>
-cd {{NAME}}
 node skill/bin/cards.mjs render design-review
 node skill/bin/cards.mjs serve</code></pre>
       </div>
@@ -179,7 +186,7 @@ node skill/bin/cards.mjs serve</code></pre>
         <p><b>Then ask for something that ends in a decision:</b></p>
         <blockquote>Compare three coffee machines for the team and let me pick. Answer with cards.</blockquote>
         <p>The skill tells the agent when a board is earned and when prose is better. Most answers should stay prose.</p>
-        <p>Node 18 or later. No dependencies. The copy does not update itself: copy it again after a pull. <code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> says which build you have.</p>
+        <p>Node 18 or later. No dependencies. <code>make install</code> copies the skill into <code>~/.claude/skills</code> for Claude Code and <code>~/.agents/skills</code> for Codex. To update: <code>git pull &amp;&amp; make install</code>. <code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> says which build you have.</p>
       </div>
     </div>
   </section>

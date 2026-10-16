@@ -135,7 +135,7 @@ is the product running; pool 7, roll 503b4783.
   </section>
 
   <section class="shelf far" id="more">
-    <div class="shelf-head"><h2>卡片还能做的两件事</h2></div>
+    <div class="shelf-head"><h2>卡片还能做的三件事</h2></div>
     <div class="shown">
       <div class="say">
         <h3>卡片改了会标出来，旧的说法也留着</h3>
@@ -151,6 +151,14 @@ is the product running; pool 7, roll 503b4783.
         <p class="where">同一个看板的卡片 11：回复传回 Agent 的两条路。</p>
       </div>
       <figure><picture><source media="(max-width: 900px) and (prefers-color-scheme: dark)" srcset="../shots/figure-narrow-dark.png"><source media="(max-width: 900px)" srcset="../shots/figure-narrow-light.png"><source media="(prefers-color-scheme: dark)" srcset="../shots/figure-dark.png"><img src="../shots/figure-light.png" alt="一张带流程图的卡片：发送之后走服务器或者走文件，两条路都通到 Agent" loading="lazy"></picture></figure>
+    </div>
+    <div class="shown">
+      <div class="say">
+        <h3>一张图可以自己就是一张卡片，别的卡片钉在图上</h3>
+        <p>好几张卡片都在讲同一张图时，Agent 就把这张图单独做成一张卡片：按图需要的大小画，排在它那一节的最前面。讲图里某个部分的卡片钉在那个部分上，那里会显示卡片的编号。点编号就跳到那张卡片。</p>
+        <p class="where">上面中文示例的卡片 1：卡片 3 和 4 钉在早高峰那个钟点上。</p>
+      </div>
+      <figure><picture><source media="(prefers-color-scheme: dark)" srcset="../shots/sheet-zh-dark.png"><img src="../shots/sheet-zh-light.png" alt="一张每小时杯数的折线图，自己就是一张卡片；9 点的高峰上标着两台机器卡片的编号 3 和 4" loading="lazy"></picture></figure>
     </div>
   </section>
 
@@ -169,12 +177,11 @@ is the product running; pool 7, roll 503b4783.
     <div class="shelf-head"><h2>安装</h2></div>
     <div class="steps">
       <div>
-<pre><code><span class="dim"># 1. 复制技能。要真的复制一份，不要做软链接。</span>
+<pre><code><span class="dim"># 1. 安装技能。要真的复制一份，不要做软链接。</span>
 git clone https://github.com/{{REPO}}
-cp -R {{NAME}}/skill ~/.claude/skills/{{NAME}}
+cd {{NAME}} &amp;&amp; make install
 
 <span class="dim"># 2. 不用 Agent，也能先看一个看板。</span>
-cd {{NAME}}
 node skill/bin/cards.mjs render design-review
 node skill/bin/cards.mjs serve</code></pre>
       </div>
@@ -182,7 +189,7 @@ node skill/bin/cards.mjs serve</code></pre>
         <p><b>然后让 Agent 做一件要你拿主意的事。</b></p>
         <blockquote>比较三台咖啡机，给团队用，让我来选。用卡片回答。</blockquote>
         <p>技能里写了什么时候值得用看板，什么时候直接说更好。多数回答还是该用文字。</p>
-        <p>需要 Node 18 及以上，没有其他依赖。复制的那一份不会自己更新，拉取新版本后再复制一次。<code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> 能看到当前版本。</p>
+        <p>需要 Node 18 及以上，没有其他依赖。<code>make install</code> 会把技能复制到 <code>~/.claude/skills</code>（Claude Code 用）和 <code>~/.agents/skills</code>（Codex 用）。更新：<code>git pull &amp;&amp; make install</code>。<code>node ~/.claude/skills/{{NAME}}/bin/cards.mjs --version</code> 能看到当前版本。</p>
       </div>
     </div>
   </section>

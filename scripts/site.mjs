@@ -137,6 +137,10 @@ async function shots() {
     ['changed-narrow', local, [400, 1400], history, { el: '#c-signal-cards' }],
     ['figure', 'design-review/index.html?view=rack&level=gist', [700, 1400], null, { el: '#c-return-channel' }],
     ['figure-narrow', 'design-review/index.html?view=rack&level=gist', [400, 1400], null, { el: '#c-return-channel' }],
+    // The sample's sheet, with the machine cards pinned on the hour of the rush. No phone
+    // width: there the chart scrolls in its card, and a picture of half a chart says less.
+    ['sheet', 'demo/index.html?view=rack&level=gist&fresh', [700, 1400], null, { el: '#c-need-rush' }],
+    ['sheet-zh', 'demo-zh/index.html?view=rack&level=gist&fresh', [700, 1400], null, { el: '#c-need-rush' }],
     // Card 6 of the sample as the page shows it, for "one card, three forms".
     ['card6', 'demo/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-machine', pad: 26 }],
     ['card6-zh', 'demo-zh/index.html?view=rack&level=gist&fresh', [420, 1200], null, { el: '#c-pick-machine', pad: 26 }],

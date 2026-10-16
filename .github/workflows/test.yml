@@ -7,7 +7,8 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 2026-10-19, and the apt cache below is for 24.04.
+    runs-on: ubuntu-24.04
     # A package mirror that stalls must not hold a job for hours.
     timeout-minutes: 25
     strategy:

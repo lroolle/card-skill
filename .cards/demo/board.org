@@ -8,14 +8,13 @@ A sample answer from an agent. Twelve people, one kitchen; the numbers are made 
 
 * What the team needs
 
-** The morning rush is 30 cups between 9 and 10
+** The morning rush is 30 cups between 9 and 10  :sheet:
 :PROPERTIES:
 :CUSTOM_ID: need-rush
 :BASIS: fact
 :END:
-I counted the cups in the kitchen log for two weeks. A third of the day's coffee goes in that one hour.
+Cups an hour, the mean of ten working days in the kitchen log. Look at 9: a third of the day's coffee goes in that one hour. The machine cards that talk about the rush are pinned there.
 
-#+caption: Cups an hour, the mean of ten working days
 #+begin_src chart
 | hour | cups |
 |------+------|
@@ -43,6 +42,7 @@ The team said so in the kitchen thread: "nobody stays late to descale a machine.
 :CUSTOM_ID: batch
 :BASIS: inference
 :FROM: need-rush need-clean
+:ON: need-rush/9
 :END:
 Two carafes make 100 cups an hour, and it rinses clean in three minutes. The coffee is good, not great.
 
@@ -61,6 +61,7 @@ Two carafes make 100 cups an hour, and it rinses clean in three minutes. The cof
 :PROPERTIES:
 :CUSTOM_ID: espresso
 :BASIS: inference
+:ON: need-rush/9
 :END:
 Someone makes each cup by hand, so the rush turns into a queue. The group and the steam wand take ten minutes to clean.
 

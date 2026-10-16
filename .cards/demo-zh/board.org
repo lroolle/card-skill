@@ -9,14 +9,13 @@
 
 * 团队需要什么
 
-** 早高峰在 9 点到 10 点，一小时要 30 杯
+** 早高峰在 9 点到 10 点，一小时要 30 杯  :sheet:
 :PROPERTIES:
 :CUSTOM_ID: need-rush
 :BASIS: fact
 :END:
-我数了两周的茶水间记录。一天的咖啡，有三分之一是在这一个小时里喝掉的。
+每小时的杯数，取茶水间记录里十个工作日的平均。看 9 点：一天的咖啡，有三分之一是在这一个小时里喝掉的。讲到早高峰的机器卡片，就钉在这里。
 
-#+caption: 每小时的杯数，十个工作日的平均
 #+begin_src chart
 | 时间 | 杯数 |
 |------+------|
@@ -44,6 +43,7 @@
 :CUSTOM_ID: batch
 :BASIS: inference
 :FROM: need-rush need-clean
+:ON: need-rush/9
 :END:
 两个咖啡壶一小时能出 100 杯，冲洗三分钟就干净。咖啡不错，只是谈不上惊艳。
 
@@ -62,6 +62,7 @@
 :PROPERTIES:
 :CUSTOM_ID: espresso
 :BASIS: inference
+:ON: need-rush/9
 :END:
 每一杯都要有人手动做，早高峰就会排起队。冲煮头和蒸汽棒要洗十分钟。
 
