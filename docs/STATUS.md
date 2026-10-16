@@ -1,9 +1,9 @@
 # Status
 
-Version 0.4.0, not tagged yet: sheets and pins (D42). 0.3.0 is the release
-of 2026-10-15. What works, what nobody has checked yet, and
-what is known to be missing. The reasons are in `docs/DECISIONS.md`; what
-comes next is the board `.cards/roadmap`.
+Version 0.4.0, tagged and released on 2026-10-15: sheets and pins (D42).
+What works, what nobody has checked yet, and what is known to be missing.
+The reasons are in `docs/DECISIONS.md`; what comes next is the board
+`.cards/roadmap`.
 
 ## What works, with a test behind it
 
@@ -25,7 +25,9 @@ from `site/` and the boards under `.cards/`.
   changed picture is.
 - Figures: sketch, flow (right angles, groups, stores), sequence and chart,
   with the checks that `cards check` runs on each drawing's geometry. 2000
-  generated flows of real shape: 98.6% with no fault the checks know.
+  generated flows of real shape, with labels and groups: 94.1% with no
+  fault the checks know, against 92.9% for 0.3.0 under its looser check.
+  The rest have a label on a line.
 - Sheets and pins (D42): a drawing that leads its section on both views, at
   the room of a sheet, and the numerals of the cards pinned on its parts,
   with focus both ways. Tested in Chromium, Firefox and WebKit.
