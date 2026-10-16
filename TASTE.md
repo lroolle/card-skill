@@ -109,3 +109,17 @@ Reuse: shadow is allowed for the one thing that is an object in the world of
 the page (the card). Nothing inside a card gets one.
 Expires: when the human rules again.
 
+## 2026-10-16 rejected: a drawing on card stock
+
+Why: the human asked on 2026-10-15 for drawings "directly render in the
+board canvas ... like another component other than the cards". 0.4.0 made
+the sheet a card with card stock, an edge and a shadow, and the drawing sat
+in it. The human, the next day: "directly put on to the board instead of
+like contained by a card". A sheet looked like one more card, only larger.
+Where: the desk and the rack of a board with twelve sheets.
+Landed: a sheet has no stock, edge or shadow at rest; it takes the board's
+color and hides the desk's dots under it; an edge shows under the pointer,
+lit and in focus (board.css, "the sheet").
+Reuse: card stock is for the things you pick up and answer one by one. A
+drawing that several cards point at is the surface they lie on.
+Expires: when the human rules again.

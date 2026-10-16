@@ -469,6 +469,32 @@ svg.chart { display: block; overflow: visible; }
 .sheet .gist { max-width: 68ch; font-size: var(--t-s); }
 /* The numeral of a sheet is the figure's number: Fig. 3. */
 .sheet .addr .n { padding: 0 6px; }
+/* A sheet is drawn on the board itself, not on card stock (the human, 2026-10-16: "directly
+   put on to the board instead of like contained by a card"). At rest it has no stock, edge or
+   shadow: its numeral and claim stand over the drawing as its title, the gist under it as its
+   caption. It is the color of the board and hides the desk's dots under it, so the grid does
+   not run through the drawing; the halos of its labels and its hollow marks take that color.
+   Under the pointer, lit and in focus it shows an edge and the marks, as a card does; it never
+   lifts, as it is not a thing you pick up. Outside what you focus its drawing lies back. A done
+   sheet lies back as one line of card stock, as any done card. */
+.card.sheet:is(:not([data-status="done"]), .open),
+.board.focusing .card.sheet:is(:not([data-status="done"]), .open):not(.focused):not(.lit) { background: var(--bg); border-color: transparent; box-shadow: none; }
+.card.sheet:is(:not([data-status="done"]), .open):is(:hover, .lit) { border-color: var(--line-strong); box-shadow: none; }
+.card.sheet:is(:not([data-status="done"]), .open):is(.focused, :focus-visible) { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sheet > .fig { transition: opacity var(--fast) var(--ease); }
+.board.focusing .card.sheet:not(.focused):not(.lit) > .fig { opacity: 0.55; }
+.card.sheet:is(:not([data-status="done"]), .open) > .fig .fig-body {
+  background:
+    linear-gradient(to right, var(--bg) 40%, transparent) left / 24px 100% no-repeat local,
+    linear-gradient(to left, var(--bg) 40%, transparent) right / 24px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--shadow), transparent) left / 10px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--shadow), transparent) right / 10px 100% no-repeat scroll,
+    var(--bg);
+}
+.card.sheet:is(:not([data-status="done"]), .open) > .fig .flow .fe text { stroke: var(--bg); }
+.card.sheet:is(:not([data-status="done"]), .open) > .fig .flow .fe .plate { fill: var(--bg); }
+.card.sheet:is(:not([data-status="done"]), .open) > .fig .flow .fe path.mk:not(.dia) { fill: var(--bg); }
+.card.sheet:is(:not([data-status="done"]), .open) > .fig .chart :is(.c-bar.s2, .c-mk.s1, .c-mk.s3) { fill: var(--bg); }
 
 /* A card pinned on a part carries its numeral there, as a part of a patent drawing carries
    its reference numeral. It is the card numeral's own mark; a click goes to the card. In

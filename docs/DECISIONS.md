@@ -1109,3 +1109,31 @@ Cost: about 350 lines in `figure.mjs`; a class diagram's look is ours, so
 an agent who knows Mermaid's picture sees a different one.
 Tests: `test/class.test.mjs` (members, relations, ranks, problems,
 markup, stems and counts, 300 generated diagrams, pins, lint, versions).
+
+## D44. A sheet is drawn on the board, not on a card
+
+2026-10-16. Built. Supersedes the look of a sheet in D42; what a sheet is
+and does stands (a card: id, numeral, versions, marks, reply, ask, pins).
+The human, of the 0.4.0 sheet: "let's figure it out like the diagrams /
+charts can directly put on to the board instead of like contained by a
+card? not so sure just an idea". It is the second time: D42 began with
+"directly render in the board canvas ... like another component other than
+the cards", and built the component as card stock.
+What is built: a sheet has no card stock, edge or shadow at rest. It takes
+the board's color, so it hides the desk's dots under it; its numeral and
+claim stand over the drawing as its title, the gist under it as its
+caption. Label halos and hollow marks in it take the board's color; boxes
+stay card stock. Under the pointer and when lit it shows an edge, in focus
+the card's focus edge and ring, and never a lift. Outside what you focus
+its drawing fades. A done sheet stays a card of one line, as any done card.
+Only `board.css` changes.
+Why the look and not the model: everything a sheet does needs it to stay a
+card (D42). What the human sees as "a card" is the stock, the edge and the
+shadow; those are the parts that go.
+Rejected: a frame of its own around the drawing (a card under another
+name); no hover edge at all (then nothing says the sheet can take marks
+and a reply until the marks appear).
+Cost: a done sheet and an open one look different in kind. A sheet with
+an ask has its tab over a drawing with no edge.
+Tests: `test/e2e.test.mjs` "a sheet lies on the board" (Chromium, Firefox
+and WebKit).

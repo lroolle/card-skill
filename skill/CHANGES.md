@@ -20,6 +20,11 @@ New
   `class` block are said, not drawn.
 - The plan pattern shows the record a step copies as a class figure.
 
+Changed
+- A sheet is drawn on the board itself, not on a card: no card stock, edge
+  or shadow until the pointer or focus is on it. Nothing changes in what
+  you write.
+
 ## 0.4.0
 
 New

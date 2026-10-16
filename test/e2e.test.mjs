@@ -1535,6 +1535,70 @@ test('rack placement: cards pack into columns in board order; no hole beside a w
   }
 });
 
+test('a sheet lies on the board: no card stock, edge or shadow until the pointer or focus is on it; a class diagram draws its parts', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const ref = resolveBoard('canvas', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  const card = (id, claim, props, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n${props}:END:\n${body}\n`;
+  fs.writeFileSync(ref.file, `#+title: Canvas\n\n* The model\n\n${[
+    card('model', 'An order owns its lines  :sheet:', '', 'Read from the schema.\n\n#+begin_src class\n  class Order {\n    +id: str\n    +total() int\n  }\n  Order "1" *-- "1..*" Line : has\n  Order --> Customer\n  Base <|-- Order\n#+end_src'),
+    card('tax', 'A line has no tax rate', ':ON: model/line\n', 'The total is wrong abroad.'),
+    card('other', 'The export runs nightly', '', 'Nothing to do with the model.'),
+    card('later', 'The export could run hourly', ':FROM: other\n', 'Linked to the export, not to the model.'),
+  ].join('\n')}`);
+  const r = buildBoard(ref, { cwd });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(r.warnings.map((w) => w.msg), []);
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    for (const scheme of ['light', 'dark']) {
+      const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
+      const errors = [];
+      page.on('pageerror', (e) => errors.push(e.message));
+      await page.goto(url + '?view=desk&level=gist');
+      await page.waitForSelector('.board.view-desk');
+      // The board's color, as this engine writes it.
+      const bg = await page.evaluate(() => { const p = document.createElement('i'); p.style.cssText = 'background:var(--bg);color:var(--bg)'; document.body.append(p); const c = getComputedStyle(p); const v = [c.backgroundColor, c.color]; p.remove(); return v; });
+      const look = (sel) => page.evaluate((s) => { const c = getComputedStyle(document.querySelector(s)); return { bg: c.backgroundColor, shadow: c.boxShadow, edge: c.borderTopColor }; }, sel);
+      const sheet = await look('#c-model');
+      assert.equal(sheet.bg, bg[0], `${scheme}: the sheet is the board's color`);
+      assert.equal(sheet.shadow, 'none', `${scheme}: no shadow`);
+      assert.match(sheet.edge, /rgba\(0, 0, 0, 0\)|transparent/, `${scheme}: no edge`);
+      assert.notEqual((await look('#c-tax')).shadow, 'none', `${scheme}: a card keeps its shadow`);
+      // A label's halo and a hollow mark take the board's color; a box stays card stock.
+      assert.equal(await page.$eval('#c-model .fe text', (t) => getComputedStyle(t).stroke), bg[1]);
+      assert.notEqual(await page.$eval('#c-model .fn.cls rect', (t) => getComputedStyle(t).fill), bg[1]);
+      assert.deepEqual(await page.$$eval('#c-model .mk', (m) => m.map((x) => x.getAttribute('class'))), ['mk dia', 'mk tri']);
+      assert.deepEqual(await page.$$eval('#c-model .fn.cls', (g) => g.map((x) => x.dataset.part)), ['order', 'line', 'customer', 'base']);
+      // Under the pointer it shows an edge; in focus, as a card on the desk, its marks.
+      const at = await page.locator('#c-model .claim').boundingBox();
+      await page.mouse.move(at.x + 10, at.y + 5);
+      await page.waitForTimeout(200);
+      assert.doesNotMatch((await look('#c-model')).edge, /rgba\(0, 0, 0, 0\)|transparent/);
+      await page.click('#c-model .claim');
+      assert.ok(await page.isVisible('#c-model .acts'));
+      // In focus: the ring, and no lift (the shadow moves for 140ms; wait for it to rest).
+      await page.waitForFunction(() => /^\S.*\b0px 0px 0px 3px$/.test(getComputedStyle(document.querySelector('#c-model')).boxShadow), null, { timeout: 3000 });
+      await page.keyboard.press('Escape');
+      // Focus on a card pinned on it lights the sheet and the part; focus elsewhere lays its drawing back.
+      await page.click('#c-tax .claim');
+      assert.ok(await page.$eval('#c-model', (e) => e.classList.contains('lit')));
+      assert.deepEqual(await page.$$eval('#c-model svg .lit', (els) => els.map((e) => e.dataset.part)), ['line']);
+      await page.click('#c-other .claim');
+      await page.mouse.move(5, 5);
+      await page.waitForTimeout(300);
+      assert.ok(await page.evaluate(() => document.querySelector('.board').classList.contains('focusing')));
+      await page.waitForFunction(() => +getComputedStyle(document.querySelector('#c-model > .fig')).opacity < 0.6, null, { timeout: 3000 });
+      assert.equal(await page.$eval('#c-model', (e) => getComputedStyle(e).backgroundColor), bg[0], 'outside the focus it is still the board');
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  } finally {
+    await browser.close();
+  }
+});
+
 test('sheets: a drawing leads its section, side by side on the rack and in a lane on the desk; a numeral in it goes to its card, and focus lights the part', { skip: !chromium && 'playwright not installed' }, async () => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
   const ref = resolveBoard('sheets', cwd);

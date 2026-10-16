@@ -8,7 +8,7 @@ The reasons are in `docs/DECISIONS.md`; what comes next is the board
 
 ## What works, with a test behind it
 
-`npm test`: 171 tests. 25 of them drive a real browser; on GitHub they run
+`npm test`: 172 tests. 25 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
