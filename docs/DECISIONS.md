@@ -1081,18 +1081,19 @@ The flow's checks, the room of a sheet and pins hold, with a class or a
 namespace as a part. What Mermaid styles, and its notes, are said by
 `cards check`, not drawn; a `mermaid` block that holds a `classDiagram` is
 told to be a `class` block.
-Measured, 2000 generated class diagrams of real shape (3 to 12 classes, a
+Measured on generated class diagrams of real shape (3 to 12 classes, a
 tree and a few cross links, a third of the lines counted or labelled,
-namespaces, a fifth left to right): 98.8% with no fault the checks know,
-on three seeds; the rest are a label on a line. The first build had 87.3%
-on a set with other names; most faults were counts on a neighbour's line.
-A box now widens (or, left to right, grows taller) to hold the counted
-lines at a side, a count takes the side away from the middle of its box
-first, and a loop's label has seven places instead of one. 23 of these 2000
-drawings are wider than a sheet, and the check names `direction LR` or a
-split. A denser set (up to six cross links, two thirds labelled) has 91%
-with no fault; the rest are a label on a crossing line, or two lines on
-one run.
+namespaces, a fifth left to right), 2000 distinct ones for each of six
+seeds of mulberry32: 98.8% to 99.2% with no fault the checks know. The rest
+are a label on a line among many, two lines on one run, and once in 2000
+a count on a label. 13 to 23 of each 2000 are wider than a sheet; the
+check names `direction LR` or a split. A denser set (up to six cross links,
+two thirds labelled) has 92% to 93%; the rest are labels on crossing lines.
+On the way, most faults were counts on a neighbour's line. A box now widens
+(or, left to right, grows taller) to hold the counted lines at a side, a
+count takes the side away from the middle of its box first and stands
+clear of the mark at its end, and a loop's label has seven places instead
+of one. A check now says when a label or a count touches a mark.
 Why Mermaid's lines: agents write them well and often unasked, and the
 human reached for them first. Why not Mermaid itself: its
 bundle is 3.57 MB (`mermaid.min.js`, v11, measured 2026-10-16), against a
@@ -1105,10 +1106,25 @@ network and leaks that a board was opened); a `mermaid` block that reads
 `flowchart` and `sequenceDiagram` as well (two syntaxes for one drawing;
 the next step only if agents keep writing them); `erDiagram` (a class
 diagram with fields and counts says the same for now).
-Cost: about 350 lines in `figure.mjs`; a class diagram's look is ours, so
+A reviewer who did not build it read the first commit. Flows did not move:
+12030 renders of 4010 flows (boards, templates, generated) came out byte
+for byte as in 0.4.0, and still do after the fixes. The parser did: a line
+it could not read became a class, and the one-line body our own docs show
+(`class Order { +id: str }`) drew a box named `Order { +id: str }`, with
+no word from `cards check`; a second relation between two classes was
+dropped when only its dash, label or counts differed; nested generics came
+out wrong; a relation inside a namespace pulled the other class into it;
+`BT` and `RL` were silent; a classifier after `()` showed as text; a count
+touched a triangle's corner left to right. Worst for the record: the
+test's random generator, an LCG on doubles, repeated after 10466 draws, so
+"300 diagrams" were 99 and the first numbers here could not be reproduced.
+All are fixed, each with a test; the same generator in two older tests is
+replaced too, and they pass on a true sample.
+Cost: about 420 lines in `figure.mjs`; a class diagram's look is ours, so
 an agent who knows Mermaid's picture sees a different one.
 Tests: `test/class.test.mjs` (members, relations, ranks, problems,
-markup, stems and counts, 300 generated diagrams, pins, lint, versions).
+markup, stems and counts, 300 generated diagrams, pins, lint, versions,
+and the review's inputs).
 
 ## D44. A sheet is drawn on the board, not on a card
 

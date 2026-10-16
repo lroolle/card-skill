@@ -16,8 +16,9 @@ New
   pins cards on its classes and namespaces. Do not draw a class diagram in
   a sketch any more.
 - `cards check` says when a `mermaid` block holds a `classDiagram`: the
-  same lines draw in a `class` block. Mermaid's styles and notes in a
-  `class` block are said, not drawn.
+  same lines draw in a `class` block. Mermaid's styles, notes, front
+  matter and `accTitle` in a `class` block are said, not drawn, and so is
+  a line it cannot read, such as `A<|--B` with no spaces.
 - The plan pattern shows the record a step copies as a class figure.
 
 Changed

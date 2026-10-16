@@ -110,7 +110,8 @@ test('flow: a group is one frame around its boxes and no other; a store is a cyl
   assert.match(parseFlow('group Cloud: a\ngroup Edge: a, b').problems[0].msg, /in two groups/);
   // Many generated flows with a group: the frame never takes in a box that is not in it.
   let seed = 3;
-  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  // mulberry32: an LCG on doubles loses its low bits and repeats after a few thousand draws.
+  const rnd = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const names = ['api', 'web', 'worker', 'queue', 'db', 'cache', 'auth', 'mail', 'cdn'];
   for (let t = 0; t < 300; t++) {
     const n = 4 + Math.floor(rnd() * 5);

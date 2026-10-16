@@ -370,10 +370,13 @@ view, a flow, a structure, an order of calls or a set of numbers, draw it.
   - `class Order { ... }` declares a class with its members, one a line, then
     `}`. A member with a name and parentheses (`+total() int`) is a method;
     the rest are fields. `$` at the end of a member: static (underlined);
-    `*` at the end: abstract (italic). `Order : +paid bool` adds a member
+    `*` at the end: abstract (italic); either may also stand right after
+    the parentheses (`+make()$ Order`). `class Order { +id: str }` on one
+    line holds one member. `Order : +paid bool` adds a member
     outside the braces. `class Order` or a relation declares a class with no
     members. `class Order["Order v2"]` shows another name than the id;
-    `Shape~T~` shows as `Shape<T>`.
+    `Shape~T~` shows as `Shape<T>`, `List~List~int~~` as
+    `List<List<int>>`. A class name is letters, digits, `_`, `.` and `-`.
   - `<<interface>> Store`, or `<<interface>>` inside the braces, puts an
     annotation over the name.
   - A relation is a line between two classes, with spaces around it:
@@ -381,15 +384,20 @@ view, a flow, a structure, an order of calls or a set of numbers, draw it.
     A), `A *-- B` (A owns B), `A o-- B` (A holds B), `A --> B` (A refers to
     B), `A ..> B` (A uses or creates B), `A -- B` and `A .. B` (a link).
     `A "1" *-- "1..*" B` says how many at each end; `A --> B : label` labels
-    the line.
+    the line. A relation written twice is one line; two relations between
+    the same classes that say different things are two lines.
   - The parent and the whole stand above; an arrow runs down. `direction LR`
     lays it out left to right (`TB` is down, the default); a class with many
     parts reads better left to right, where its parts stand in a column.
+    `BT` and `RL` are drawn as `TB` and `LR`, and `cards check` says so.
   - `namespace Billing { ... }` draws one frame, named Billing, around the
-    classes declared inside it. A class is in one namespace at most.
+    classes declared inside it with `class`. A class that a relation inside
+    it names stays where it is declared. A class is in one namespace at most.
   - Not drawn, and `cards check` says so: `note`, `style`, `classDef`,
-    `cssClass`, `:::`, `click`, `link`, `callback`. Say a note in the card;
-    the compiler owns the look.
+    `cssClass`, `:::`, `click`, `link`, `callback`, front matter between
+    `---` lines, `accTitle` and `accDescr`. Say a note in the card; the
+    compiler owns the look. A line it cannot read, such as a relation with
+    no spaces around it (`A<|--B`), is said too; it never becomes a class.
 
   6 classes at most. A class box is as wide as its longest member, and wider
   where several lines with a count leave it, so each count has a place.

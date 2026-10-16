@@ -397,25 +397,27 @@ function portEnd(e, end) {
 // stands over or under its line and takes a line of text.
 function portStep(list, down) {
   const count = Math.max(0, ...list.map((o) => o.count || 0));
-  return Math.max(list.some((o) => o.mark) ? 20 : 14, count ? (down ? count + 18 : 30) : 0);
+  return Math.max(list.some((o) => o.mark) ? 20 : 14, count ? (down ? count + 22 : 36) : 0);
 }
 // How far the outermost line stands in from the box's corner: a count beside it stays over the box.
 function portEdge(list, down) {
   const count = Math.max(0, ...list.map((o) => o.count || 0));
-  return count ? (down ? count + 10 : 20) : 8;
+  return count ? (down ? count + 14 : 28) : 8;
 }
 // The marks at the end of a class diagram's line, with the tip on the box: a hollow
 // triangle (is a kind of), a filled diamond (owns), a hollow diamond (holds).
 const MARKS = ['tri', 'dia', 'odia'];
 const MARK_STEM = 16; // the longest mark, and a little line before the first bend
-function markPath(kind, from, tip) {
+function markPts(kind, from, tip) {
   const len = Math.hypot(tip[0] - from[0], tip[1] - from[1]) || 1;
   const u = [(tip[0] - from[0]) / len, (tip[1] - from[1]) / len];
   const v = [-u[1], u[0]];
   const at = (k, m) => [tip[0] - u[0] * k + v[0] * m, tip[1] - u[1] * k + v[1] * m];
-  if (kind === 'tri') return `M${fmt(tip)} L${fmt(at(10, 6))} L${fmt(at(10, -6))} Z`;
-  return `M${fmt(tip)} L${fmt(at(6, 4))} L${fmt(at(12, 0))} L${fmt(at(6, -4))} Z`;
+  return kind === 'tri' ? [tip, at(10, 6), at(10, -6)] : [tip, at(6, 4), at(12, 0), at(6, -4)];
 }
+const markPath = (pts) => `M${pts.map(fmt).join(' L')} Z`;
+// How far a count stands from its line: clear of the half width of the mark at that end.
+const COUNT_OFF = { tri: 11, dia: 9, odia: 9 };
 
 // A group's frame keeps room for its name beside its first box only where the name would
 // land on a line: a frame that grows for nothing makes the whole drawing wider. So the
@@ -1017,9 +1019,10 @@ function layoutPass(g, room) {
       // First the side away from the middle of the box: the gaps between its lines stay free
       // for the counts of the lines in the middle.
       const out = s >= els[end === 'a' ? e.a : e.b].s ? 1 : -1;
+      const off = COUNT_OFF[e.ends[end]] || 7;
       const cands = down
-        ? [out, -out].map((side) => ({ x: s + side * 7, y: p + inward * 10, anchor: side > 0 ? 'start' : 'end' }))
-        : [out, -out].map((side) => ({ x: p + inward * (tw / 2 + 7), y: s + side * 10, anchor: 'middle' }));
+        ? [out, -out].map((side) => ({ x: s + side * off, y: p + inward * 10, anchor: side > 0 ? 'start' : 'end' }))
+        : [out, -out].map((side) => ({ x: p + inward * (tw / 2 + 7), y: s + side * (off + 5), anchor: 'middle' }));
       let bestL = null;
       cands.forEach((l, ci) => {
         l.text = text;
@@ -1088,8 +1091,11 @@ function layoutPass(g, room) {
     const n = ed.xy.length;
     ed.d = routePath(ed.xy, ed.ends.b === 'arrow') + (ed.ends.a === 'arrow' && n > 1 ? arrowHead(ed.xy[1], ed.xy[0]) : '');
     ed.marks = [];
-    if (MARKS.includes(ed.ends.a) && n > 1) ed.marks.push({ kind: ed.ends.a, d: markPath(ed.ends.a, ed.xy[1], ed.xy[0]) });
-    if (MARKS.includes(ed.ends.b) && n > 1) ed.marks.push({ kind: ed.ends.b, d: markPath(ed.ends.b, ed.xy[n - 2], ed.xy[n - 1]) });
+    for (const [kind, from, tip] of [[ed.ends.a, ed.xy[1], ed.xy[0]], [ed.ends.b, ed.xy[n - 2], ed.xy[n - 1]]]) {
+      if (!MARKS.includes(kind) || n < 2) continue;
+      const pts = markPts(kind, from, tip);
+      ed.marks.push({ kind, pts, d: markPath(pts) });
+    }
   });
 
   // The drawing's bounds: boxes, frames, labels, and lines.
@@ -1389,7 +1395,23 @@ export function sequence(text, caption, label, ctx = {}) {
 const END = { '<|': 'tri', '|>': 'tri', '*': 'dia', o: 'odia', '<': 'arrow', '>': 'arrow' };
 const RELATION = /^(\S+?)\s+(?:"([^"]*)"\s+)?(<\||\*|o|<)?(--|\.\.)(\|>|\*|o|>)?\s+(?:"([^"]*)"\s+)?([^\s:"]+)\s*(?::\s*(.*))?$/;
 const LOOKS = /^(style|classDef|cssClass|click|link|callback)\b/;
-const generic = (s) => s.replace(/~([^~]*)~/g, '<$1>');
+// A generic in tildes, as Mermaid writes it, nested too: List~List~int~~ is List<List<int>>.
+// A tilde before a letter opens one; any other tilde closes the last one open.
+function generic(s) {
+  let out = '';
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] !== '~') { out += s[i]; continue; }
+    if (/[\p{L}\p{N}_]/u.test(s[i + 1] || '')) { out += '<'; depth++; } else if (depth) { out += '>'; depth--; } else out += '~';
+  }
+  return out;
+}
+// A class id: letters, digits, _ . and single dashes, then a generic. "Animal<|--Duck" is
+// not one: it is a relation written without its spaces.
+const classId = (s) => {
+  const base = s.split('~')[0];
+  return /^[\p{L}\p{N}_.-]+$/u.test(base) && !/--|\.\./.test(base) && (base === s || /^[^~]+~.*~$/.test(s));
+};
 
 // parseClass(text) -> { nodes, edges, groups, dir, problems }, in the flow's shape: a node is
 // { k, label, cls: true, ann, fields, methods }, an edge { a, b, dashed, label, ends, counts }
@@ -1402,42 +1424,69 @@ export function parseClass(text) {
   let dir = 'down';
   let open = null;   // the class whose braces are open
   let space = null;  // the namespace whose braces are open
-  const cls = (raw, line) => {
+  let skip = null;   // a block this build does not read: front matter, accDescr { }
+  // A class by its id. Only a class line declares it into the namespace it stands in.
+  const cls = (raw, line, declare = false) => {
     let s = String(raw).trim();
     if (/:::/.test(s)) { problems.push({ line, msg: `":::${s.split(':::')[1]}" is a style; it is not drawn (the page has one ink)` }); s = s.split(':::')[0]; }
     let shown = null;
     const lm = s.match(/^([^\s["]+)\s*\[\s*"(.*)"\s*\]$/);
     if (lm) { s = lm[1]; shown = lm[2].trim(); }
-    const id = s.replace(/~[^~]*~/g, '');
-    if (!id) { problems.push({ line, msg: 'a class has an empty name' }); return null; }
+    if (!classId(s)) {
+      problems.push({ line, msg: `"${s}" is not a class name; a relation needs spaces around it (A <|-- B), and a name is letters, digits, _ . -` });
+      return null;
+    }
+    const id = s.split('~')[0];
     let n = nodes.get(id);
     if (!n) { n = { k: nodes.size, label: generic(s), cls: true, ann: '', fields: [], methods: [] }; nodes.set(id, n); }
     if (shown) n.label = shown;
     else if (s !== id) n.label = generic(s);
-    if (space && n.space === undefined) n.space = space.at;
+    if (declare && space) {
+      if (n.space === undefined) n.space = space.at;
+      else if (n.space !== space.at) problems.push({ line, msg: `"${n.label}" is declared in two namespaces; a class belongs to one` });
+    }
     return n;
   };
   const member = (n, raw) => {
     let t = generic(String(raw).trim());
     const ann = t.match(/^<<\s*(.+?)\s*>>$/);
     if (ann) { n.ann = ann[1]; return; }
-    const mark = /[$*]$/.test(t) ? t.slice(-1) : '';
-    if (mark) t = t.slice(0, -1).trimEnd();
+    // $ static, * abstract: at the end, or right after the parentheses of a method.
+    let mark = '';
+    if (/[$*]$/.test(t)) { mark = t.slice(-1); t = t.slice(0, -1).trimEnd(); } else {
+      const pm = t.match(/\)([$*])/);
+      if (pm) { mark = pm[1]; t = t.replace(/\)([$*])/, ')'); }
+    }
     if (!t) return;
     // A method is a name and its parentheses; "(orders.py:12)" alone is not one.
     (/[^\s(]\(/.test(t) ? n.methods : n.fields).push({ text: t, static: mark === '$', abstract: mark === '*' });
   };
+  let first = true;
   String(text).split('\n').forEach((raw, line) => {
     const t = raw.trim();
     if (!t || t.startsWith('%%') || t.startsWith('//')) return;
+    const atTop = first;
+    first = false;
+    if (skip) { if (t === skip) skip = null; return; }
     if (open) {
       if (t === '}') open = null;
       else member(open, t);
       return;
     }
+    if (atTop && t === '---') { skip = '---'; problems.push({ line, msg: 'front matter is not read; the card\'s claim or caption names the drawing' }); return; }
     if (/^classDiagram(-v2)?$/.test(t)) return;
+    const acc = t.match(/^(accTitle|accDescr)\b\s*(:|\{)?/);
+    if (acc) {
+      if (acc[2] === '{') skip = '}';
+      problems.push({ line, msg: `${acc[1]} is not read; a screen reader hears the caption and every relation` });
+      return;
+    }
     const d = t.match(/^direction\s*:?\s*(TB|TD|BT|LR|RL|down|right)$/i);
-    if (d) { dir = /^(LR|RL|right)$/i.test(d[1]) ? 'right' : 'down'; return; }
+    if (d) {
+      dir = /^(LR|RL|right)$/i.test(d[1]) ? 'right' : 'down';
+      if (/^(BT|RL)$/i.test(d[1])) problems.push({ line, msg: `direction ${d[1]} is drawn as ${dir === 'right' ? 'LR' : 'TB'}: a parent and a whole always stand first` });
+      return;
+    }
     const ns = t.match(/^namespace\s+(\S+)\s*\{$/);
     if (ns) {
       if (space) problems.push({ line, msg: `namespace "${ns[1]}" is inside "${space.label}"; a class belongs to one frame, so close the first one with }` });
@@ -1450,10 +1499,17 @@ export function parseClass(text) {
       else problems.push({ line, msg: 'a } closes nothing' });
       return;
     }
-    const c = t.match(/^class\s+(.+?)\s*(\{\s*\}?)?$/);
+    // class Order, class Order {, and a body on one line: class Order { +id: str }
+    const c = t.match(/^class\s+([^{]+?)\s*(?:\{(.*))?$/);
     if (c) {
-      const n = cls(c[1], line);
-      if (n && c[2] && !c[2].includes('}')) open = n;
+      const n = cls(c[1], line, true);
+      if (n && c[2] !== undefined) {
+        const body = c[2].trim();
+        if (body.endsWith('}')) { if (body.slice(0, -1).trim()) member(n, body.slice(0, -1)); } else {
+          open = n;
+          if (body) member(n, body);
+        }
+      }
       return;
     }
     const an = t.match(/^<<\s*(.+?)\s*>>\s+(\S+)$/);
@@ -1473,9 +1529,9 @@ export function parseClass(text) {
       const big = (m) => m === 'tri' || m === 'dia' || m === 'odia';
       const leftUp = big(el) !== big(er) ? big(el) : (el === 'arrow') !== (er === 'arrow') ? er === 'arrow' : true;
       const [a, b, ea, eb, ca, cb] = leftUp ? [left, right, el, er, cl, cr] : [right, left, er, el, cr, cl];
-      const ends = { a: ea, b: eb };
-      if (edges.some((e) => e.a === a.k && e.b === b.k && e.ends.a === ea && e.ends.b === eb)) return;
-      edges.push({ a: a.k, b: b.k, dashed: way === '..', label: (label || '').trim(), ends, counts: { a: (ca || '').trim(), b: (cb || '').trim() } });
+      const e = { a: a.k, b: b.k, dashed: way === '..', label: (label || '').trim(), ends: { a: ea, b: eb }, counts: { a: (ca || '').trim(), b: (cb || '').trim() } };
+      // The same relation written twice is one line; one that says anything else is its own.
+      if (!edges.some((x) => JSON.stringify(x) === JSON.stringify(e))) edges.push(e);
       return;
     }
     const m = t.match(/^([^\s:]+)\s*:\s*(.+)$/);
@@ -1514,7 +1570,10 @@ function classBoxSvg(b) {
   const nd = b.cls;
   const cx = b.x + b.w / 2;
   const out = [`<rect x="${round(b.x)}" y="${round(b.y)}" width="${b.w}" height="${b.h}" rx="3"/>`];
-  let y = b.y + PAD_Y + LH / 2;
+  // A box with no members may stand taller than its name (counted lines at its side): the name
+  // then stands in its middle, not over an empty compartment.
+  const bare = !nd.fields.length && !nd.methods.length;
+  let y = (bare ? b.y + (b.h - (nd.ann ? 2 : 1) * LH) / 2 : b.y + PAD_Y) + LH / 2;
   if (nd.ann) { out.push(`<text class="ann" x="${round(cx)}" y="${round(y)}" text-anchor="middle" dominant-baseline="central">${esc(`«${nd.ann}»`)}</text>`); y += LH; }
   if (b.pins) {
     // The name and the numerals after it are centred as one.
@@ -1537,10 +1596,32 @@ function classBoxSvg(b) {
 
 // What a reader would misread: the flow's checks, said in the words of a class diagram.
 export function classIssues(g, L, room = ROOMS.card) {
-  return flowIssues(g, L, room).map((x) => (x.code !== 'too-wide' ? x : {
+  const out = flowIssues(g, L, room).map((x) => (x.code !== 'too-wide' ? x : {
     code: x.code,
     msg: tooWide(L.width, room, L.dir === 'right' ? 'write direction TB, or split it' : 'write direction LR (then the classes of a rank stand in a column), or split it'),
   }));
+  // A label or a count on a mark hides what the relation is. A label's halo reaches 2px.
+  const name = (k) => g.nodes[k].label;
+  const texts = L.edges.flatMap((ed) => [
+    ...(ed.label ? [{ r: textBox(ed.label, 2), what: `the label "${ed.label.text}"`, fix: 'shorten the label' }] : []),
+    ...ed.counts.map((l) => ({ r: textBox(l, 2), what: `the count "${l.text}"`, fix: 'shorten the count' })),
+  ]);
+  const seen = new Set();
+  for (const ed of L.edges) {
+    for (const m of ed.marks || []) {
+      const xs = m.pts.map((q) => q[0]);
+      const ys = m.pts.map((q) => q[1]);
+      const r = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+      for (const t of texts) {
+        const key = t.what + name(ed.a) + name(ed.b);
+        if (meets(t.r, r) && !seen.has(key)) {
+          seen.add(key);
+          out.push({ code: 'label-on-mark', msg: `${t.what} touches the mark of ${name(ed.a)} -> ${name(ed.b)}, so a reader cannot see what the relation is; ${t.fix}` });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 export function classDiagram(text, caption, label, ctx = {}) {

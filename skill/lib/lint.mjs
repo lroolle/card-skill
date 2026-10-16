@@ -229,7 +229,9 @@ function blockWarnings(c, warn) {
     else if (!BLOCKS.includes(kind)) warn(at, `#+begin_${kind} has no look of its own here; its content shows as plain text (blocks: ${BLOCKS.join(', ')})`);
     else if (kind === 'src' && DRAW_LIKE.includes(lang)) {
       // Mermaid's class diagram is read as it is: the same lines, in a class block.
-      const first = String(c.body).split('\n').slice(k + 1).find((l) => l.trim()) || '';
+      // The first line of the drawing, after Mermaid's front matter (--- to ---) if it has one.
+      const rest = String(c.body).split('\n').slice(k + 1).map((l) => l.trim()).filter(Boolean);
+      const first = (rest[0] === '---' ? rest.slice(rest.indexOf('---', 1) + 1) : rest)[0] || '';
       if (/^\s*classDiagram\b/.test(first) || lang === 'classdiagram' || lang === 'uml') {
         warn(at, `#+begin_src ${lang} is shown as code, not drawn. A class diagram is drawn from the same lines in #+begin_src class (Mermaid's classDiagram: class A { +id: str }, A <|-- B, A *-- B, A --> B : label)`);
       } else {

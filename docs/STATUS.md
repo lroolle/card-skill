@@ -1,6 +1,7 @@
 # Status
 
-Version 0.5.0, open, not tagged: class diagrams from Mermaid's lines (D43).
+Version 0.5.0, open, not tagged: class diagrams from Mermaid's lines (D43),
+and sheets drawn on the board (D44).
 0.4.0 was tagged and released on 2026-10-15: sheets and pins (D42).
 What works, what nobody has checked yet, and what is known to be missing.
 The reasons are in `docs/DECISIONS.md`; what comes next is the board
@@ -8,7 +9,7 @@ The reasons are in `docs/DECISIONS.md`; what comes next is the board
 
 ## What works, with a test behind it
 
-`npm test`: 172 tests. 25 of them drive a real browser; on GitHub they run
+`npm test`: 174 tests. 25 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
@@ -31,9 +32,12 @@ from `site/` and the boards under `.cards/`.
   The rest have a label on a line.
 - Class diagrams (D43): Mermaid's `classDiagram` lines, drawn by the
   compiler with the flow's layout and checks; pins on classes and
-  namespaces. 2000 generated diagrams of real shape: 98.8% with no fault
-  the checks know; the rest are a label on a line. Looked at in Chromium
-  only.
+  namespaces. Generated diagrams of real shape, six seeds of 2000: 98.8%
+  to 99.2% with no fault the checks know; the rest are a label among many
+  lines. Looked at in Chromium; the browser test runs in all three.
+- A sheet lies on the board (D44): no card stock, edge or shadow at rest;
+  an edge under the pointer, the ring in focus. Tested in Chromium,
+  Firefox and WebKit.
 - Sheets and pins (D42): a drawing that leads its section on both views, at
   the room of a sheet, and the numerals of the cards pinned on its parts,
   with focus both ways. Tested in Chromium, Firefox and WebKit.
