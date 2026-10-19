@@ -725,7 +725,10 @@ test('a pasted reply, recorded with cards ingest, shows on the page as answered 
     const signal = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--signal').trim());
     assert.ok(decodeURIComponent(await page.getAttribute('link[rel="icon"]', 'href')).includes(`<path fill="${signal}"`), 'and the icon lights its tab in the signal color');
     assert.ok(await page.$('.mark.lit'));
-    assert.match(await page.getAttribute('.mark', 'title'), /^Made with cards \d+\.\d+\.\d+$/);
+    // The mark leads home: from a board to the map of its boards, in the same tab.
+    assert.equal(await page.getAttribute('.mark', 'href'), '../index.html');
+    assert.equal(await page.getAttribute('.mark', 'target'), null);
+    assert.equal(await page.getAttribute('.mark', 'title'), 'All boards');
     assert.match(await page.textContent('.intro .stat'), /by Claude/);
 
     await page.click('#c-pick-band .opt:has(input[value="link"])');
@@ -2123,6 +2126,48 @@ test('review of 0.7: set aside on all four kinds renders; the bar carries nothin
     await phone.goto(pathToFileURL(path.join(cwd, '.cards', 'index.html')).href);
     await phone.waitForSelector('.map-list');
     assert.ok(await phone.isVisible('.list-head [data-lsort="asks"]'));
+  } finally {
+    await browser.close();
+  }
+});
+
+test('the mark leads home: a board to its map; the map to its first view; a published copy to its Back page or the project', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const card = (id, claim, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n:END:\n${body}\n`;
+  for (const id of ['plan', 'review']) {
+    const ref = resolveBoard(id, cwd);
+    fs.mkdirSync(ref.dir, { recursive: true });
+    fs.writeFileSync(ref.file, `#+title: The ${id}\n#+category: Work\n\n* S\n${card('a', `The ${id} has one card`, 'Yes.')}${card('b', `The ${id} has a second card`, 'Yes.')}`);
+    assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+  }
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(pathToFileURL(path.join(cwd, '.cards', 'plan', 'board.html')).href);
+    await page.click('.mark');
+    await page.waitForURL(/\.cards\/index\.html$/);
+    await page.waitForSelector('.board.map');
+    // On the map the mark puts the map back as it opens.
+    await page.click('#c-review .addr .n');
+    await page.waitForSelector('#c-review.focused');
+    await page.click('.mark');
+    await page.waitForFunction(() => !document.querySelector('.card.focused'));
+    assert.match(page.url(), /index\.html$/, 'still the map');
+    assert.equal(await page.getAttribute('[data-zoom="fit"]', 'aria-pressed'), 'true');
+    // A published copy: its Back page when it has one, else the project's page in a new tab.
+    const { execFileSync } = await import('node:child_process');
+    const cli = path.join(SKILL, 'bin', 'cards.mjs');
+    execFileSync('node', [cli, 'export', 'plan', '--out', path.join(cwd, 'out', 'a')], { cwd });
+    execFileSync('node', [cli, 'export', 'plan', '--out', path.join(cwd, 'out', 'b'), '--home', '../index.html'], { cwd });
+    await page.goto(pathToFileURL(path.join(cwd, 'out', 'a', 'index.html')).href);
+    assert.match(await page.getAttribute('.mark', 'href'), /^https:\/\/github\.com\//);
+    assert.equal(await page.getAttribute('.mark', 'target'), '_blank');
+    await page.goto(pathToFileURL(path.join(cwd, 'out', 'b', 'index.html')).href);
+    assert.equal(await page.getAttribute('.mark', 'href'), '../index.html');
+    assert.equal(await page.getAttribute('.mark', 'title'), 'Back');
+    assert.deepEqual(errors, []);
   } finally {
     await browser.close();
   }

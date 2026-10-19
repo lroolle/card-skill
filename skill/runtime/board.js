@@ -412,14 +412,12 @@
       : [t('stat_rev', { rev: B.board.rev }), t('stat_cards', { n: n })];
     if (B.live) stat.push(t('stat_live'));
     if (B.board.author) stat.push(t('stat_by', { author: B.board.author }));
-    var build = B.build || {};
     var html = [];
     html.push('<div class="page board' + (MAP ? ' map' : '') + ' view-' + S.view + ' alt-' + S.alt + (S.screen ? ' screen' : '') + '">');
     // The bar: one line that stays at the top. The way to the other boards, the title, whose
     // turn it is, the asks, the way from card to card, the languages, and what the board is about.
     html.push('<header class="top"><div class="topbar">' +
-      (build.home ? '<a class="mark" href="' + esc(build.home) + '" target="_blank" rel="noopener noreferrer" title="' + esc(t('mark_title', { version: build.version })) + '" aria-label="' + esc(t('mark_title', { version: build.version })) + '">' +
-        '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="mark-tab" d="' + MARK_TAB + '"/><path d="' + MARK_CARD + '"/></svg></a>' : '') +
+      markHtml() +
       switcherHtml() +
       '<h1 class="title" title="' + esc(B.board.title) + '">' + esc(B.board.title) + '</h1>' +
       '<span class="lamp" data-turn="' + now.k + '" role="status"><i></i><span>' + esc(now.text) + '</span></span>' +
@@ -488,6 +486,25 @@
       // The other language opens the way this page was opened: in a frame, as a sample, on this view.
       return langMark(m.lang, m.self ? '' : m.href + location.search, m.self);
     }).join('') + '</nav>';
+  }
+
+  // The mark leads home, as a mark at the top of a page does: from a board to the map of
+  // its boards; on the map, back to its first view. A published copy goes to the page its
+  // publisher named, or to the project's own page. Who made it is said in the help.
+  function markHtml() {
+    var build = B.build || {};
+    var svg = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="mark-tab" d="' + MARK_TAB + '"/><path d="' + MARK_CARD + '"/></svg>';
+    var home = MAP ? '#' : B.board.home;
+    var label = MAP || (home && !B.public) ? t('all_boards') : home ? t('home_back') : t('mark_title', { version: build.version });
+    if (home) return '<a class="mark" href="' + esc(home) + '"' + (MAP ? ' data-act="home"' : '') + ' title="' + esc(label) + '" aria-label="' + esc(label) + '">' + svg + '</a>';
+    return build.home ? '<a class="mark" href="' + esc(build.home) + '" target="_blank" rel="noopener noreferrer" title="' + esc(label) + '" aria-label="' + esc(label) + '">' + svg + '</a>' : '';
+  }
+  // On the map the mark puts the map back as it opens: no focus, no menu, the whole table, at the top.
+  function goHome() {
+    closeSwitcher();
+    if (S.focus) clearFocus();
+    if (S.view === 'desk' && deskOn()) setZoom('fit');
+    window.scrollTo(0, 0);
   }
 
   // The way to the other boards of the project: the map first, then every board, by group.
@@ -2662,6 +2679,7 @@
       else if (a === 'arrange') arrange();
       else if (a === 'new-group') newGroup();
       else if (a === 'switch') toggleSwitcher();
+      else if (a === 'home') { e.preventDefault(); goHome(); }
       else if (a === 'info') toggleInfo();
       else if (a === 'step-prev') step(-1);
       else if (a === 'step-next') step(1);

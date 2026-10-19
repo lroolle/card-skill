@@ -717,7 +717,9 @@ messages and each revision as one thread in the Comments box.
 ## The page around the cards
 
 The page a board renders to has one bar at the top that stays while the
-page scrolls. Left to right: the mark; Boards, a menu of the project's
+page scrolls. Left to right: the mark, which leads home (from a board to
+the map; on the map, back to its first view; on a published copy, to its
+`--home` page or the project's page); Boards, a menu of the project's
 boards by group (the map first, this board marked, each neighbour with what
 it is to this one: "Comes from", "Leads to"; `b` opens it); the title;
 whose turn it is; a tab for each open ask; a stepper from card to card (the
