@@ -143,6 +143,9 @@ test('map, board page: a link to a card on another board shows that board and nu
   assert.match(review.cards.rollback.gist_html, /<a class="ref xref" href="\.\.\/plan\/board\.html#c-pick-queue"><span class="ref-n">plan 3<\/span><span class="ref-t">the queue pick<\/span><\/a>/);
   assert.match(review.cards.rollback.gist_html, /<a class="ref xref" href="\.\.\/plan\/board\.html#c-step-1"><span class="ref-n">plan 2<\/span><span class="ref-t">The old schema is frozen<\/span><\/a>/);
   assert.equal(review.board.category, 'Ingest');
+  // A link to a whole board in the author's words reads as those words alone.
+  const r2 = data(fs.readFileSync(path.join(cwd, '.cards', 'release-2', 'board.html'), 'utf8'));
+  assert.match(r2.cards.waits.gist_html, /<a class="ref xref" href="\.\.\/review\/board\.html"><span class="ref-t">the review<\/span><\/a>/);
   assert.deepEqual(review.board.related.map((r) => [r.rel, r.boards.map((b) => `${b.id} ${b.href}`)]), [
     ['from', ['plan ../plan/board.html']],
     ['blocks', ['release-2 ../release-2/board.html']],

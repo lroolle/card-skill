@@ -227,7 +227,8 @@ the keyword on every ask that has an answer on disk.
   another board of the project, in Org's own form (Emacs and GitHub follow
   it too). It renders as that board's name and the card's numeral, then the
   card's claim, or your words with `[[...][words]]`; a click opens the card
-  on its board. `[[file:../plan/board.org][the plan]]` links the board. A
+  on its board. `[[file:../plan/board.org][the plan]]` links the board, and
+  reads as your words. A
   board or card that does not exist shows as text, and `cards check` names
   it. A published copy (`cards export`) shows the board's name, the card's
   numeral and your words, with no link and no claim of the other board:

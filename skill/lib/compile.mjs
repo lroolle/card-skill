@@ -50,7 +50,8 @@ function refCtx(byId, nOf, sx, table, assets = null, chipHref = null, publish = 
     xref(board, card, label) {
       const hit = other ? other.resolve(board, card) : { missing: 'board' };
       if (hit.missing) return `<span class="ref missing">${label || esc(card ? `${board}#${card}` : board)}</span>`;
-      const n = `<span class="ref-n">${esc(board)}${card ? ` ${esc(hit.n)}` : ''}</span>`;
+      // A link to a whole board in your own words reads as those words: the name would say it twice.
+      const n = card || !label ? `<span class="ref-n">${esc(board)}${card ? ` ${esc(hit.n)}` : ''}</span>` : '';
       if (publish) return `<span class="ref xref">${n}${label ? `<span class="ref-t">${linkless(label)}</span>` : ''}</span>`;
       // The other board's references are its own: in its claim they are words here.
       const theirs = { inline: syntaxOf(hit.fmt).inline, ref: (id, words) => words || esc(id), xref: (b, c, words) => words || esc(c ? `${b}#${c}` : b) };
