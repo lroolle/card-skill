@@ -1702,3 +1702,212 @@ test('sheets: a drawing leads its section, side by side on the rack and in a lan
     await browser.close();
   }
 });
+
+// ---- the map of a project's boards (D45) ----
+
+test('map: the boards of a project on one table; drag a board into a group, a group with its boards, a new group; Enter opens a board', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const card = (id, claim, props, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n${props}:END:\n${body}\n`;
+  const boards = {
+    plan: `#+title: Plan the rewrite\n#+category: Ingest\n\n* Steps\n${card('pick', 'The queue is NATS, unless you pick Kafka', ':ASK: choose\n', 'NATS needs no cluster; a wrong pick costs a migration.\n\n- [X] nats :: NATS\n- [ ] kafka :: Kafka')}`,
+    review: `#+title: Review of the plan\n#+category: Ingest\n#+from: plan\n\n* Findings\n${card('roll', 'The plan has no way back', '', 'It rests on [[file:../plan/board.org::#pick][the pick]].')}`,
+    'release-1': `#+title: Release 1\n#+category: Releases\n#+from: plan\n\n* Facts\n${card('shipped', 'Release 1 shipped on time', '', 'Yes.')}`,
+    'release-2': `#+title: Release 2\n#+category: Releases\n#+from: release-1\n#+needs: review\n\n* Facts\n${card('waits', 'Release 2 waits on the review', '', 'Yes.')}`,
+    notes: `#+title: Notes\n\n* Notes\n${card('note', 'The notes hold nothing yet', '', 'Nothing.')}`,
+  };
+  for (const [id, src] of Object.entries(boards)) {
+    const ref = resolveBoard(id, cwd);
+    fs.mkdirSync(ref.dir, { recursive: true });
+    fs.writeFileSync(ref.file, src);
+    assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+  }
+  const url = pathToFileURL(path.join(cwd, '.cards', 'index.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url);
+    await page.waitForSelector('.board.map.view-desk .frame');
+    const groups = () => page.$$eval('.frame', (fs) => fs.map((f) => `${(f.querySelector('.frame-name') || {}).textContent}:${f.querySelector('.count').textContent}`).join(' '));
+    assert.equal(await groups(), 'Ingest:2 Releases:2');
+    // A board with no group lies outside every frame. The map has no Send and no chat: it asks nothing.
+    assert.equal(await page.locator('.send, .chat').count(), 0);
+    assert.equal(await page.locator('.lamp').textContent(), 'Your turn · 1 waiting on you');
+    // The rail: a tab for each board with asks; the tile lists them, each a link to its card.
+    assert.deepEqual(await page.$$eval('.rail .rail-tab', (as) => as.map((a) => [a.dataset.goto, a.textContent])), [['plan', 'plan1 ask']]);
+    assert.deepEqual(await page.$$eval('#c-plan .tile-asks a', (as) => as.map((a) => a.getAttribute('href'))), ['plan/board.html#c-pick']);
+    // Lines from what the boards say: three "comes from", one "waits on"; a link to a card shows on focus.
+    await page.waitForFunction(() => document.querySelectorAll('.wires .wire.w-from').length === 3 && document.querySelectorAll('.wires .wire.w-needs').length === 1);
+    assert.equal(await page.locator('.wires .wire.w-mentions').count(), 0);
+    await page.locator('#c-review .addr .n').click();
+    await page.waitForSelector('#c-plan.lit');
+    assert.equal(await page.locator('#c-plan .rel').textContent(), 'Source of review');
+    assert.equal(await page.locator('#c-release-2 .rel').textContent(), 'Needs review');
+    // Focus zoomed to the board; Esc zooms back. Wait for the table to stand still.
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(500);
+
+    const box = (sel) => page.locator(sel).boundingBox();
+    // Drag a board by its top strip into another group: what lies in a frame is in that group.
+    async function dropTile(id, x, y) {
+      const r = await box(`#c-${id}`);
+      const a = await box(`#c-${id} .addr`);
+      const gx = a.x + a.width - 20;
+      const gy = a.y + a.height / 2;
+      await page.mouse.move(gx, gy);
+      await page.mouse.down();
+      await page.mouse.move(gx + 10, gy + 10, { steps: 2 });
+      await page.mouse.move(x + (gx - r.x) - r.width / 2, y + (gy - r.y) - r.height / 2, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(400); // a click right after a drag is the end of the drag
+    }
+    const ingest = await box('.frame[data-frame="g-ingest"]');
+    await dropTile('release-2', ingest.x + ingest.width / 2, ingest.y + ingest.height - 40);
+    assert.equal(await groups(), 'Ingest:3 Releases:1');
+    // Drag a group by its name: its boards go with it.
+    const head = await box('.frame[data-frame="g-releases"] .frame-head');
+    const before = await box('#c-release-1');
+    await page.mouse.move(head.x + 60, head.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(head.x + 160, head.y + 130, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    const after = await box('#c-release-1');
+    const head2 = await box('.frame[data-frame="g-releases"] .frame-head');
+    assert.ok(Math.abs((after.x - before.x) - (head2.x - head.x)) < 2 && after.y - before.y > 50, 'the board moved with its group');
+    // A new group: an empty frame beside the rest, its name ready to type.
+    await page.click('[data-act="new-group"]');
+    await page.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('frame-input'));
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type('Later');
+    await page.keyboard.press('Enter');
+    assert.equal(await groups(), 'Ingest:3 Releases:1 Later:0');
+    assert.equal(await page.locator('.frame[data-frame="u1"] [data-act="frame-remove"]').count(), 1, 'an empty group can be removed');
+    await page.click('[data-zoom="fit"]');
+    await page.waitForTimeout(500);
+    const later = await box('.frame[data-frame="u1"]');
+    await dropTile('notes', later.x + later.width / 2, later.y + later.height / 2 + 10);
+    assert.equal(await groups(), 'Ingest:3 Releases:1 Later:1');
+    // Your table lives in this browser.
+    await page.reload();
+    await page.waitForSelector('.board.map.free .frame');
+    assert.equal(await groups(), 'Ingest:3 Releases:1 Later:1');
+    // Arrange puts every board back in the group it names.
+    await page.click('[data-act="arrange"]');
+    await page.waitForFunction(() => !document.querySelector('.board.free'));
+    assert.equal(await groups(), 'Ingest:2 Releases:2');
+    // The reading view lists the groups; the frames are a thing of the desk.
+    await page.keyboard.press('d');
+    await page.waitForSelector('.board.map.view-rack');
+    assert.deepEqual(await page.$$eval('.shelf-head h2', (hs) => hs.map((h) => h.textContent)), ['Ingest', 'Releases']);
+    assert.equal(await page.locator('.frame').count(), 0);
+    // Enter on a board opens it.
+    await page.locator('#c-review').focus();
+    await page.keyboard.press('Enter');
+    await page.waitForURL(/review\/board\.html$/);
+    assert.equal(await page.locator('.related a').first().textContent(), 'plan');
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+test('map, review of 0.6: your table survives a filter, a second project, a new group, a new board, and what the storage holds', { skip: !chromium && 'playwright not installed' }, async () => {
+  const card = (id, claim, props, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n${props}:END:\n${body}\n`;
+  const make = (boards) => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+    const add = (id, src) => {
+      const ref = resolveBoard(id, cwd);
+      fs.mkdirSync(ref.dir, { recursive: true });
+      fs.writeFileSync(ref.file, src);
+      assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+    };
+    for (const [id, src] of Object.entries(boards)) add(id, src);
+    return { cwd, add, url: pathToFileURL(path.join(cwd, '.cards', 'index.html')).href };
+  };
+  const board = (title, cat, claim) => `#+title: ${title}\n${cat ? `#+category: ${cat}\n` : ''}\n* S\n${card('a', claim, '', 'Yes.')}`;
+  const one = make({
+    a1: `#+title: A one\n#+category: Alpha\n\n* S\n${card('pick', 'The band is the sport one', ':ASK: choose\n', 'A wrong band means a return.\n\n- [X] sport :: Sport\n- [ ] link :: Link')}`,
+    b1: board('B one', 'Beta', 'The first beta board stands'),
+    b2: board('B two', 'Beta', 'The second beta board stands'),
+    u1: board('U one', '', 'A loose board stands'),
+    u2: board('U two', '', 'Another loose board stands'),
+  });
+  const two = make({ x1: board('X one', 'Other', 'The other project has one board') });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    const groups = () => page.$$eval('.frame', (fs) => fs.map((f) => `${(f.querySelector('.frame-name') || {}).textContent}:${f.querySelector('.count').textContent}`).join(' '));
+    const box = (sel) => page.locator(sel).boundingBox();
+    async function drag(sel, dx, dy) {
+      const a = await box(sel);
+      await page.mouse.move(a.x + a.width - 20, a.y + a.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(a.x + a.width - 10, a.y + a.height / 2 + 10, { steps: 2 });
+      await page.mouse.move(a.x + a.width - 20 + dx, a.y + a.height / 2 + dy, { steps: 8 });
+      await page.mouse.up();
+      await page.waitForTimeout(400);
+    }
+    await page.goto(one.url);
+    await page.waitForSelector('.board.map .frame');
+    assert.equal(await groups(), 'Alpha:1 Beta:2');
+    // A filter is on when the first drag freezes the table: the groups it hides keep their frames.
+    await page.keyboard.press('f');
+    await page.waitForFunction(() => document.querySelectorAll('.card:not([hidden])').length === 1);
+    await drag('#c-a1 .addr', 24, 0);
+    await page.keyboard.press('f');
+    await page.keyboard.press('f');
+    await page.waitForFunction(() => document.querySelectorAll('.card:not([hidden])').length === 5);
+    assert.equal(await groups(), 'Alpha:1 Beta:2');
+    // New group while a filter hides boards: the new frame takes in none of them.
+    await page.keyboard.press('f');
+    await page.click('[data-act="new-group"]');
+    await page.waitForFunction(() => document.activeElement && document.activeElement.classList.contains('frame-input'));
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('f');
+    await page.keyboard.press('f');
+    await page.waitForTimeout(300);
+    assert.equal(await groups(), 'Alpha:1 Beta:2 Group 1:0');
+    // Beta under Alpha; then the agent adds a board to Alpha: Alpha grows, Beta moves down, nothing changes group.
+    await page.click('[data-zoom="fit"]');
+    await page.waitForTimeout(500);
+    const al = await box('.frame[data-frame="g-alpha"]');
+    const bh = await box('.frame[data-frame="g-beta"] .frame-head');
+    await page.mouse.move(bh.x + 40, bh.y + 8);
+    await page.mouse.down();
+    await page.mouse.move(bh.x + 60, bh.y + 20, { steps: 2 });
+    await page.mouse.move(al.x + 40, al.y + al.height + 30, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    one.add('a2', board('A two', 'Alpha', 'The second alpha board stands'));
+    one.add('c1', board('C one', 'Gamma', 'A board of a new group stands'));
+    await page.reload();
+    await page.waitForSelector('.board.map.free .frame');
+    assert.equal(await groups(), 'Alpha:2 Beta:2 Group 1:0 Gamma:1');
+    const [fa, fb] = await page.$$eval('.frame[data-frame="g-alpha"], .frame[data-frame="g-beta"]', (fs) => fs.map((f) => [f.offsetTop, f.offsetTop + f.offsetHeight]));
+    assert.ok(fa[1] <= fb[0], `Alpha (${fa}) ends above Beta (${fb})`);
+    // What the storage holds goes into the page as numbers only.
+    const key = await page.evaluate(() => JSON.parse(document.getElementById('board-data').textContent).board.key);
+    await page.evaluate((k) => {
+      const place = JSON.parse(localStorage.getItem(`cards:${k}:place`));
+      place.frames['g-beta'][0] = '0px;"><img src=x onerror="document.title=\'pwned\'">';
+      localStorage.setItem(`cards:${k}:place`, JSON.stringify(place));
+    }, key);
+    await page.reload();
+    await page.waitForSelector('.board.map.free .frame');
+    await page.waitForTimeout(300);
+    assert.notEqual(await page.title(), 'pwned');
+    assert.equal(await page.locator('.frame img').count(), 0);
+    // Another project's map in the same browser has its own table.
+    await page.goto(two.url);
+    await page.waitForSelector('.board.map .frame');
+    assert.equal(await groups(), 'Other:1');
+    assert.equal(await page.locator('.board.free').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});

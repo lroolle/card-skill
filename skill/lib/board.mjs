@@ -15,7 +15,7 @@
 // reader of an error is usually an agent that will retry once.
 
 import { parseBlocks, plain, fenceOpen, fenceCloses, inline, renderBlocks, esc } from './md.mjs';
-import { parseOrgBlocks, orgInline, orgPlain, orgRefs } from './org.mjs';
+import { parseOrgBlocks, orgInline, orgPlain, orgRefs, orgBoardLinks } from './org.mjs';
 import { FIGURE_LANGS, parseFlow, parseSequence, parseClass, sketchLines, isFigure, partKey, partsOf } from './figure.mjs';
 import { parseChart } from './chart.mjs';
 
@@ -38,8 +38,8 @@ const REF_RE = /\[\[([^\]\s|]+)\]\]/g;
 // The text layer of each format: block parser, inline renderer, plain text, references.
 const mdRefs = (s) => [...String(s).replace(/(`+)[\s\S]*?\1/g, '').matchAll(REF_RE)].map((m) => m[1]);
 const SYNTAX = {
-  md: { fmt: 'md', blocks: parseBlocks, inline, plain, refs: mdRefs },
-  org: { fmt: 'org', blocks: (s) => parseOrgBlocks(s), inline: orgInline, plain: orgPlain, refs: orgRefs },
+  md: { fmt: 'md', blocks: parseBlocks, inline, plain, refs: mdRefs, boardLinks: () => [] },
+  org: { fmt: 'org', blocks: (s) => parseOrgBlocks(s), inline: orgInline, plain: orgPlain, refs: orgRefs, boardLinks: orgBoardLinks },
 };
 export const syntaxOf = (fmt) => SYNTAX[fmt] || SYNTAX.md;
 
@@ -57,7 +57,7 @@ export const slug = (s) =>
 // A section's default id. A title with no Latin letters or digits ("选项")
 // has no slug; it gets a short hash of the title, so it stays the same when
 // sections move (reorder answers and desk places name sections by id).
-const sectionId = (title) => {
+export const sectionId = (title) => {
   if (/[a-z0-9]/i.test(plain(title))) return slug(title);
   let h = 0x811c9dc5;
   for (const ch of String(title)) h = Math.imul(h ^ ch.codePointAt(0), 0x01000193) >>> 0;
@@ -126,7 +126,7 @@ function parseMdBoard(src, id) {
     fmt: 'md',
     title: meta?.title || id,
     lang: meta?.lang || 'en',
-    author: '', description: '', translationOf: '', unknown: [],
+    author: '', description: '', translationOf: '', category: '', fromBoards: [], needsBoards: [], unknown: [],
     lede: '',
     sections: [],
     cards: [],
@@ -255,11 +255,11 @@ const ORG_CARD_PROPS = ['CUSTOM_ID', 'ASK', 'MULTI', 'SUGGEST', 'BASIS', 'FROM',
 // The keywords before the first heading that this build reads. Any other is
 // valid Org and does nothing here; lint says so, because an agent that wrote
 // one expected an effect.
-export const ORG_KEYWORDS = ['title', 'language', 'lang', 'author', 'description', 'translation_of'];
+export const ORG_KEYWORDS = ['title', 'language', 'lang', 'author', 'description', 'translation_of', 'category', 'from', 'needs'];
 // Org's own settings for Emacs (how the file folds, exports, cycles its TODO
 // keywords). They are for the editor, so they pass without a word.
 const ORG_SETTINGS = ['todo', 'seq_todo', 'typ_todo', 'startup', 'options', 'filetags', 'tags', 'property', 'priorities', 'columns',
-  'archive', 'link', 'setupfile', 'category', 'macro', 'select_tags', 'exclude_tags', 'bibliography', 'cite_export'];
+  'archive', 'link', 'setupfile', 'macro', 'select_tags', 'exclude_tags', 'bibliography', 'cite_export'];
 // Properties Emacs writes into a drawer on its own. They are not ours and not errors.
 const ORG_OWNED = /^(ID|VISIBILITY|ORDERED|NOBLOCKING|COOKIE_DATA|LOGGING|CATEGORY|ARCHIVE|DIR|ATTACH_DIR|EFFORT|STYLE|LAST_REPEAT|CREATED|ARCHIVE_\w+|EXPORT_\w+|\w+_ALL)$/;
 // A planning line as Emacs writes it: a keyword and a timestamp (a date, or a diary expression).
@@ -355,7 +355,7 @@ function parseOrgBoard(src, id) {
   const lines = String(src).replace(/\r\n?/g, '\n').split('\n');
   const errors = [];
   const err = (line, msg, fix) => errors.push({ line: line + 1, msg, fix });
-  const board = { id, fmt: 'org', title: id, lang: 'en', author: '', description: '', translationOf: '', unknown: [], todo: null, lede: '', sections: [], cards: [], errors };
+  const board = { id, fmt: 'org', title: id, lang: 'en', author: '', description: '', translationOf: '', category: '', fromBoards: [], needsBoards: [], keyLines: {}, keyProblems: [], unknown: [], todo: null, lede: '', sections: [], cards: [], errors };
 
   // Split into heading chunks (levels 1 and 2), ignoring headings inside blocks.
   // Deeper headings stay in the card body as subheadings.
@@ -379,6 +379,7 @@ function parseOrgBoard(src, id) {
     const m = line.match(/^#\+([\w-]+):\s*(.*?)\s*$/);
     if (m) {
       const key = m[1].toLowerCase();
+      board.keyLines[key] = k + 1;
       if (key === 'title') board.title = m[2];
       else if (key === 'language' || key === 'lang') board.lang = m[2] || 'en';
       else if (key === 'author') board.author = m[2];
@@ -386,6 +387,13 @@ function parseOrgBoard(src, id) {
       else if (key === 'translation_of') {
         board.translationOf = m[2];
         if (!ID_RE.test(m[2])) err(k, `#+translation_of: "${m[2]}" must be the name of a board`, '#+translation_of: pick-a-queue');
+      } else if (key === 'category') board.category = m[2];
+      // The boards of the project this one comes from, or waits on (lib/map.mjs draws them).
+      else if (key === 'from' || key === 'needs') {
+        const names = orgList(m[2]);
+        const bad = names.filter((x) => !ID_RE.test(x));
+        if (bad.length) board.keyProblems.push({ line: k + 1, msg: `#+${key}: ${bad.map((x) => `"${x}"`).join(', ')} is not the name of a board; write the names of boards, as their folders are named (#+${key}: ${key === 'from' ? 'progress' : 'security-review'})` });
+        board[key === 'from' ? 'fromBoards' : 'needsBoards'].push(...names.filter((x) => ID_RE.test(x) && !board.fromBoards.concat(board.needsBoards).includes(x)));
       } else if (key === 'todo' || key === 'seq_todo' || key === 'typ_todo') board.todo = `${board.todo || ''} ${m[2]}`;
       else if (!ORG_SETTINGS.includes(key)) board.unknown.push({ line: k + 1, what: `#+${m[1]}:` });
     } else lede.push(line);
@@ -824,6 +832,17 @@ export function anatomy(card) {
     out.depth.push(b);
   }
   out.refs = [...new Set(refsIn(blocks, sx.refs))];
+  return out;
+}
+
+// boardLinksOf(board) -> [{ board, card, from, line }]: every link to another board of the
+// project, or to a card on it, with the card it is written on (null: the lede).
+export function boardLinksOf(board) {
+  const sx = syntaxOf(board.fmt);
+  const out = [];
+  const add = (list, from, line) => { for (const [b, c] of list) out.push({ board: b, card: c, from, line }); };
+  add(refsIn(sx.blocks(board.lede), sx.boardLinks), null, 1);
+  for (const c of board.cards) add([...sx.boardLinks(c.title), ...refsIn(c.anatomy.blocks, sx.boardLinks)], c.id, c.line);
   return out;
 }
 

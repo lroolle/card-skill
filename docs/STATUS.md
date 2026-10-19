@@ -1,7 +1,8 @@
 # Status
 
-Version 0.5.0, open, not tagged: class diagrams from Mermaid's lines (D43),
-and sheets drawn on the board (D44).
+Version 0.6.0, open, not tagged: the map of a project's boards (D45).
+Version 0.5.0 is built and not tagged: class diagrams from Mermaid's lines
+(D43), and sheets drawn on the board (D44).
 0.4.0 was tagged and released on 2026-10-15: sheets and pins (D42).
 What works, what nobody has checked yet, and what is known to be missing.
 The reasons are in `docs/DECISIONS.md`; what comes next is the board
@@ -9,7 +10,7 @@ The reasons are in `docs/DECISIONS.md`; what comes next is the board
 
 ## What works, with a test behind it
 
-`npm test`: 174 tests. 25 of them drive a real browser; on GitHub they run
+`npm test`: 185 tests. 28 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
@@ -55,7 +56,12 @@ from `site/` and the boards under `.cards/`.
 - `cards export`: a test reads the output for replies, chat, history and
   paths.
 - Translations: links between sibling boards, and the drift checks.
-- The list of a project's boards (`.cards/index.html`), and `cards hook`
+- The map of a project's boards (D45): a tile per board in the frame of
+  its group, lines from `#+from:`, `#+needs:` and links between boards,
+  every open ask; the human's own grouping by drag, kept in the browser. A
+  link to a card on another board; the boards a board connects to, under
+  its title. Tested in Chromium, Firefox and WebKit.
+- The list of a project's boards (`.cards/index.html`, now the map), and `cards hook`
   for replies that arrive with the human's next message. The hook was run
   in a real Claude Code session (2.1.295): the reply reached the agent
   with the next message and was marked read.
@@ -104,6 +110,10 @@ from `site/` and the boards under `.cards/`.
   says so.
 - A drawing does not open full size; it scrolls in its frame and zooms on
   the desk.
+- The map: the human's regrouping stays in their browser and does not reach
+  the agent; a frame cannot be moved with the keyboard; a frame's corner can
+  lie under a tile. The map covers one `.cards/` directory, not every
+  project on the machine.
 - Focus on a card zooms the desk to that card; the part it is pinned on may
   then lie outside the window.
 

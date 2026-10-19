@@ -172,11 +172,15 @@ export function parseOrgBlocks(src, { top = true } = {}) {
 // an image link with no description inline. A card reference or a web link
 // stays text. The path keeps Org's meaning: relative to board.org.
 const SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+// A link to another board of the project, or to a card on it: Org's own link to the
+// other file, [[file:../plan/board.org::#step-3]]. Emacs and GitHub follow it as well.
+export const BOARD_LINK = /^(?:file:)?\.\.\/([a-z0-9][a-z0-9-]{0,47})\/board\.org(?:::#?([a-z0-9][a-z0-9-]{0,47}))?$/;
 function fileTarget(text) {
   const m = text.match(/^\[\[([^\]]+)\]\]$/);
   if (!m) return null;
   const target = m[1].trim();
   if (ORG_REF.test(target) && (target.startsWith('#') || !/[./:]/.test(target))) return null;
+  if (BOARD_LINK.test(target)) return null;
   if (SCHEME_RE.test(target) && !/^file:/i.test(target)) return null;
   return target.replace(/^file:/i, '').replace(/::.*$/, '') || null;
 }
@@ -294,6 +298,8 @@ export function orgInline(src, ctx = {}) {
       if (ref && (target.startsWith('#') || !/[./:]/.test(target))) {
         return keep(ctx.ref ? ctx.ref(ref[1], label) : `<span class="ref">${label || esc(ref[1])}</span>`);
       }
+      const board = target.trim().match(BOARD_LINK);
+      if (board && ctx.xref) return keep(ctx.xref(board[1], board[2] || null, label));
       // file:x.js::42 names a line; the browser can only open the file.
       const url = /^file:/i.test(target) || !SCHEME_RE.test(target) ? target.replace(/^file:/i, '').replace(/::.*$/, '') : target;
       return keep(link(url, label || esc(target.replace(/^file:/i, ''))));
@@ -316,11 +322,21 @@ export function orgInline(src, ctx = {}) {
 
 // orgPlain(text) -> the visible words, for search, lint and the digest.
 export function orgPlain(src) {
-  let s = String(src).replace(LINK_RE, (_, target, desc) => desc ?? target.replace(/^#/, ''));
+  let s = String(src).replace(LINK_RE, (_, target, desc) => {
+    if (desc !== undefined) return desc;
+    const board = target.trim().match(BOARD_LINK);
+    return board ? board[1] + (board[2] ? `#${board[2]}` : '') : target.replace(/^#/, '');
+  });
   s = s.replace(CODE_RE, (_, pre, _m, c) => pre + c);
   for (const [re] of EMPH) s = s.replace(re, (_, pre, c) => pre + c);
   s = s.replace(TIME_RE, (_, a, b) => a || b).replace(/(\S)[\^_]\{([^{}\n]{1,40})\}/g, '$1$2').replace(/\\\\[ \t]*\n/g, ' ');
   return s.replace(/\s+/g, ' ').trim();
+}
+
+// Links to other boards in a line of text, as [board, card or null]; code is inert.
+export function orgBoardLinks(text) {
+  const s = String(text).replace(CODE_RE, (_, pre) => pre);
+  return [...s.matchAll(LINK_RE)].map((m) => m[1].trim().match(BOARD_LINK)).filter(Boolean).map((b) => [b[1], b[2] || null]);
 }
 
 // Card references in a line of text; code is inert.

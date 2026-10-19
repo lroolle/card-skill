@@ -125,6 +125,7 @@ across projects and lists the asks themselves.
 - Org feature :: agenda, match strings such as =+ASK="choose"-TODO="DONE"=, =DEADLINE:=
 - what is new :: =cards agenda=; a =DEADLINE:= line on an ask
 - risk :: low; it only reads boards
+- built :: 0.6.0, for one project: its map lists every open ask of its boards. Across projects, nothing yet
 
 ** Settled cards leave the board, and the board stays small
 :PROPERTIES:
@@ -174,6 +175,7 @@ project shares.
 - Org feature :: =[[file:../plan/board.org::#step-3]]=, =#+SETUPFILE:=, =#+LINK:=
 - what is new :: a link that opens the other board at that card; a project index
 - risk :: a published copy must drop or rewrite these links
+- built :: 0.6.0: the link, and the map of a project's boards with =#+category:=, =#+from:= and =#+needs:= (D45). A published copy rewrites the link. The setup file is not built
 
 * Fit: closer to Org, closer to the work
 

@@ -1,9 +1,9 @@
 ---
 name: card-skill
-description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up; when the report is a picture (a system, a flow of calls, a data model, numbers over time), the board draws it from text as a sheet and pins each finding on the part it is about. Not for one answer, one explanation, or chat.
+description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up; when the report is a picture (a system, a flow of calls, a data model, numbers over time), the board draws it from text as a sheet and pins each finding on the part it is about. The boards of a project lie on one map, grouped and connected. Not for one answer, one explanation, or chat.
 license: MIT
 metadata:
-  version: "0.5.0"
+  version: "0.6.0"
 ---
 
 # card-skill
@@ -19,7 +19,7 @@ Wherever this file or the CLI's own output says `cards`, run:
 node <skill>/bin/cards.mjs <command>
 ```
 
-This is cards 0.5.0. `cards render` ends with the version of the build
+This is cards 0.6.0. `cards render` ends with the version of the build
 that ran. If it names another version, this text is older than the code: a
 session keeps the SKILL.md it loaded at its start. Read `<skill>/SKILL.md`
 and `<skill>/CHANGES.md` again from disk. Do not edit this copy of the
@@ -243,6 +243,47 @@ Work on a drawing as on code that must pass a check:
    number of warnings, stop and say in the card's depth what is left.
 5. Look at it: `cards shot <board>`. A check sees geometry, not sense.
 
+### Many boards: one map
+
+A project has one board per question or stream of work. `.cards/index.html`
+is the map of them all: each board a tile in the frame of its group, lines
+between the boards, and every ask that waits on the human, on every board.
+Each render writes it, and every board links to it. Say under the title
+where each board belongs:
+
+```org
+#+title: Release 3: what ships and what waits
+#+category: Releases
+#+from: plan
+#+needs: security-review
+```
+
+- `#+category:` names the group: a stream of work that the human follows
+  as one, such as a release line, a part of the system, or a question with
+  its follow-ups. Write the same words on every board of the group. Group by
+  the work, not by the kind of board ("Search", not "Reviews").
+- `#+from:` names the boards this one continues, or was split from.
+- `#+needs:` names the boards whose answers this one waits on. The map draws
+  it red, as a card's `:NEEDS:`.
+- A card that rests on a card of another board links it:
+  `[[file:../plan/board.org::#pick-queue][the queue pick]]`. The page shows
+  that board's name and the card's numeral, and the link opens the card.
+  `[[file:../plan/board.org][the plan]]` links the board. Never name
+  another board as `=plan=`: nobody can follow that. `cards check` says
+  where you did, and where a board or a card that you link to is missing.
+
+Before you open a board, run `cards ls`: it prints the groups, the boards,
+and what each comes from, waits on and links to. Extend the board that holds
+the question. Open a new board for a new question or a new stream, and
+connect it: `cards new <board> --category Releases --from plan` writes those
+lines. When a board passes 30 cards, move its settled cards to a board of
+their own, `#+from:` the first one, in the same group.
+
+The human arranges the map in their browser: they drag a board into another
+group, move a group with its boards, make a new one. That stays on their
+screen and does not reach you. If they tell you to regroup, change the
+`#+category:` lines.
+
 ## 3. Ask only what is real and essential
 
 An ask stops your work and takes the human's attention. Write one only when
@@ -420,9 +461,9 @@ it at once. Then wait for the next round as usual.
 
 ## 8. Resume
 
-`node <skill>/bin/cards.mjs ls` lists boards; `.cards/index.html` is the
-same list as a page, with the open asks of each board, and every board
-links to it. `show <board>` prints the outline;
+`node <skill>/bin/cards.mjs ls` prints the boards by group, with their
+links; `.cards/index.html` is the map of them, with the open asks of every
+board, and every board links to it. `show <board>` prints the outline;
 `show <board> <id|n>` prints one card with the human's past responses. The
 human may name a card by its numeral ("12 is wrong"): `show <board> 12`.
 
@@ -448,4 +489,5 @@ leaves: the cards themselves are yours to check.
 .cards/<board>/board.org   you write this; the source of truth (an older board.md also works)
 .cards/<board>/log.jsonl   append-only: card versions, replies, reads (never edit)
 .cards/<board>/board.html  compiled, discardable
+.cards/index.html          the map of the project's boards; every render writes it
 ```

@@ -1,7 +1,8 @@
 #+title: Move session storage from Redis to Postgres
 #+todo: TODO DOING BLOCKED | DONE
+#+category: Sessions
 
-Example board from the plan pattern. Replace every card. Steps run top to bottom; each step names what it needs.
+Example board from the plan pattern. Replace every card. Steps run top to bottom; each step names what it needs. The category is the group this board lies in on the map of the project's boards.
 
 * Steps  :list:
 

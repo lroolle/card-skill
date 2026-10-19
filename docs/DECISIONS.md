@@ -1153,3 +1153,75 @@ Cost: a done sheet and an open one look different in kind. A sheet with
 an ask has its tab over a drawing with no edge.
 Tests: `test/e2e.test.mjs` "a sheet lies on the board" (Chromium, Firefox
 and WebKit).
+
+## D45. The boards of a project lie on one map, grouped and connected
+
+2026-10-18. Built. Supersedes the page of D32; its rules stand (written by
+every render, into `.cards/` only, never over a page that is not ours, a
+link back from every board).
+The human: "all boards is good; but it's like lost 'connection' -> can we
+like figure it out the 'dash-board' that containing all boards (project
+scope by default) ... the skill should tell the agent how to org and
+connect, how to group and containe; user can drag and group". In design
+review round 1 the human had chosen "a project index that links boards to
+each other" (D32); only the list was built.
+Measured on a real project of 12 boards: 7 of them name another board
+22 times, 19 of those as `=name=` and none as a link.
+Two boards linked into `.cards/` from a part of the project were missing
+from the list, which kept only real directories. A translation showed as a
+second, unrelated row.
+What is built:
+- A board says where it belongs, under its title: `#+category:` (its
+  group; Org's own keyword, by which the agenda groups a file), `#+from:`
+  (the boards it continues or was split from), `#+needs:` (the boards whose
+  answers it waits on). A card links a card on another board with Org's own
+  link, `[[file:../plan/board.org::#step-3]]`, which Emacs and GitHub also
+  follow; the page shows the board's name and the card's numeral.
+- `.cards/index.html` is the map: the board runtime in a mode where each
+  card is a board and each section a group. A named group is a frame on
+  the desk; the lines are the board's own `#+from:` (source), `#+needs:`
+  (needs) and links (mention, on focus); a tile carries the board's first
+  sheet and its open asks, each a link to its card; the rail under the
+  title holds every open ask of the project. A translation is one tile.
+- The human's arrangement: drag a tile into a frame, a frame with its
+  tiles, a frame's corner; New group; rename. Membership is where a tile's
+  middle lies. It lives in the browser, as the desk of a board does.
+- A board page names its group and its neighbours under its title.
+- `cards check` warns about links to nothing, a board named as code, and a
+  board with no group where the others have one. `cards ls` prints the map
+  as text; `cards new` takes `--category`, `--from`, `--needs`.
+- SKILL.md tells the agent when to open, connect, group and split a board.
+Why in each board and not in a file of its own: a board that names its own
+group and sources lands on the map when it is written, by the session that
+writes it; one map file would be edited by every session of the project and
+fall behind the boards it lists.
+Why the board runtime: the map needs everything the desk already does and
+tests (zoom, focus, lines that keep out of cards, levels, keys, a phone
+layout, both themes). The new code is the tile, the frame and the rail.
+Rejected: grouping by the board's kind (a review, a plan): the human follows
+work, not formats. A map file the agent keeps (above). Sending the human's
+regrouping back to the agent as a reply: the map asks nothing, and the
+human can say it in a board's chat. Nested groups: none of the 11 boards
+needed one.
+Cost: every render reads every board of the project (once per change of
+its files). A frame's corner can lie under a tile the human put there. The
+human's regrouping does not reach the agent. Moving a frame with the
+keyboard is not built.
+Reviewed before the commit by an agent that did not build it. The map was
+sound; the human's arrangement was not. Fixed, each with a test: every
+project's map shared one key in the browser (the path `.cards/index.html`
+is the same everywhere), so a second project showed the first one's frames;
+a group hidden by a filter at the first drag lost its frame; "Ingest" and
+"ingest" made two frames with one id; a group added after the human
+arranged the map got no frame, and a board added to a frame grew it over
+the frame below; New group under a filter could land on hidden boards;
+`cards export` put the titles of other boards and the claim of a linked card
+into a public copy; the map counted asks held by the asks they need; a
+translation of a translation vanished; an md board was asked for a group it
+cannot name; a stored frame box went into the page unchecked; a linked
+card whose claim held a link split the link; `=plan=` as code was taken for
+a board (now only names with a dash or a digit). The reviewer measured 150
+boards of 30 cards: a render in 0.14 s, the map in 0.5 s.
+Tests: `test/map.test.mjs` (format, page data, links, checks, CLI, serve, the
+review); `test/loop.test.mjs` "index"; `test/e2e.test.mjs` "map" and "map,
+review of 0.6" (Chromium, Firefox and WebKit).

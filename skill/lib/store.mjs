@@ -54,12 +54,23 @@ export function boardRef(id, cwd = process.cwd()) {
   return { id, dir, file: sourceIn(dir) };
 }
 
+// boardDirs(root) -> the names of the board directories under root, sorted. A link to a
+// directory counts: a project may link the boards of a part of it into its own `.cards/`.
+export function boardDirs(root) {
+  let list;
+  try { list = fs.readdirSync(root, { withFileTypes: true }); } catch { return []; }
+  const isDir = (d) => {
+    if (d.isDirectory()) return true;
+    if (!d.isSymbolicLink()) return false;
+    try { return fs.statSync(path.join(root, d.name)).isDirectory(); } catch { return false; }
+  };
+  return list.filter((d) => isDir(d) && SOURCES.some((f) => fs.existsSync(path.join(root, d.name, f))))
+    .map((d) => d.name).sort();
+}
+
 export function listBoards(cwd = process.cwd()) {
   const root = boardsRoot(cwd);
-  if (!fs.existsSync(root)) return [];
-  return fs.readdirSync(root, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && SOURCES.some((f) => fs.existsSync(path.join(root, d.name, f))))
-    .map((d) => resolveBoard(path.join(root, d.name)));
+  return boardDirs(root).map((name) => resolveBoard(path.join(root, name)));
 }
 
 export function readLog(dir) {

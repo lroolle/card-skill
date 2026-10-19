@@ -9,9 +9,14 @@
   'use strict';
 
   var B = JSON.parse(document.getElementById('board-data').textContent);
+  // The map of a project's boards (lib/index.mjs) is this runtime too: each card is a board,
+  // each section a group. It has no asks of its own, so it sends nothing and has no chat.
+  var MAP = B.kind === 'map';
   var app = document.getElementById('app');
   var ID = B.board.id;
-  var NS = 'cards:' + B.board.path + ':' + ID + ':';
+  // A map names its own key: every project's map has the same path, and the pages of
+  // every project share one origin when they are files.
+  var NS = 'cards:' + (B.board.key || B.board.path + ':' + ID) + ':';
 
   // t(key, vars) -> a chrome string in the board's language, the same lookup as
   // lib/i18n.mjs. It reads B on each call: a live update replaces B and its table.
@@ -234,7 +239,7 @@
   function held(c) { var g = gate(c); return !!g && !(g.why === 'changed' && (D.cards[c.id] || {}).anyway); }
   function nums(ids) { return ids.map(function (id) { return '#' + B.cards[id].n; }).join(t('list_sep')); }
   // "Yours": an open ask whose answer has not left the page.
-  function unsent(c) { return isOpenAsk(c) && !sentAnswer(c); }
+  function unsent(c) { return MAP ? !!c.map.asks.length : isOpenAsk(c) && !sentAnswer(c); }
 
   function lastSentOrder(sid) {
     for (var i = B.sends.length - 1; i >= 0; i--) {
@@ -257,7 +262,7 @@
     var pos = {};
     ids.forEach(function (id, k) { pos[id] = k; });
     var key = S.sort === 'recent'
-      ? function (c) { return -c.rev; }
+      ? function (c) { return MAP ? -(Date.parse(c.map.at) || 0) : -c.rev; }
       : function (c) { return unsent(c) ? -1 : STATUS_RANK[c.status]; };
     return ids.slice().sort(function (a, b) {
       return (key(B.cards[a]) - key(B.cards[b])) || (pos[a] - pos[b]);
@@ -294,6 +299,7 @@
     return null;
   }
   function tabLabel(c) {
+    if (MAP) return t('tile_asks', { n: c.map.asks.length });
     if (held(c)) {
       var g = gate(c);
       return g.why === 'skip' ? t('ask_skip') : g.why === 'changed' ? t('ask_on_hold') : t('ask_held', { card: nums(g.needs) });
@@ -345,12 +351,14 @@
 
   // Asks you can answer now and have not. A held ask is not one of them.
   function waitingCount() {
+    if (MAP) return cards().reduce(function (k, c) { return k + c.map.asks.length; }, 0);
     return cards().filter(function (c) { return unsent(c) && !held(c) && !hasDraftAnswer(c); }).length;
   }
 
   function turn() {
     var all = cards();
     var waiting = waitingCount();
+    if (MAP) return waiting ? { k: 'you', text: t('turn_you', { n: waiting }) } : { k: 'idle', text: t('turn_idle') };
     var drafted = D.sentRev ? 0 : buildItems(false).length;
     if (waiting) return { k: 'you', text: t('turn_you', { n: waiting }) };
     if (drafted) return { k: 'ready', text: t('turn_ready', { n: drafted }) };
@@ -383,12 +391,13 @@
     ANS = answeredSet();
     var n = Object.keys(B.cards).length;
     var now = turn();
-    var stat = [t('stat_rev', { rev: B.board.rev }), t('stat_cards', { n: n })];
+    var stat = MAP ? [t('map_boards', { n: B.board.boards })].concat(B.board.groups ? [t('map_groups', { n: B.board.groups })] : [])
+      : [t('stat_rev', { rev: B.board.rev }), t('stat_cards', { n: n })];
     if (B.live) stat.push(t('stat_live'));
     if (B.board.author) stat.push(t('stat_by', { author: B.board.author }));
     var build = B.build || {};
     var html = [];
-    html.push('<div class="page board view-' + S.view + ' alt-' + S.alt + (S.screen ? ' screen' : '') + '">');
+    html.push('<div class="page board' + (MAP ? ' map' : '') + ' view-' + S.view + ' alt-' + S.alt + (S.screen ? ' screen' : '') + '">');
     html.push('<header><div class="andon">' +
       (build.home ? '<a class="mark" href="' + esc(build.home) + '" target="_blank" rel="noopener noreferrer" title="' + esc(t('mark_title', { version: build.version })) + '" aria-label="' + esc(t('mark_title', { version: build.version })) + '">' +
         '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="mark-tab" d="' + MARK_TAB + '"/><path d="' + MARK_CARD + '"/></svg></a>' : '') +
@@ -397,22 +406,35 @@
       (B.board.home ? '<a class="home" href="' + esc(B.board.home) + '">' + esc(t(B.public ? 'home_back' : 'all_boards')) + '</a>' : '') +
       '<span class="path">' + esc(B.board.path) + '</span></div>' +
       '<div class="notice" id="notice" hidden></div>' +
-      '<h1 class="title">' + esc(B.board.title) + '</h1>' +
+      '<h1 class="title">' + esc(B.board.title) + '</h1>' + relatedHtml() +
       (B.board.lede_html ? '<div class="lede">' + B.board.lede_html + '</div>' : '') +
-      '<nav class="rail" aria-label="' + esc(t('rail_label')) + '"></nav></header>');
-    if (!n) html.push('<p class="empty">' + esc(t('empty_board', { path: B.board.path })) + '</p>');
+      '<nav class="rail" aria-label="' + esc(t(MAP ? 'map_rail_label' : 'rail_label')) + '"></nav></header>');
+    if (!n) html.push('<p class="empty">' + esc(MAP ? t('map_empty') : t('empty_board', { path: B.board.path })) + '</p>');
     if (S.view === 'desk' && n) html.push(deskBarHtml());
     // The desk is a view (.shelves) onto a plane that zooms; .sizer gives the zoomed plane its scroll size.
-    html.push('<div class="shelves"><div class="sizer"><div class="plane"><svg class="wires" aria-hidden="true"></svg>');
+    html.push('<div class="shelves"><div class="sizer"><div class="plane"><svg class="wires" aria-hidden="true"></svg>' + (MAP ? '<div class="frames"></div>' : ''));
     B.sections.forEach(function (s) { html.push(sectionHtml(s)); });
     html.push('</div></div></div>');
     html.push('<p class="empty" id="no-match" hidden></p>');
     html.push('</div>');
     html.push(toolbar());
-    html.push(chatHtml());
+    if (!MAP) html.push(chatHtml());
     app.innerHTML = html.join('');
     applyView();
     watchSizes();
+  }
+
+  // The boards this board connects to, under its title: where it comes from, what it waits on,
+  // what it leads to (lib/index.mjs, relatedOf). Each is a link to that board.
+  function relatedHtml() {
+    var list = B.board.related || [];
+    var group = B.board.category ? '<span class="grp">' + esc(t('related_group', { group: B.board.category })) + '</span>' : '';
+    if (MAP || (!list.length && !group)) return '';
+    return '<nav class="related" aria-label="' + esc(t('related_label')) + '">' + group + list.map(function (r) {
+      return '<span><b>' + esc(t('related_' + r.rel)) + '</b> ' + r.boards.map(function (o) {
+        return o.href ? '<a href="' + esc(o.href) + '" title="' + esc(o.title) + '">' + esc(o.id) + '</a>' : '<span title="' + esc(o.title) + '">' + esc(o.id) + '</span>';
+      }).join(t('list_sep')) + '</span>';
+    }).join('') + '</nav>';
   }
 
   // The same board in other languages: a plain link each, in the language's own name.
@@ -432,6 +454,7 @@
   function compareCols(n) { return n <= 4 ? Math.max(n, 1) : Math.ceil(n / Math.ceil(n / 4)); }
 
   function sectionHtml(s) {
+    if (MAP) return groupHtml(s);
     var all = sortedIds(s);
     // A sheet leads its section: the drawing first, then the cards about it. On the
     // rack the sheets stand above the cards; on the desk they lie in a lane beside them.
@@ -541,6 +564,7 @@
   }
 
   function cardHtml(c, keys) {
+    if (MAP) return tileHtml(c);
     var d = D.cards[c.id] || {};
     var meta = [];
     if (c.status === 'doing') meta.push('<span class="st-doing">' + esc(t('status_doing')) + '</span>');
@@ -599,7 +623,7 @@
       '<select data-sort aria-label="' + esc(t('sort_label')) + '"><option value="board">' + esc(t('sort_board')) + '</option><option value="waiting">' + esc(t('sort_waiting')) + '</option><option value="recent">' + esc(t('sort_recent')) + '</option></select>' +
       '<label class="search"><span class="icon-btn" aria-hidden="true">' + ICON.search + '</span><input type="search" data-search placeholder="' + esc(t('find')) + '" aria-label="' + esc(t('find_label')) + '" value="' + esc(S.q) + '"></label>' +
       '<button class="icon-btn" data-act="help" aria-label="' + esc(t('help_label')) + '" title="' + esc(t('help_title')) + '">?</button></div>' +
-      '<button class="send" data-act="send" title="' + esc(t('send_title')) + '">' + esc(t('send')) + '</button></nav>';
+      (MAP ? '' : '<button class="send" data-act="send" title="' + esc(t('send_title')) + '">' + esc(t('send')) + '</button>') + '</nav>';
   }
 
   // The andon rail: one real tab per open ask, in board order. It puts the
@@ -607,6 +631,7 @@
   function renderRail() {
     var rail = $('.rail');
     if (!rail) return;
+    if (MAP) return mapRail(rail);
     var asks = [];
     B.sections.forEach(function (s) { orderedIds(s).forEach(function (id) { if (isOpenAsk(B.cards[id])) asks.push(B.cards[id]); }); });
     rail.hidden = !asks.length;
@@ -640,7 +665,7 @@
     if (!root) return;
     ANS = answeredSet();
     var rel = S.focus ? relations(S.focus) : new Map();
-    root.className = 'page board view-' + S.view + ' alt-' + S.alt + (S.focus && rel.size ? ' focusing' : '') + (S.screen ? ' screen' : '');
+    root.className = 'page board' + (MAP ? ' map' : '') + ' view-' + S.view + ' alt-' + S.alt + (S.focus && rel.size ? ' focusing' : '') + (S.screen ? ' screen' : '');
     var deskBtn = $('[data-act="desk"]');
     if (deskBtn) deskBtn.setAttribute('aria-pressed', String(S.view === 'desk'));
     var screenBtn = $('[data-act="screen"]');
@@ -660,7 +685,7 @@
     $('[data-count="changed"]').textContent = changed.size ? String(changed.size) : '';
 
     var q = S.q.trim().toLowerCase();
-    var fn = S.focus ? '#' + B.cards[S.focus].n : '';
+    var fn = S.focus ? (MAP ? '' : '#') + B.cards[S.focus].n : '';
     var shown = 0;
     $$('.card').forEach(function (el) {
       var c = B.cards[el.dataset.id];
@@ -684,13 +709,15 @@
     lightParts();
     var none = $('#no-match');
     none.hidden = shown > 0 || !Object.keys(B.cards).length;
-    none.textContent = t(S.filter === 'yours' && !q ? 'empty_yours' : S.filter === 'changed' && !q ? 'empty_changed' : 'empty_search');
+    none.textContent = t(S.filter === 'yours' && !q ? 'empty_yours' : S.filter === 'changed' && !q ? 'empty_changed' : MAP ? 'map_empty_search' : 'empty_search');
     if (S.focus) contextStrip(S.focus);
 
     var items = buildItems(false).length;
     var send = $('[data-act="send"]');
-    send.disabled = !items || !!D.sentRev || !!pendingSend;
-    send.textContent = pendingSend ? t('send_sending') : D.sentRev ? t('send_copied') : items ? t('send_n', { n: items }) : t('send');
+    if (send) {
+      send.disabled = !items || !!D.sentRev || !!pendingSend;
+      send.textContent = pendingSend ? t('send_sending') : D.sentRev ? t('send_copied') : items ? t('send_n', { n: items }) : t('send');
+    }
     var now = turn();
     var lamp = $('.lamp');
     lamp.dataset.turn = now.k;
@@ -816,6 +843,334 @@
     packFrame = requestAnimationFrame(function () { packFrame = 0; if (S.view === 'rack') packRack(); });
   }
   var packWatch = window.ResizeObserver ? new ResizeObserver(schedulePack) : null;
+
+  // ---------- the map: the boards of a project on one table ----------
+  //
+  // Each card is a board (a tile), each section a group its boards name
+  // (#+category:). On the desk a named group is a frame; the boards that name
+  // none lie outside every frame. A tile's title opens its board, and each ask
+  // on it opens that ask on its board. The lines are the board's own words:
+  // it comes from a board, waits on one, or links to a card on one.
+  //
+  // Drag a tile by its top strip, a frame by its name, a frame's corner to
+  // size it. On your table a board is in the group whose frame holds its
+  // middle. New group puts an empty frame beside the rest; a double-click on a
+  // name, or Enter on it, renames it. Your table lives in this browser, as the
+  // desk of a board does; Arrange puts every board back in the group it names.
+
+  var LANE = 4;           // boards in one column of a group on the desk; then the next column
+  var FRAME_PAD = 24;     // the frame's edge to its boards (board.css, .board.map .shelf.framed)
+  var FRAME_HEAD = 32;    // the strip that holds a frame's name (board.css, .frame-head)
+  var FRAME_MIN = [240, 144]; // ten and six steps of the desk's grid (GRID, below)
+  var MAP_LEGEND = [['from', 'map_line_from'], ['needs', 'map_line_needs'], ['mentions', 'map_line_links']];
+
+  function groupHtml(s) {
+    var ids = sortedIds(s);
+    // On the desk a long group stands in columns of LANE; the rack packs its own grid.
+    var lanes = [];
+    if (S.view === 'desk') for (var k = 0; k < ids.length; k += LANE) lanes.push(ids.slice(k, k + LANE));
+    else lanes.push(ids);
+    var head = s.title ? '<div class="shelf-top"><div class="shelf-head"><h2>' + esc(s.title) + '</h2><span class="count">' + ids.length + '</span></div></div>' : '';
+    return '<section class="shelf' + (s.frame ? ' framed' : '') + '" data-section="' + esc(s.id) + '" style="--lanes:' + Math.max(1, lanes.length) + '">' + head +
+      lanes.map(function (lane) { return '<div class="slots" data-layout="grid">' + lane.map(function (id) { return tileHtml(B.cards[id]); }).join('') + '</div>'; }).join('') + '</section>';
+  }
+
+  function tileHtml(c) {
+    var m = c.map;
+    var meta = [];
+    if (m.broken) meta.push('<span class="st-blocked">' + esc(t('tile_broken')) + '</span>');
+    meta.push('<span>' + esc(c.rev ? t('tile_rev', { rev: c.rev }) : t('tile_not_rendered')) + '</span>');
+    if (changed.has(c.id)) meta.push('<span class="chg">' + esc(t(seen && seen[c.id] !== undefined ? 'card_changed' : 'card_new')) + '</span>');
+    if (m.unread) meta.push('<span>' + esc(t('tile_unread', { n: m.unread })) + '</span>');
+    // A board in more than one language is one tile, with a link to each language.
+    var langs = m.langs.length > 1 ? '<span class="tile-langs">' + m.langs.map(function (l) {
+      return l.self || !l.href ? '<b lang="' + esc(l.lang) + '">' + esc(langName(l.lang)) + '</b>' : '<a href="' + esc(l.href) + '" lang="' + esc(l.lang) + '">' + esc(langName(l.lang)) + '</a>';
+    }).join('') + '</span>' : '';
+    var title = m.href ? '<a href="' + esc(m.href) + '" title="' + esc(t('tile_open_title')) + '">' + c.title_html + '</a>' : c.title_html;
+    var pct = c.progress ? Math.round(100 * c.progress.done / c.progress.total) : 0;
+    var asks = m.asks.length ? '<ul class="tile-asks">' + m.asks.map(function (a) {
+      var inner = '<span class="ref-n">' + esc(a.n) + '</span><span class="tile-ask-t">' + esc(a.title) + '</span><span class="tile-ask-k">' + esc(t(ASK_LABEL[a.kind] || 'ask_answer')) + '</span>';
+      return '<li>' + (a.href ? '<a href="' + esc(a.href) + '" title="' + esc(t('tile_ask_title')) + '">' + inner + '</a>' : '<span>' + inner + '</span>') + '</li>';
+    }).join('') + '</ul>' : '';
+    var fig = c.figure_html ? '<div class="tile-fig"' + (m.sheet ? ' title="' + esc(t('tile_sheet', { n: m.sheet.n, title: m.sheet.title })) + '"' : '') + '>' + c.figure_html + '</div>' : '';
+    return '<article class="card tile" id="c-' + esc(c.id) + '" data-id="' + esc(c.id) + '" data-status="' + c.status + '" tabindex="0" aria-labelledby="t-' + esc(c.id) + '">' +
+      (m.asks.length ? '<div class="tab">' + esc(tabLabel(c)) + '</div>' : '') +
+      '<div class="addr"><span class="n ref-n" title="' + esc(m.group || '') + '">' + esc(c.n) + '</span><span class="rel"></span><span class="stamp"></span>' + meta.join('') + langs + '</div>' +
+      '<h3 class="claim" id="t-' + esc(c.id) + '">' + title + '</h3>' +
+      (c.progress ? '<div class="meter" role="img" aria-label="' + esc(t('card_progress', { done: c.progress.done, total: c.progress.total })) + '"><i style="width:' + pct + '%"></i></div>' : '') +
+      (c.gist_html ? '<div class="gist">' + c.gist_html + '</div>' : '') + fig + asks +
+      (c.depth_html ? '<div class="depth">' + c.depth_html + '</div>' : '') +
+      '<div class="context"></div>' +
+      '<div class="acts"><button class="grip" data-act="grip" aria-label="' + esc(t('grip_label', { card: c.n })) + '" title="' + esc(t('grip_title')) + '">' + ICON.grip + '</button></div>' +
+      '<span class="widen" aria-hidden="true" title="' + esc(t('size_title')) + '"></span>' +
+      '</article>';
+  }
+
+  // The rail of the map: a tab for each board with asks that wait on you, and how many.
+  // It jumps to the board's tile, where each ask is a link to its card.
+  function mapRail(rail) {
+    var list = [];
+    B.sections.forEach(function (s) { s.cards.forEach(function (id) { if (B.cards[id].map.asks.length) list.push(B.cards[id]); }); });
+    rail.hidden = !list.length;
+    var html = list.map(function (c) {
+      return '<button class="rail-tab" data-goto="' + esc(c.id) + '" data-open title="' + esc(c.title_text) + '"><span class="ref-n">' + esc(c.n) + '</span>' + esc(tabLabel(c)) + '</button>';
+    }).join('');
+    if (rail.innerHTML !== html) rail.innerHTML = html;
+  }
+
+  function frameName(id) {
+    var own = PLACE && PLACE.names && PLACE.names[id];
+    if (own) return own;
+    var s = B.sections.filter(function (x) { return x.id === id; })[0];
+    return s && s.title ? s.title : t('frame_untitled');
+  }
+  function frameEl(id) { return $('.frame[data-frame="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]'); }
+  // [{ id, box: [x, y, w, h] }]: your frames, or on the rule layout one around each named group.
+  function frameBoxes(plane) {
+    // Your boxes come from this browser's storage: as numbers, whatever was stored.
+    if (PLACE) return Object.keys(PLACE.frames || {}).map(function (id) { var f = PLACE.frames[id] || []; return { id: id, box: [0, 1, 2, 3].map(function (k) { return +f[k] || 0; }) }; });
+    return $$('.shelf.framed', plane).filter(function (sh) { return !sh.hidden; }).map(function (sh) {
+      var r = planeBox(sh, plane);
+      return { id: sh.dataset.section, box: [r.l, r.t, r.r - r.l, r.b - r.t] };
+    });
+  }
+  // The tiles whose middle lies in a box, on your table. all: also those a filter hides.
+  function membersOf(box, plane, all) {
+    return $$('.card', plane).filter(function (el) {
+      var p = PLACE && PLACE.cards[el.dataset.id];
+      if (!p || (el.hidden && !all)) return false;
+      var cx = p[0] + (el.offsetWidth || p[2]) / 2;
+      var cy = p[1] + (el.offsetHeight || 0) / 2;
+      return cx >= box[0] && cx <= box[0] + box[2] && cy >= box[1] && cy <= box[1] + box[3];
+    });
+  }
+  function drawFrames() {
+    var layer = $('.frames');
+    if (!layer || S.renaming || fdrag) return;
+    if (!deskOn()) { if (layer.innerHTML) layer.innerHTML = ''; return; }
+    var plane = $('.plane');
+    var html = frameBoxes(plane).map(function (f) {
+      var shelf = $('.shelf[data-section="' + f.id + '"]', plane);
+      var n = PLACE ? membersOf(f.box, plane).length : shelf ? $$('.card:not([hidden])', shelf).length : 0;
+      var empty = PLACE && !membersOf(f.box, plane, true).length;
+      var name = frameName(f.id);
+      return '<div class="frame" data-frame="' + esc(f.id) + '" style="left:' + f.box[0] + 'px;top:' + f.box[1] + 'px;width:' + f.box[2] + 'px;height:' + f.box[3] + 'px">' +
+        '<div class="frame-head" tabindex="0" role="group" aria-label="' + esc(name) + '" title="' + esc(t('frame_move_title')) + '"><b class="frame-name">' + esc(name) + '</b><span class="count">' + n + '</span>' +
+        (empty ? '<button class="link frame-x" data-act="frame-remove" title="' + esc(t('frame_remove_title')) + '">' + esc(t('frame_remove')) + '</button>' : '') + '</div>' +
+        '<span class="frame-size" title="' + esc(t('frame_size_label', { name: name })) + '"></span></div>';
+    }).join('');
+    if (layer.innerHTML !== html) layer.innerHTML = html;
+  }
+
+  // A board the agent added since you arranged the map goes into the frame of its group, at
+  // its foot; the frame grows, and what lies under it moves down by as much, so frames never
+  // overlap. A board of a group that has no frame yet gets one of its own, beside the rest.
+  // Returns the boards that belong to no group: they go to a column of their own.
+  function mapWaiting(waiting, right, grow) {
+    var loose = [];
+    var fresh = {};
+    waiting.forEach(function (el) {
+      var sid = B.cards[el.dataset.id].section;
+      var shelf = B.sections.filter(function (x) { return x.id === sid; })[0];
+      if (!shelf || !shelf.frame) { loose.push(el); return; }
+      var f = PLACE.frames[sid];
+      if (!f) {
+        (fresh[sid] || (fresh[sid] = [])).push(el);
+        return;
+      }
+      var p = [f[0] + FRAME_PAD, snap(f[1] + f[3] - FRAME_PAD + GRID), 288];
+      PLACE.cards[el.dataset.id] = p;
+      setBox(el, p);
+      var was = f[1] + f[3];
+      f[3] = snap(p[1] + el.offsetHeight + FRAME_PAD + GRID / 2) - f[1];
+      pushBelow(sid, f, f[1] + f[3] - was, el.dataset.id);
+      grow(el, p);
+    });
+    // A new group: a frame beside the rest of the table, its boards one under the other.
+    var x = snap(Math.max(right, tableRight()) + GRID * 4);
+    Object.keys(fresh).forEach(function (sid) {
+      var y = GRID * 2 + FRAME_HEAD;
+      fresh[sid].forEach(function (el) {
+        var p = [x + FRAME_PAD, y, 288];
+        PLACE.cards[el.dataset.id] = p;
+        setBox(el, p);
+        grow(el, p);
+        y = snap(y + el.offsetHeight + GRID * 2);
+      });
+      PLACE.frames[sid] = [x, GRID * 2, 288 + 2 * FRAME_PAD, y - GRID * 2];
+      x = snap(x + 288 + 2 * FRAME_PAD + GRID * 4);
+    });
+    return loose;
+  }
+  // Everything that starts under a frame's old foot, within its width, moves down by dy: the
+  // frames there with their boards, and the boards there that lie in no frame. The boards of
+  // the frame itself stay, and so does keep, the board just put into it.
+  function pushBelow(sid, f, dy, keep) {
+    if (dy <= 0) return;
+    var plane = $('.plane');
+    var foot = f[1] + f[3] - dy;
+    var across = function (l, r) { return r > f[0] && l < f[0] + f[2]; };
+    var stay = {};
+    stay[keep] = true;
+    membersOf([f[0], f[1], f[2], f[3] - dy], plane, true).forEach(function (el) { stay[el.dataset.id] = true; });
+    var move = {};
+    Object.keys(PLACE.frames).forEach(function (id) {
+      var g = PLACE.frames[id];
+      if (id === sid || g[1] < foot || !across(g[0], g[0] + g[2])) return;
+      membersOf(g, plane, true).forEach(function (el) { move[el.dataset.id] = true; });
+      g[1] += dy;
+    });
+    Object.keys(PLACE.cards).forEach(function (id) {
+      var p = PLACE.cards[id];
+      if (stay[id] || !(move[id] || (p[1] >= foot && across(p[0], p[0] + p[2])))) return;
+      p[1] += dy;
+      var el = cardEl(id);
+      if (el) setBox(el, p);
+    });
+  }
+
+  // The right edge of everything on your table: where a new thing goes, so nothing you placed moves.
+  // A board a filter hides counts too: a new frame must not land on it.
+  function tableRight() {
+    var right = 0;
+    Object.keys(PLACE.cards).forEach(function (id) { if (cardEl(id)) right = Math.max(right, PLACE.cards[id][0] + PLACE.cards[id][2]); });
+    Object.keys(PLACE.frames || {}).forEach(function (id) { var f = PLACE.frames[id]; right = Math.max(right, f[0] + f[2]); });
+    return right;
+  }
+  function newGroup() {
+    if (!deskOn()) return;
+    if (!PLACE) freeze();
+    PLACE.frames = PLACE.frames || {};
+    PLACE.names = PLACE.names || {};
+    var k = 1;
+    while (PLACE.frames['u' + k]) k++;
+    var id = 'u' + k;
+    // Beside the rest of the table, never over it: a frame dropped on boards would take them in.
+    PLACE.frames[id] = [snap(tableRight() + GRID * 4), GRID * 2, GRID * 14, GRID * 9];
+    PLACE.names[id] = t('frame_untitled') + ' ' + k;
+    savePlace();
+    layoutDesk();
+    var f = PLACE.frames[id];
+    var box = deskBox();
+    var o = planeOrigin();
+    var z = Math.max(S.scale, 0.5);
+    animateTo(z, o[0] + (f[0] + f[2] / 2) * z - box.clientWidth / 2, o[1] + (f[1] + f[3] / 2) * z - (box.clientHeight - padY(box)) / 2);
+    renameFrame(id);
+  }
+  function removeFrame(id) {
+    if (!PLACE || !PLACE.frames || !PLACE.frames[id]) return;
+    delete PLACE.frames[id];
+    if (PLACE.names) delete PLACE.names[id];
+    savePlace();
+    layoutDesk();
+  }
+  function renameFrame(id) {
+    var el = frameEl(id);
+    var name = el && el.querySelector('.frame-name');
+    if (!name) return;
+    S.renaming = id;
+    var input = document.createElement('input');
+    input.className = 'frame-input';
+    input.value = frameName(id);
+    input.setAttribute('aria-label', t('frame_name_label'));
+    input.maxLength = 60;
+    name.replaceWith(input);
+    input.focus();
+    input.select();
+    var done = false;
+    function finish(keep) {
+      if (done) return;
+      done = true;
+      S.renaming = null;
+      var v = input.value.replace(/\s+/g, ' ').trim();
+      if (keep && v && v !== frameName(id)) {
+        if (!PLACE) freeze();
+        PLACE.names = PLACE.names || {};
+        PLACE.names[id] = v;
+        savePlace();
+      }
+      layoutDesk();
+      var head = frameEl(id) && frameEl(id).querySelector('.frame-head');
+      if (head) head.focus({ preventScroll: true });
+    }
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+    });
+    input.addEventListener('blur', function () { finish(true); });
+  }
+
+  // Drag a frame by its name: it takes the boards inside it along. Drag its corner to size it.
+  var fdrag = null;
+  function startFrame(e) {
+    if (!MAP || !deskOn() || e.button !== 0) return false;
+    var hit = e.target.closest('.frame-head, .frame-size');
+    if (!hit || e.target.closest('button, input')) return false;
+    fdrag = { id: hit.closest('.frame').dataset.frame, x: e.clientX, y: e.clientY, moved: false, pid: e.pointerId, el: hit, size: hit.classList.contains('frame-size') };
+    e.preventDefault();
+    return true;
+  }
+  function moveFrame(e) {
+    var dx = e.clientX - fdrag.x;
+    var dy = e.clientY - fdrag.y;
+    if (!fdrag.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+    if (!fdrag.moved) {
+      var d0 = fdrag;
+      fdrag = null; // a frozen layout draws its frames once more, before this drag owns them
+      if (!PLACE) freeze();
+      fdrag = d0;
+      var f0 = PLACE.frames && PLACE.frames[fdrag.id];
+      if (!f0) { fdrag = null; return; }
+      fdrag.moved = true;
+      fdrag.start = f0.slice();
+      fdrag.members = fdrag.size ? [] : membersOf(f0, $('.plane'), true).map(function (el) { return [el, el.dataset.id, PLACE.cards[el.dataset.id].slice()]; });
+      document.documentElement.classList.add(fdrag.size ? 'sizing-frame' : 'moving-frame');
+      fdrag.el = frameEl(fdrag.id).querySelector(fdrag.size ? '.frame-size' : '.frame-head');
+      try { fdrag.el.setPointerCapture(fdrag.pid); } catch (err) { /* the pointer left already */ }
+    }
+    var f = PLACE.frames[fdrag.id];
+    var kx = dx / S.scale;
+    var ky = dy / S.scale;
+    if (fdrag.size) {
+      f[2] = Math.max(FRAME_MIN[0], fdrag.start[2] + kx);
+      f[3] = Math.max(FRAME_MIN[1], fdrag.start[3] + ky);
+    } else {
+      f[0] = Math.max(0, fdrag.start[0] + kx);
+      f[1] = Math.max(0, fdrag.start[1] + ky);
+      fdrag.members.forEach(function (m) {
+        var p = PLACE.cards[m[1]];
+        p[0] = m[2][0] + f[0] - fdrag.start[0];
+        p[1] = m[2][1] + f[1] - fdrag.start[1];
+        setBox(m[0], p);
+      });
+    }
+    var el = frameEl(fdrag.id);
+    if (el) { el.style.left = f[0] + 'px'; el.style.top = f[1] + 'px'; el.style.width = f[2] + 'px'; el.style.height = f[3] + 'px'; }
+    scheduleWires();
+    e.preventDefault();
+  }
+  function endFrame() {
+    if (!fdrag) return;
+    var d = fdrag;
+    fdrag = null;
+    document.documentElement.classList.remove('sizing-frame', 'moving-frame');
+    if (!d.moved) return;
+    var f = PLACE.frames[d.id];
+    if (d.size) {
+      f[2] = Math.max(FRAME_MIN[0], snap(f[2]));
+      f[3] = Math.max(FRAME_MIN[1], snap(f[3]));
+    } else {
+      // The frame and its boards land on the grid together, by the same step.
+      var sx = snap(f[0]) - f[0];
+      var sy = snap(f[1]) - f[1];
+      f[0] += sx;
+      f[1] += sy;
+      d.members.forEach(function (m) { var p = PLACE.cards[m[1]]; p[0] += sx; p[1] += sy; });
+    }
+    savePlace();
+    layoutDesk();
+    swallowClick();
+  }
 
   // ---------- the desk ----------
   //
@@ -1046,7 +1401,8 @@
   function setBox(el, p) { el.style.left = p[0] + 'px'; el.style.top = p[1] + 'px'; el.style.width = p[2] + 'px'; }
   function clearBox(el) { el.style.left = el.style.top = el.style.width = el.style.zIndex = ''; }
 
-  // The first move freezes the rule layout as it stands: nothing jumps.
+  // The first move freezes the rule layout as it stands: nothing jumps. What a filter hides
+  // has no place yet; it gets one when it shows (applyPlace), on the map in a frame of its group.
   function freeze() {
     var plane = $('.plane');
     var place = { cards: {}, labels: {} };
@@ -1057,10 +1413,16 @@
     });
     $$('.shelf-top', plane).forEach(function (el) {
       var sh = el.closest('.shelf');
-      if (sh.hidden) return;
+      if (sh.hidden || MAP) return;
       var r = planeBox(el, plane);
       place.labels[sh.dataset.section] = [r.l, r.t, el.offsetWidth];
     });
+    // On the map each named group keeps the frame it has now, and the names you gave.
+    if (MAP) {
+      place.frames = {};
+      place.names = (PLACE && PLACE.names) || {};
+      frameBoxes(plane).forEach(function (f) { place.frames[f.id] = f.box.slice(); });
+    }
     PLACE = place;
     savePlace();
     layoutDesk();
@@ -1086,6 +1448,13 @@
     });
     // A card the agent added since you arranged the table goes to a column of
     // its own at the right, so nothing you placed moves.
+    if (MAP) {
+      PLACE.frames = PLACE.frames || {};
+      Object.keys(PLACE.frames).forEach(function (id) { var f = PLACE.frames[id]; right = Math.max(right, f[0] + f[2]); bottom = Math.max(bottom, f[1] + f[3]); });
+      waiting = mapWaiting(waiting, right, grow);
+      if (!waiting.length) savePlace();
+      Object.keys(PLACE.frames).forEach(function (id) { var f = PLACE.frames[id]; right = Math.max(right, f[0] + f[2]); bottom = Math.max(bottom, f[1] + f[3]); });
+    }
     if (waiting.length) {
       var x = snap(right + GRID * 4);
       var y = GRID * 2;
@@ -1133,7 +1502,7 @@
     PLACE = null;
     savePlace();
     layoutDesk();
-    toast(t('desk_arranged'), t('undo'), function () { PLACE = before; savePlace(); layoutDesk(); }, 8000);
+    toast(t(MAP ? 'map_arranged' : 'desk_arranged'), t('undo'), function () { PLACE = before; savePlace(); layoutDesk(); }, 8000);
   }
 
   // ---- zoom ----
@@ -1281,7 +1650,7 @@
   // ---- the desk bar: line key, zoom, arrange ----
 
   function legendHtml() {
-    return LEGEND.map(function (l) {
+    return (MAP ? MAP_LEGEND : LEGEND).map(function (l) {
       var s = -1;
       var x = 30;
       return '<span class="lg"><svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true"><g class="wire w-' + l[0] + '">' +
@@ -1293,6 +1662,7 @@
       '<div class="desk-tools"><span class="zoom-now"></span>' +
       '<div class="seg seg-zoom" role="group" aria-label="' + esc(t('desk_zoom_label')) + '">' +
       '<button data-zoom="fit" title="' + esc(t('desk_fit_title')) + '">' + esc(t('desk_fit')) + '</button><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button></div>' +
+      (MAP ? '<button class="btn" data-act="new-group" title="' + esc(t('frame_new_title')) + '">' + esc(t('frame_new')) + '</button>' : '') +
       '<button class="btn" data-act="arrange">' + esc(t('desk_arrange')) + '</button></div></div>';
   }
   function updateDeskBar() {
@@ -1309,7 +1679,7 @@
     });
     var ar = $('[data-act="arrange"]');
     ar.disabled = !PLACE;
-    ar.title = t(PLACE ? 'desk_arrange_title' : 'desk_arrange_off_title');
+    ar.title = t(PLACE ? (MAP ? 'map_arrange_title' : 'desk_arrange_title') : (MAP ? 'map_arrange_off_title' : 'desk_arrange_off_title'));
   }
 
   // Lay the desk out: your places or the rule, then the scale, then the lines.
@@ -1330,6 +1700,7 @@
     else if (!S.animating && !S.back && S.zoom === 'fit') S.scale = S.target = fitScale();
     else if (!S.animating && !S.back) S.scale = S.target = S.zoom;
     syncSizer();
+    drawFrames();
     drawWires();
     updateDeskBar();
   }
@@ -1793,7 +2164,10 @@
 
   function openHelp() {
     // [the key, as typed; what it does]. Key names stay literal; 'Alt + arrows' names keys in words, so it translates.
-    var keys = [['j / k', t('keys_step')], ['Enter', t('keys_open')], ['Esc', t('keys_clear')], ['n', t('keys_next_waiting')],
+    var keys = MAP ? [['j / k', t('keys_step')], ['Enter', t('keys_open_board')], ['Esc', t('keys_clear')], ['n', t('keys_next_waiting')],
+      ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['Shift + F', t('keys_screen')], ['z', t('keys_zoom')], ['[  ]  0', t('keys_width')], [t('keys_alt_arrows'), t('keys_move')],
+      ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')]]
+      : [['j / k', t('keys_step')], ['Enter', t('keys_open')], ['Esc', t('keys_clear')], ['n', t('keys_next_waiting')],
       ['1 2 3', t('keys_alt')], ['d', t('keys_desk')], ['Shift + F', t('keys_screen')], ['z', t('keys_zoom')], ['[  ]  0', t('keys_width')], ['c', t('chat_message')], ['=  -  m', t('keys_marks')], ['r', t('keys_reply')], [t('keys_alt_arrows'), t('keys_move')],
       ['/', t('find')], ['f', t('keys_filter')], ['s', t('keys_sort')], ['Ctrl + Enter', t('send')], ['Esc', t('keys_undo_send')]];
     var dlg = document.createElement('dialog');
@@ -1997,6 +2371,8 @@
       else if (a === 'desk') toggleDesk();
       else if (a === 'screen') setScreen(!S.screen);
       else if (a === 'arrange') arrange();
+      else if (a === 'new-group') newGroup();
+      else if (a === 'frame-remove') removeFrame(act.closest('.frame').dataset.frame);
       else if (a === 'chat') toggleChat();
       else if (a === 'chat-send') chatSend();
       else if (a === 'chat-undo') chatUndo();
@@ -2077,7 +2453,7 @@
   var drag = null;
   app.addEventListener('pointerdown', function (e) {
     var g = e.target.closest('.grip');
-    if (!g || g.disabled || e.button !== 0 || S.view === 'desk') return;
+    if (!g || g.disabled || e.button !== 0 || S.view === 'desk' || MAP) return;
     var card = g.closest('.card');
     drag = { card: card, slots: card.parentElement, moved: false };
     card.classList.add('dragging');
@@ -2216,7 +2592,10 @@
   }
   window.addEventListener('pointerup', endSize);
   window.addEventListener('pointercancel', endSize);
+  window.addEventListener('pointercancel', function () { endFrame(); });
   app.addEventListener('dblclick', function (e) {
+    var fn = MAP && e.target.closest('.frame-head');
+    if (fn && !e.target.closest('button, input')) { renameFrame(fn.closest('.frame').dataset.frame); e.preventDefault(); return; }
     var h = e.target.closest('.widen');
     if (!h || S.view !== 'desk') return;
     resetWidth(h.closest('.card').dataset.id);
@@ -2227,6 +2606,7 @@
   var swallow = false;
   app.addEventListener('pointerdown', function (e) {
     if (S.view !== 'desk' || e.button !== 0) return;
+    if (startFrame(e)) return;
     var t = e.target;
     var card = t.closest('.card');
     var handle = card && t.closest('.addr, .tab, .grip');
@@ -2238,6 +2618,7 @@
     pan = { x: e.clientX, y: e.clientY, moved: 0, box: t.closest('.shelves') };
   });
   window.addEventListener('pointermove', function (e) {
+    if (fdrag) { moveFrame(e); return; }
     if (move) {
       var dx = e.clientX - move.x;
       var dy = e.clientY - move.y;
@@ -2270,6 +2651,7 @@
     }
   });
   window.addEventListener('pointerup', function () {
+    if (fdrag) { endFrame(); return; }
     if (move) {
       if (move.moved) {
         var p = PLACE.cards[move.id];
@@ -2310,7 +2692,9 @@
     var target = e.target;
     // In the chat box, Enter sends the message; Shift + Enter makes a new line.
     if (target.matches && target.matches('.chat textarea') && e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); chatSend(); return; }
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); return; }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { if (!MAP) { e.preventDefault(); send(); } return; }
+    // A frame's name: Enter or F2 renames the group.
+    if (MAP && target.classList && target.classList.contains('frame-head') && (e.key === 'Enter' || e.key === 'F2')) { e.preventDefault(); renameFrame(target.closest('.frame').dataset.frame); return; }
     if (e.key === 'Escape') {
       if (document.querySelector('dialog[open]')) return;
       if (pendingSend) { e.preventDefault(); undoSend(); return; }
@@ -2332,6 +2716,8 @@
       e.preventDefault();
       // On a desk you arranged, Alt + arrows move the card one grid step. On the
       // rule layout, Up and Down reorder it in its section; Left and Right do nothing.
+      // The map has no order of yours to send: there Alt + arrows always move the board.
+      if (MAP) { if (S.view === 'desk') { if (!PLACE) freeze(); nudge(id, e.key); } return; }
       if (S.view === 'desk' && PLACE) { nudge(id, e.key); return; }
       if (S.view === 'desk' && /Left|Right/.test(e.key)) { toast(t('desk_alt_left_right')); return; }
       moveCard(id, e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1);
@@ -2346,6 +2732,8 @@
         if (e.key === 'Enter' && target !== cardEl(id) && target.closest && target.closest(INTERACTIVE)) break;
         if (id && (target === cardEl(id) || target === document.body || tc)) {
           e.preventDefault();
+          // On the map, Enter opens the board.
+          if (MAP) { if (B.cards[id].map.href) location.href = B.cards[id].map.href; break; }
           if (S.open.has(id)) S.open.delete(id); else S.open.add(id);
           applyView();
         }
@@ -2353,17 +2741,17 @@
       case '1': setAlt('claim'); break;
       case '2': setAlt('gist'); break;
       case '3': setAlt('full'); break;
-      case '=': case '+': if (id) setMark(id, 'keep'); break;
-      case '-': if (id) setMark(id, 'drop'); break;
-      case 'm': if (id) setMark(id, 'more'); break;
-      case 'r': if (id) { e.preventDefault(); toggleReply(id, true); } break;
+      case '=': case '+': if (id && !MAP) setMark(id, 'keep'); break;
+      case '-': if (id && !MAP) setMark(id, 'drop'); break;
+      case 'm': if (id && !MAP) setMark(id, 'more'); break;
+      case 'r': if (id && !MAP) { e.preventDefault(); toggleReply(id, true); } break;
       case 'n': nextWaiting(); break;
       case 'd': toggleDesk(); break;
       // Shift + F; a capital F from Caps Lock alone does nothing, as before.
       case 'F': if (e.shiftKey && screenAllowed()) setScreen(!S.screen); break;
       case 'z': if (deskOn()) cycleZoom(); break;
       case '0': if (deskOn() && id) resetWidth(id); break;
-      case 'c': if (!ASKED.embed) { e.preventDefault(); toggleChat(true); } break;
+      case 'c': if (!ASKED.embed && !MAP) { e.preventDefault(); toggleChat(true); } break;
       // In a frame the filter, the order, the search and the help have no control on the page: no key for them either.
       case 'f': if (!ASKED.embed) { S.filter = { all: 'yours', yours: 'changed', changed: 'all' }[S.filter]; applyView(); } break;
       case 's': if (ASKED.embed) break; S.sort = { board: 'waiting', waiting: 'recent', recent: 'board' }[S.sort]; render(); toast(t('sort_toast', { order: $('[data-sort] option[value="' + S.sort + '"]').textContent })); break;

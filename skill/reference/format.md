@@ -18,6 +18,9 @@ An older `board.md` (the markdown dialect) still renders; new boards are Org.
 #+author: Claude, for Eric                        optional; shown beside the revision
 #+description: Three queues, one decision.        optional; the line a link preview shows
 #+translation_of: pick-a-queue                    optional; this board is that board in another language
+#+category: Ingest                                optional; the group this board lies in on the map
+#+from: plan                                      optional; the boards this one continues, or was split from
+#+needs: security-review                          optional; the boards whose answers this one waits on
 ```
 
 `#+todo:` changes nothing on the page: the four keywords are fixed. It is
@@ -31,7 +34,9 @@ are definition lists, figures are code blocks, options show as `[X]` and
 `#+options: todo:t`; add that line when the source will be read there.
 
 Org's own settings for Emacs (`#+startup:`, `#+options:`, `#+filetags:`,
-`#+property:` and the like) pass without a word. Any other keyword before
+`#+property:` and the like) pass without a word. `#+category:` is Org's own
+too: Emacs groups a file's entries under it in the agenda, as the map
+groups the boards. Any other keyword before
 the first heading gets a warning that it does nothing here.
 
 `#+language:` names the language you write the board in, as a BCP 47 tag.
@@ -42,6 +47,11 @@ human's language. The reply that comes back to you stays English.
 
 Text between the keywords and the first heading is the lede: one or two
 sentences under the title.
+
+`#+category:`, `#+from:` and `#+needs:` place the board on the map of the
+project (see "The map of a project's boards"). `#+from:` and `#+needs:`
+take the names of other boards in the same directory, separated by spaces
+or commas.
 
 `#+translation_of: <board>` names the board next to this one that it
 translates. Keep the card ids and the option keys of the source. Both pages
@@ -213,6 +223,15 @@ the keyword on every ask that has an answer on disk.
 - `:ON: sheet/part`: a pin. No line: the part of the sheet's drawing shows
   the card's numeral. Focus lights the sheet as "N points here" and the
   pinned cards as "On N" (see Pins).
+- `[[file:../plan/board.org::#step-3]]` in any text: a link to a card on
+  another board of the project, in Org's own form (Emacs and GitHub follow
+  it too). It renders as that board's name and the card's numeral, then the
+  card's claim, or your words with `[[...][words]]`; a click opens the card
+  on its board. `[[file:../plan/board.org][the plan]]` links the board. A
+  board or card that does not exist shows as text, and `cards check` names
+  it. A published copy (`cards export`) shows the board's name, the card's
+  numeral and your words, with no link and no claim of the other board:
+  that board may not be published.
 
 When two cards link in more than one way, the most specific name wins.
 A line always points toward the card that uses the other one. The desk lays
@@ -572,6 +591,12 @@ A warning does not stop a render. Each one is a writing rule:
   `mermaid` block whose first line is `classDiagram` is told to be a `class`
   block: the same lines draw there.
 - On a translation: the differences from its source (see File keywords).
+- Between boards: a `#+from:` or `#+needs:` that names no board here, or a
+  word that cannot be a board's name; a link to a board or to a card that
+  does not exist; another board named as `=code=` instead of linked (only a
+  name with a dash or a digit, such as `=release-2=`: `=plan=` may be code);
+  an Org board with no `#+category:` where the other boards of the project
+  name theirs.
 - More than 7 cards in a section, more than 30 on a board, more than 5 open asks.
 - An ask that is not a real decision (SKILL.md, section 3): it asks for
   permission or feedback with nothing named ("Shall I proceed?"); it is a
@@ -597,12 +622,57 @@ A warning does not stop a render. Each one is a writing rule:
 | `board.org` | you | the only file you edit |
 | `log.jsonl` | the CLI and the server | append-only; one JSON event per line |
 | `board.html` | `cards render` | self-contained; safe to delete |
-| `../index.html` | `cards render` | the list of the project's boards, in `.cards/`; safe to delete |
+| `../index.html` | `cards render` | the map of the project's boards, in `.cards/`; safe to delete |
 
-Each render also writes `.cards/index.html`: every board of the project
-with its title, its revision and its open asks, the boards with open asks
-first. A board page links back to it ("All boards"). `cards serve` shows the
-same list at `/`. A board outside a `.cards` directory gets no list.
+## The map of a project's boards
+
+Each render also writes `.cards/index.html`: the map of every board of the
+project. A board page links to it ("All boards"); `cards serve` shows it at
+`/`. A board outside a `.cards` directory gets no map. A directory under
+`.cards/` that is a link to another directory counts as a board when it
+holds one: a project can show the boards of one of its parts this way.
+
+The map is a board page in its own mode. Each board is a tile: its name, its
+revision, its title (a link that opens it), its description, a meter of its
+cards done when it uses TODO states, its first sheet that is not done (the
+drawing, scaled to the tile), and each ask that waits on the human as a
+link to its card (an ask held by the ask it `:NEEDS:` waits, as on the
+board). A board in more than one language (`#+translation_of:`, also a
+translation of a translation) is one tile with a link to each language; a
+`#+from:` or `#+needs:` that names a translation draws to that tile. A board
+whose every card is `DONE` lies back. Groups whose names differ only in
+case are one group.
+
+| On the board | On the map |
+|---|---|
+| `#+category: Ingest` | the board lies in the frame "Ingest"; the oldest group comes first, a board after the boards it comes from |
+| no `#+category:` | the board lies outside every frame, after the groups |
+| `#+from: plan` | a grey line with an open arrow from `plan` |
+| `#+needs: review` | a red line with a filled arrow from `review` |
+| a link to a card or a board there | a dashed line, shown for the board in focus |
+| an open ask | a tab on the tile ("2 asks"), a row on the tile, and a tab on the rail under the title |
+
+The desk of the map works as the desk of a board: levels, focus (it names
+each relation on the related tile), lines, zoom, full screen, Find, the
+filters (Yours: boards with an open ask; Changed: boards that changed since
+your last visit). Enter on a tile opens its board. The map has no Send and
+no chat: it asks nothing itself. The human's own arrangement stays in their
+browser: a tile dragged into a frame belongs to that group there, a frame
+dragged by its name takes its boards along, its corner sizes it, New group
+puts an empty frame beside the rest, and a double-click (or Enter) on a
+name renames it. A board the agent adds later goes to the foot of its
+group's frame, which grows, and what lies under the frame moves down by as
+much; a board of a new group gets a new frame beside the rest. Arrange puts
+every board back in the group it names. None of this reaches `board.org`,
+and each project's map keeps its own arrangement.
+
+A board page names, under its title, its group and the boards it connects
+to: "Comes from", "Waits on", "Leads to" (the boards that come from it),
+"Holds up" (the boards that wait on it), "Links to" and "Linked from". A
+published copy names none of them.
+
+`cards ls` prints the same map as text: each group, its boards, and what
+each comes from, waits on and links to.
 
 Each render compares the meaning of every card (its claim, attributes and
 rendered body) with its last recorded version. A changed meaning gets a new

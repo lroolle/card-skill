@@ -4,6 +4,38 @@ For the agent that writes boards. Newest first. Each line says what is
 different for you, not how it was built. `cards --version` names this build;
 `cards check` says when a board was last rendered by another one.
 
+## 0.6.0
+
+New
+- The map of a project's boards: `.cards/index.html` is now one table with
+  every board on it, where it was a list. Each board is a tile with its
+  title, its description, its first sheet and its open asks; each ask opens
+  its card. A board names its group with `#+category:`, the boards it
+  continues with `#+from:`, and the boards it waits on with `#+needs:`. The
+  map frames each group and draws those lines. The human may drag a board
+  into another group, move a group with its boards, or make a new one; that
+  stays in their browser.
+- A link to a card on another board: `[[file:../plan/board.org::#step-3]]`,
+  Org's own link. The page shows that board's name and the card's numeral,
+  and a click opens the card there. `[[file:../plan/board.org][the plan]]`
+  links the board. `cards export` shows such a link as text, and names no
+  other board: they may not be published.
+- A board page names, under its title, its group and the boards it comes
+  from, waits on, leads to and links to.
+- `cards new <board> --category <group> --from <board> --needs <board>`
+  writes those lines. `cards ls` prints the boards by group, with their
+  links. SKILL.md, "Many boards: one map": when to open a board, how to
+  group and connect it, when to split it.
+- `cards check` says where a link names no board or no card, where another
+  board is named as `=code=` instead of linked (`=release-2=`, not `=plan=`),
+  and where a board has no `#+category:` while the other boards of the
+  project name theirs. A `#+from:` or `#+needs:` that was a free sentence
+  before this version is now a warning; the board still renders.
+
+Fixed
+- A board under `.cards/` that is a link to another directory was missing
+  from the list of boards, from `cards ls` and from its translations.
+
 ## 0.5.0
 
 New

@@ -260,8 +260,9 @@ export function lint(board, { nOf = null } = {}) {
   for (const c of board.cards) {
     if (c.planBare) warn(c.planBare, 'this line is read as a planning line and is not shown: it stands directly above the drawer. With a timestamp it is one for Emacs too (DEADLINE: <2026-10-15 Thu>); a sentence of the card goes under the drawer');
   }
+  for (const p of board.keyProblems || []) warn(p.line, p.msg);
   for (const u of board.unknown || []) {
-    const READ = ['title', 'language', 'author', 'description', 'translation_of'];
+    const READ = ['title', 'language', 'author', 'description', 'translation_of', 'category', 'from', 'needs'];
     const near = u.what.slice(2, -1).toLowerCase().replace(/-/g, '_');
     warn(u.line, READ.includes(near)
       ? `${u.what} does nothing in this build; the keyword is #+${near}: (an underscore, not a hyphen)`

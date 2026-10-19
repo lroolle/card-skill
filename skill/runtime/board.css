@@ -786,6 +786,86 @@ html.sizing, html.sizing * { cursor: ew-resize !important; user-select: none; }
 .wire.on .ln { stroke-width: 2.25; }
 .wire.on.w-needs .ln { stroke-width: 2.5; }
 
+/* ---------- the map: the boards of a project on one table ---------- */
+
+/* A tile is a board: its name in mono in the numeral's mark, its title a link that opens it. */
+.tile .addr .n { font-family: var(--mono); font-weight: var(--w-regular); }
+.tile .claim a { text-decoration: none; }
+.tile .claim a:hover { text-decoration: underline; }
+.tile-langs { display: inline-flex; gap: var(--s2); }
+.tile-langs a { color: var(--fg-2); }
+.tile-langs b { color: var(--fg); font-weight: var(--w-strong); }
+/* Its first drawing, the whole of it at the width of the tile: a picture of the board. */
+.tile-fig .fig { margin: 0; }
+.tile-fig .fig-body { padding: var(--s2); overflow: hidden; }
+.tile-fig svg { display: block; width: 100%; height: auto; max-height: 240px; }
+.tile-fig figcaption { display: none; }
+/* Its asks, each a link to the card on its board. */
+.tile-asks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--t-s); }
+.tile-asks li > :is(a, span) {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--s2);
+  padding: 4px var(--s2); margin: 0 calc(var(--s2) * -1); border-radius: var(--r-in); text-decoration: none;
+}
+.tile-asks a:hover { background: var(--signal-soft); }
+.tile-ask-t { overflow-wrap: anywhere; }
+.tile-ask-k { font-size: var(--t-xs); font-weight: var(--w-strong); color: var(--fg-2); }
+.tile-secs { list-style: none; margin: 0; padding: 0; font-size: var(--t-s); }
+.tile-secs li { display: flex; justify-content: space-between; gap: var(--s3); padding: 3px 0; border-top: 1px solid var(--line); }
+.tile-secs .count { color: var(--fg-3); }
+/* At Claim a tile is its title and its drawing; its asks show as the tab. */
+.alt-claim .card.tile:not(.open) .tile-fig, .alt-claim .card.tile:not(.open) .tile-fig .fig { display: block; }
+.alt-claim .card.tile:not(.open):not(.focused) .tile-asks { display: none; }
+/* A board has no marks to give; a finger moves a tile by its grip. */
+.board.map .acts { display: none; }
+@media (pointer: coarse) { .board.map.view-desk .card.focused .acts { display: flex; } }
+
+/* On the desk a group stands in columns of four boards; a named group is a frame around them. */
+.board.map.view-desk .shelf {
+  display: grid; grid-template-columns: repeat(var(--lanes, 1), var(--desk-col)); column-gap: var(--s7);
+  align-items: start; width: max-content; margin-top: var(--s5);
+  pointer-events: none; /* a frame's name lies under its section: it takes the pointer */
+}
+.board.map.view-desk .shelf .card { pointer-events: auto; }
+.board.map.view-desk.free :is(.shelf, .slots) { display: contents; }
+.board.map.view-desk .shelf-top { display: none; }
+.board.map.view-desk .shelf.framed { padding: var(--s6) var(--s5) var(--s5); }
+.board.map.view-desk .slots { margin-top: calc(var(--tab-h) + var(--s2)); }
+.frames { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 0; pointer-events: none; }
+.view-rack .frames { display: none; }
+.frame { position: absolute; border: 1px solid var(--line-strong); border-radius: var(--r); pointer-events: none; }
+.frame-head {
+  position: absolute; left: 0; top: 0; right: 0; height: var(--s6);
+  display: flex; align-items: center; gap: var(--s2); padding: 0 var(--s5);
+  border-radius: var(--r) var(--r) 0 0; pointer-events: auto; cursor: grab;
+}
+.frame-name { font-weight: var(--w-strong); color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frame-head .count { font-size: var(--t-s); color: var(--fg-3); }
+.frame-head:hover .frame-name { color: var(--fg); }
+.frame-head:focus-visible { outline-offset: -2px; }
+.frame-x { margin-left: auto; font-size: var(--t-s); }
+.frame-input {
+  width: 18ch; padding: 1px var(--s2); border: 1px solid var(--accent); border-radius: var(--r-in);
+  background: var(--surface); font-weight: var(--w-strong);
+}
+.frame-input:focus { outline: none; }
+/* The corner of a frame sizes it. */
+.frame-size { position: absolute; right: -8px; bottom: -8px; width: 20px; height: 20px; cursor: nwse-resize; pointer-events: auto; touch-action: none; }
+.frame-size::after {
+  content: ""; position: absolute; right: 8px; bottom: 8px; width: 8px; height: 8px;
+  border-right: 2px solid var(--line-strong); border-bottom: 2px solid var(--line-strong); border-radius: 0 0 var(--r-s) 0;
+}
+.frame-size:hover::after { border-color: var(--accent); }
+html.moving-frame, html.moving-frame * { cursor: grabbing !important; user-select: none; }
+html.sizing-frame, html.sizing-frame * { cursor: nwse-resize !important; user-select: none; }
+@media (pointer: coarse) { .frame-size { right: -16px; bottom: -16px; width: 36px; height: 36px; } .frame-size::after { right: 16px; bottom: 16px; } }
+
+/* A board names the boards it connects to under its title; each opens that board. */
+.related { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin-top: var(--s2); font-size: var(--t-s); color: var(--fg-2); }
+.related b { margin-right: 2px; font-weight: var(--w-regular); color: var(--fg-3); }
+.related a { color: var(--fg); font-family: var(--mono); font-size: var(--t-xs); }
+/* A link to a card on another board: the board's name with the card's numeral. */
+.ref.xref .ref-n { font-weight: var(--w-regular); }
+
 /* ---------- the chat with the agent: a box in the bottom-right corner ---------- */
 
 /* Your messages are blue (your own act); the agent's are card stock; a

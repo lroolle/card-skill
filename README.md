@@ -99,8 +99,11 @@ node skill/bin/cards.mjs serve                  # or: live boards at http://127.
   between them; you place each card and set its width. The rack packs the
   cards into columns for reading. Shift + F gives either one the whole
   screen.
-- **A list of boards.** `.cards/index.html` shows every board of a project
-  and how many asks are open on each.
+- **A map of the boards.** `.cards/index.html` lays every board of a
+  project on one table, in the groups the boards name, with lines between
+  the boards that build on or wait on each other, and every open ask. A
+  card can link to a card on another board. You can drag boards into other
+  groups and make your own.
 - **Plain Org underneath.** `board.org` is an outline that Emacs folds and
   GitHub renders. The tests run `org-lint` on every board.
 - **Your language.** The buttons follow the board's language (English and
@@ -189,7 +192,7 @@ DESIGN.md, TASTE.md   the visual material and its rulings
 npm test
 ```
 
-174 tests. The browser tests need Playwright and skip without it; three
+185 tests. The browser tests need Playwright and skip without it; three
 tests need Emacs (they run `org-lint` on the boards) and skip without it.
 On GitHub nothing skips: the suite runs in Chromium, Firefox and WebKit
 (`CARDS_BROWSER`), with Emacs and with the font tools.

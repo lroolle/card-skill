@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
-import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE, addIds, setStatus, moveCards } from '../lib/board.mjs';
+import { parseBoard, formatErrors, boardTitle as titleOf, ID_RE, addIds, setStatus, moveCards, boardLinksOf } from '../lib/board.mjs';
 import { lint, formatWarnings } from '../lib/lint.mjs';
 import { buildBoard, outline, safeHome } from '../lib/compile.mjs';
 import { resolveAssets } from '../lib/assets.mjs';
@@ -13,6 +13,7 @@ import { resolveBoard, listBoards, readLog, fold, unread, markRead, boardsRoot, 
 import { serve, validItems } from '../lib/serve.mjs';
 import { parseReply, replyItems } from '../lib/ingest.mjs';
 import { family, translationChecks } from '../lib/siblings.mjs';
+import { projectChecks, scanProject } from '../lib/index.mjs';
 import { VERSION, HOME } from '../lib/version.mjs';
 import '../runtime/digest.js';
 
@@ -22,11 +23,15 @@ const PATTERNS = ['decide', 'review', 'plan', 'brief', 'status'];
 const USAGE = `cards -- agent-native card boards
 
   cards new <board> [--pattern ${PATTERNS.join('|')}] [--title "..."]
+                   [--category "..."] [--from <board>] [--needs <board>]
+                                   its group on the map, and the boards it
+                                   comes from or waits on
   cards check <board>              validate board.org; errors show a fix
   cards render <board> [--quiet]   check, record revisions, write board.html
                                    (--quiet: no outline, only warnings and the result)
   cards show <board> [id|n]        the board, or one card, as text
-  cards ls                         boards under ${process.env.CARDS_ROOT || '.cards'}/
+  cards ls                         the boards under ${process.env.CARDS_ROOT || '.cards'}/ by group, with their links;
+                                   ${process.env.CARDS_ROOT || '.cards'}/index.html is the map of them
 
   cards serve [--port 4747]        live boards; replies are written to disk
   cards wait <board> [--timeout s] block until the human sends, then print it
@@ -158,7 +163,18 @@ const commands = {
     const tpl = fs.readFileSync(path.join(SKILL, 'templates', `${pattern}.org`), 'utf8');
     fs.mkdirSync(ref.dir, { recursive: true });
     const title = typeof a.title === 'string' ? a.title.replace(/\s+/g, ' ').trim() : null;
-    fs.writeFileSync(ref.file, title ? tpl.replace(/^#\+title:.*$/m, () => `#+title: ${title}`) : tpl);
+    // Where the board lies on the map: its group, and the boards it comes from or waits on.
+    const words = (v) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '');
+    const head = [];
+    if (words(a.category)) head.push(`#+category: ${words(a.category)}`);
+    for (const key of ['from', 'needs']) {
+      const names = words(a[key]).split(/[\s,]+/).filter(Boolean);
+      for (const x of names) if (!ID_RE.test(x)) die(`--${key} ${x}: name a board, in lowercase letters, digits and dashes`);
+      if (names.length) head.push(`#+${key}: ${names.join(' ')}`);
+    }
+    let src = title ? tpl.replace(/^#\+title:.*$/m, () => `#+title: ${title}`) : tpl;
+    if (head.length) src = src.replace(/^#\+title:.*$/m, (m) => `${m}\n${head.join('\n')}`);
+    fs.writeFileSync(ref.file, src);
     console.log(`wrote ${rel(ref.file)} from the ${pattern} pattern. Replace every card, then: cards render ${ref.id}`);
   },
 
@@ -172,7 +188,7 @@ const commands = {
       const assets = resolveAssets(board, ref.dir);
       const tr = translationChecks(ref, board);
       board.errors.push(...assets.errors, ...tr.errors);
-      ws.push(...assets.warnings, ...tr.warnings);
+      ws.push(...assets.warnings, ...tr.warnings, ...projectChecks(ref, board));
       ws.sort((x, y) => x.line - y.line);
     }
     if (board.errors.length) console.log(formatErrors(board.errors, rel(ref.file)));
@@ -219,13 +235,31 @@ const commands = {
     }
   },
 
+  // The map as text: each group with its boards, and what each comes from, waits on and links to.
   ls() {
-    const boards = listBoards();
-    if (!boards.length) return console.log(`no boards under ${rel(boardsRoot())}/`);
-    for (const ref of boards) {
-      const st = fold(readLog(ref.dir));
-      const n = unread(st).length;
-      console.log(`${ref.id.padEnd(24)} rev ${String(st.rev).padEnd(4)} ${n ? `${n} unread  ` : ''}${boardTitle(ref)}`);
+    const nodes = scanProject(boardsRoot());
+    if (!nodes.length) return console.log(`no boards under ${rel(boardsRoot())}/`);
+    const groups = new Map();
+    // A translation lies in the group of its source.
+    const groupOf = (n) => (!n.board ? '' : n.board.category || (nodes.find((m) => m.id === n.board.translationOf)?.board?.category ?? ''));
+    for (const n of nodes) {
+      const g = groupOf(n);
+      if (!groups.has(g)) groups.set(g, []);
+      groups.get(g).push(n);
+    }
+    const keys = [...groups.keys()].sort((x, y) => (x === '') - (y === '') || x.localeCompare(y));
+    for (const g of keys) {
+      const pad = keys.length > 1 || g ? '  ' : '';
+      if (pad) console.log(g || '(no #+category:)');
+      for (const n of groups.get(g)) {
+        const b = n.board;
+        const said = unread(n.st).length;
+        const links = b ? [...new Set(boardLinksOf(b).map((l) => l.board))].filter((x) => x !== n.id && !b.fromBoards.includes(x) && !b.needsBoards.includes(x)) : [];
+        const edges = b ? [b.translationOf && `translation of ${b.translationOf}`, b.fromBoards.length && `from ${b.fromBoards.join(' ')}`,
+          b.needsBoards.length && `needs ${b.needsBoards.join(' ')}`, links.length && `links to ${links.join(' ')}`].filter(Boolean) : [];
+        console.log(`${pad}${n.id.padEnd(24)} rev ${String(n.st.rev).padEnd(4)} ${said ? `${said} unread  ` : ''}${b ? b.title : '(cannot read)'}`);
+        if (edges.length) console.log(`${pad}${''.padEnd(24)} ${edges.join('; ')}`);
+      }
     }
   },
 

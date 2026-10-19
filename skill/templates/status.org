@@ -1,7 +1,8 @@
 #+title: Search reindex, status
 #+todo: TODO DOING BLOCKED | DONE
+#+category: Search
 
-Example board from the status pattern. Replace every card. Work in flight first; done work recedes; blocked work names what it waits on.
+Example board from the status pattern. Replace every card. Work in flight first; done work recedes; blocked work names what it waits on. The category is the group this board lies in on the map of the project's boards.
 
 * In flight
 

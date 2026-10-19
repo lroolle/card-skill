@@ -8,7 +8,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { SOURCES, sourceIn, fold, readLog } from './store.mjs';
+import { boardDirs, sourceIn, fold, readLog } from './store.mjs';
 import { parseBoard } from './board.mjs';
 
 const isFile = (p) => { try { return fs.statSync(p).isFile(); } catch { return false; } };
@@ -28,12 +28,11 @@ export function family(ref, board) {
   const top = board.translationOf || ref.id;
   if (!fs.existsSync(root)) return [];
   const out = [];
-  for (const d of fs.readdirSync(root, { withFileTypes: true })) {
-    if (!d.isDirectory() || !SOURCES.some((f) => isFile(path.join(root, d.name, f)))) continue;
-    const dir = path.join(root, d.name);
+  for (const name of boardDirs(root)) {
+    const dir = path.join(root, name);
     const file = sourceIn(dir);
-    const h = d.name === ref.id ? { of: board.translationOf, lang: board.lang, title: board.title } : head(file);
-    if (d.name === top ? !h.of : h.of === top) out.push({ id: d.name, lang: h.lang, title: h.title, self: d.name === ref.id, dir, file });
+    const h = name === ref.id ? { of: board.translationOf, lang: board.lang, title: board.title } : head(file);
+    if (name === top ? !h.of : h.of === top) out.push({ id: name, lang: h.lang, title: h.title, self: name === ref.id, dir, file });
   }
   out.sort((a, b) => (a.id === top ? -1 : b.id === top ? 1 : a.id.localeCompare(b.id)));
   return out.length > 1 && out.some((m) => m.self) ? out : [];

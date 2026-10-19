@@ -20,7 +20,7 @@ import { buildBoard } from './compile.mjs';
 import { boardTitle, ID_RE } from './board.mjs';
 import { addSend, boardRef, boardsRoot } from './store.mjs';
 import { esc } from './md.mjs';
-import { indexRows, indexHtml } from './index.mjs';
+import { mapHtml } from './index.mjs';
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 const MAX_BODY = 256 * 1024;
@@ -176,9 +176,9 @@ export function serve({ cwd = process.cwd(), port = 4747, host = '127.0.0.1', lo
   });
 }
 
-// The same list that `cards render` writes to .cards/index.html, with live links.
+// The same map that `cards render` writes to .cards/index.html, with live links.
 function indexPage(cwd) {
-  return indexHtml(indexRows(boardsRoot(cwd)).filter((r) => ID_RE.test(r.id)), { live: true, name: 'Boards' });
+  return mapHtml(boardsRoot(cwd), { live: true });
 }
 
 function errorPage(id, errors) {

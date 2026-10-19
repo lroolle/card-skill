@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseBoard, anatomy, syntaxOf, parseCard, pinsOn } from './board.mjs';
+import { BOARD_LINK } from './org.mjs';
 import { lint } from './lint.mjs';
 import { esc, renderBlocks, parseFacts } from './md.mjs';
 import { renderFigure, isFigure, figuresIn, WIDE, cols } from './figure.mjs';
@@ -13,15 +14,21 @@ import { strings as uiStrings, t } from './i18n.mjs';
 import { family, translationChecks } from './siblings.mjs';
 import { VERSION, HOME } from './version.mjs';
 import { boardFont } from './font.mjs';
-import { writeIndex, ownsIndex } from './index.mjs';
+import { writeIndex, ownsIndex, relatedOf, resolveLink, projectChecks } from './index.mjs';
 import '../runtime/digest.js';
 
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
 const HISTORY_KEEP = 4;
 
+// A claim shown inside a link keeps its words and their marks, not its own links:
+// a link inside a link is not HTML, and a browser splits the outer one.
+const linkless = (html) => String(html).replace(/<a\b[^>]*>|<\/a>/g, '');
+
 // The render context of one board: its format's inline renderer, and card
 // references drawn as numeral + claim (or the link text the author gave).
-function refCtx(byId, nOf, sx, table, assets = null, chipHref = null, publish = false) {
+// link(board, card) -> the address of another board of the project, at a card of it;
+// null when this board stands alone (no project around it).
+function refCtx(byId, nOf, sx, table, assets = null, chipHref = null, publish = false, other = null) {
   const ctx = {
     inline: sx.inline,
     plain: sx.plain,
@@ -33,8 +40,22 @@ function refCtx(byId, nOf, sx, table, assets = null, chipHref = null, publish = 
     ref(id, label) {
       const c = byId.get(id);
       if (!c) return `<span class="ref missing">${label || esc(id)}</span>`;
-      const text = label || syntaxOf(c.fmt).inline(c.title, ctx);
+      const text = linkless(label || syntaxOf(c.fmt).inline(c.title, ctx));
       return `<a class="ref" href="#c-${esc(id)}" data-ref="${esc(id)}"><span class="ref-n">${nOf(id)}</span><span class="ref-t">${text}</span></a>`;
+    },
+    // A link to another board, or to a card on it: the board's name and the card's numeral,
+    // then the card's claim (or the board's title, or the words the author gave).
+    // A published copy names only what its own source says: no claim of the other board, and
+    // no link, since that board may not be published.
+    xref(board, card, label) {
+      const hit = other ? other.resolve(board, card) : { missing: 'board' };
+      if (hit.missing) return `<span class="ref missing">${label || esc(card ? `${board}#${card}` : board)}</span>`;
+      const n = `<span class="ref-n">${esc(board)}${card ? ` ${esc(hit.n)}` : ''}</span>`;
+      if (publish) return `<span class="ref xref">${n}${label ? `<span class="ref-t">${linkless(label)}</span>` : ''}</span>`;
+      // The other board's references are its own: in its claim they are words here.
+      const theirs = { inline: syntaxOf(hit.fmt).inline, ref: (id, words) => words || esc(id), xref: (b, c, words) => words || esc(c ? `${b}#${c}` : b) };
+      const text = linkless(label || (card ? syntaxOf(hit.fmt).inline(hit.title, theirs) : esc(hit.title)));
+      return `<a class="ref xref" href="${esc(other.href(board, card))}">${n}<span class="ref-t">${text}</span></a>`;
     },
   };
   return ctx;
@@ -120,14 +141,17 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
   const nOf = (id) => st.cards.get(id)?.n ?? '?';
   const sx = syntaxOf(board.fmt);
   const ui = uiStrings(board.lang);
-  const ctx = refCtx(byId, nOf, sx, ui.strings, board.assets || null, chipHref, publish);
+  // A published copy names index.html in full, so the link also works when the files are opened from a disk.
+  const hrefOf = (id) => (publish ? `../${id}/index.html` : live ? `/b/${id}` : `../${id}/board.html`);
+  // The other boards of the project: the boards beside this one in its directory.
+  const root = ref && ref.dir ? path.dirname(ref.dir) : null;
+  const other = root ? { resolve: (b, c) => resolveLink(root, b, c), href: (b, c) => hrefOf(b) + (c ? `#c-${c}` : '') } : null;
+  const ctx = refCtx(byId, nOf, sx, ui.strings, board.assets || null, chipHref, publish, other);
   // What Find searches: the words of the card. A file shows as its name, not
   // as the path the agent wrote, which is syntax and says where things lie.
   const words = (c) => sx.plain(`${c.title} ${String(c.body)
     .replace(/^\s*#\+include:\s*"?([^"\s]+)"?.*$/gim, (m, f) => path.basename(f))
-    .replace(/\[\[(?:file:)?((?:\.{1,2}\/)[^\]]*)\]\]/g, (m, f) => path.basename(f.replace(/::.*$/, '')))}`).slice(0, 2000);
-  // A published copy names index.html in full, so the link also works when the files are opened from a disk.
-  const hrefOf = (id) => (publish ? `../${id}/index.html` : live ? `/b/${id}` : `../${id}/board.html`);
+    .replace(/\[\[(?:file:)?((?:\.{1,2}\/)[^\]]*)\]\]/g, (m, f) => (BOARD_LINK.test(f) ? m : path.basename(f.replace(/::.*$/, ''))))}`).slice(0, 2000);
   const cards = {};
   const pins = pinsOn(board, nOf);
   for (const c of board.cards) {
@@ -194,6 +218,10 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       home: publish ? safeHome(home) : live ? '/' : ref && ref.dir && ownsIndex(path.dirname(ref.dir)) ? '../index.html' : '',
       // The same board in other languages (lib/siblings.mjs).
       langs: family(ref, board).map((m) => ({ id: m.id, lang: m.lang, self: m.self, href: hrefOf(m.id) })),
+      // Its group on the map, and the boards it connects to (lib/index.mjs).
+      category: board.category || '',
+      // A published copy names no other board: those may not be published, and may be private.
+      related: root && !publish ? relatedOf(root, ref.id, hrefOf) : [],
     },
     build: { version: VERSION, home: HOME },
     public: publish,
@@ -274,6 +302,8 @@ function headTags(data) {
   const desc = b.description || b.lede_text || '';
   const tags = [
     `<meta name="generator" content="cards ${esc(data.build.version)}">`,
+    // The map of a project's boards says so: a render rewrites only a page that is ours (lib/index.mjs).
+    data.kind === 'map' && '<meta name="cards-page" content="boards">',
     b.author && `<meta name="author" content="${esc(b.author)}">`,
     desc && `<meta name="description" content="${esc(desc)}">`,
     `<meta property="og:type" content="article">`,
@@ -313,7 +343,7 @@ export function buildBoard(ref, { live = false, token = null, write = true, cwd 
   warnings.sort((x, y) => x.line - y.line);
   if (board.assets.errors.length) return { board, errors: board.assets.errors, warnings };
   const tr = translationChecks(ref, board);
-  warnings.push(...tr.warnings);
+  warnings.push(...tr.warnings, ...projectChecks(ref, board));
   warnings.sort((x, y) => x.line - y.line);
   if (tr.errors.length) return { board, errors: tr.errors, warnings };
   // A page that leaves the machine is a copy: it records nothing. It still shows
