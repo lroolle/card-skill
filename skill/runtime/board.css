@@ -1185,8 +1185,9 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
 /* In a frame the tools are a strip along its lower edge, not a box that floats over a card. */
 .embed .bar { left: 0; right: 0; bottom: 0; transform: none; max-width: none; flex-wrap: nowrap; justify-content: space-between; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }
 .embed .page { padding-bottom: calc(var(--bar-h, 56px) + var(--s5)); }
-/* In a frame the page around it is the way to other boards. */
-.embed .switcher, .embed .switch { display: none; }
+/* In a frame the page around it is the way to other boards, and the bar keeps to what a reader
+   needs first: the asks themselves (each still has its own Set aside). */
+.embed .switcher, .embed .switch, .embed .aside-all { display: none; }
 
 /* ---------- full screen ---------- */
 /* The board takes the whole screen (Shift + F): the bar stays, what the board is about goes
