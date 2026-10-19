@@ -70,6 +70,7 @@
     var q = {};
     try { new URLSearchParams(location.search).forEach(function (v, k) { q[k] = v; }); } catch (e) { /* an old browser: no options */ }
     return { view: /^(desk|rack)$/.test(q.view) ? q.view : null, alt: /^(claim|gist|full)$/.test(q.level) ? q.level : null,
+      flow: /^(down|across)$/.test(q.flow) ? q.flow : null,
       // ?embed: the board sits in a frame on another page. It keeps one row of tools and no chat box,
       // and lets the wheel go on to the page around it. ?fresh: a sample that anyone may answer;
       // nothing is kept in this browser, so each visit starts with the board as the agent wrote it.
@@ -100,6 +101,9 @@
   var S = { view: ASKED.view || load('view', NARROW ? 'rack' : 'desk'), alts: { rack: load('alt', 'gist'), desk: deskAltSet || 'gist' }, filter: 'all', sort: 'board', q: '', focus: null, hover: null, open: new Set(), replyOpen: new Set(),
     zoom: load('zoom', 'fit'), scale: 1, back: null, chatOpen: false, screen: false };
   if (ASKED.alt) S.alts[S.view] = ASKED.alt;
+  // How the desk lays its sections out: down the page (each section a band, its cards across
+  // the columns that fit the window), or across (each section a column). Down scrolls; across fits.
+  S.flow = ASKED.flow || load('flow', 'down');
   S.alt = S.alts[S.view];
   var D = load('drafts', null) || emptyDrafts();
   // Without a server, copied drafts stay visible until the agent publishes a new
@@ -413,7 +417,7 @@
     if (B.live) stat.push(t('stat_live'));
     if (B.board.author) stat.push(t('stat_by', { author: B.board.author }));
     var html = [];
-    html.push('<div class="page board' + (MAP ? ' map' : '') + ' view-' + S.view + ' alt-' + S.alt + (S.screen ? ' screen' : '') + '">');
+    html.push('<div class="page board' + (MAP ? ' map' : '') + ' view-' + S.view + ' alt-' + S.alt + ' flow-' + S.flow + (S.screen ? ' screen' : '') + '">');
     // The bar: one line that stays at the top. The way to the other boards, the title, whose
     // turn it is, the asks, the way from card to card, the languages, and what the board is about.
     html.push('<header class="top"><div class="topbar">' +
@@ -494,7 +498,7 @@
   function markHtml() {
     var build = B.build || {};
     var svg = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path class="mark-tab" d="' + MARK_TAB + '"/><path d="' + MARK_CARD + '"/></svg>';
-    var home = MAP ? '#' : B.board.home;
+    var home = ASKED.embed ? '' : MAP ? '#' : B.board.home;
     var label = MAP || (home && !B.public) ? t('all_boards') : home ? t('home_back') : t('mark_title', { version: build.version });
     if (home) return '<a class="mark" href="' + esc(home) + '"' + (MAP ? ' data-act="home"' : '') + ' title="' + esc(label) + '" aria-label="' + esc(label) + '">' + svg + '</a>';
     return build.home ? '<a class="mark" href="' + esc(build.home) + '" target="_blank" rel="noopener noreferrer" title="' + esc(label) + '" aria-label="' + esc(label) + '">' + svg + '</a>' : '';
@@ -757,7 +761,7 @@
     if (!root) return;
     ANS = answeredSet();
     var rel = S.focus ? relations(S.focus) : new Map();
-    root.className = 'page board' + (MAP ? ' map' : '') + ' view-' + S.view + ' alt-' + S.alt + (S.focus && rel.size ? ' focusing' : '') + (S.screen ? ' screen' : '');
+    root.className = 'page board' + (MAP ? ' map' : '') + ' view-' + S.view + ' alt-' + S.alt + ' flow-' + S.flow + (S.focus && rel.size ? ' focusing' : '') + (S.screen ? ' screen' : '');
     var deskBtn = $('[data-act="desk"]');
     if (deskBtn) deskBtn.setAttribute('aria-pressed', String(S.view === 'desk'));
     var listBtn = $('[data-act="list"]');
@@ -965,10 +969,12 @@
     var ids = sortedIds(s);
     // On the desk a long group stands in columns of LANE; the rack packs its own grid.
     var lanes = [];
-    if (S.view === 'desk') for (var k = 0; k < ids.length; k += LANE) lanes.push(ids.slice(k, k + LANE));
+    if (S.view === 'desk' && S.flow === 'across') for (var k = 0; k < ids.length; k += LANE) lanes.push(ids.slice(k, k + LANE));
     else lanes.push(ids);
     var head = s.title ? '<div class="shelf-top"><div class="shelf-head"><h2>' + esc(s.title) + '</h2><span class="count">' + ids.length + '</span></div></div>' : '';
-    return '<section class="shelf' + (s.frame ? ' framed' : '') + '" data-section="' + esc(s.id) + '" style="--lanes:' + Math.max(1, lanes.length) + '">' + head +
+    // Across, a group is as many columns as it has lanes; down, it takes the table's own columns.
+    var across = S.view === 'desk' && S.flow === 'across';
+    return '<section class="shelf' + (s.frame ? ' framed' : '') + '" data-section="' + esc(s.id) + '"' + (across ? ' style="--lanes:' + Math.max(1, lanes.length) + '"' : '') + '>' + head +
       lanes.map(function (lane) { return '<div class="slots" data-layout="grid">' + lane.map(function (id) { return tileHtml(B.cards[id]); }).join('') + '</div>'; }).join('') + '</section>';
   }
 
@@ -1396,6 +1402,7 @@
   // Each card's box, and for the rule layout each column's bounds and the open
   // gaps between its cards, where a line may cross without touching a card.
   function measureDesk(plane) {
+    if (!PLACE && S.flow === 'down') return measureDown(plane);
     var cols = [];
     var rect = {};
     // A column is a lane of cards one above the other: a section's cards, or one of the
@@ -1417,7 +1424,7 @@
           var top = el.querySelector('.tab') ? r.t - TAB_H : r.t;
           if (!PLACE && top - prev >= 6) col.gaps.push({ y0: prev, y1: top, used: 0 });
           prev = r.b;
-          r.col = PLACE ? -1 : col.k;
+          r.col = r.colL = r.colR = PLACE ? -1 : col.k;
           rect[el.dataset.id] = r;
         });
         col.gaps.push({ y0: prev, y1: prev + 40, used: 0 });
@@ -1427,15 +1434,65 @@
     return { cols: cols, rect: rect, free: !!PLACE };
   }
 
-  // Which sides a line leaves and enters: 'r' or 'l'.
+  // Down: every section lays its cards on one grid of columns, the same for all, so the gaps
+  // between the columns run the whole height of the table. A line runs in those gaps, and crosses
+  // a column only between two of its cards, as in a desk that runs across. A card as wide as
+  // several columns stands in each of them; so does a section's name, which no line crosses.
+  function measureDown(plane) {
+    var C = parseFloat(getComputedStyle(plane).getPropertyValue('--lane-w')) || 288;
+    var G = parseFloat(getComputedStyle(plane).getPropertyValue('--lane-gap')) || 48;
+    var K = Math.max(1, +plane.dataset.lanes || 1);
+    var first = $('.slots', plane);
+    var x0 = first ? planeBox(first, plane).l : 0;
+    var cols = [];
+    for (var k = 0; k < K; k++) cols.push({ k: k, l: x0 + k * (C + G), r: x0 + k * (C + G) + C, items: [], gaps: [] });
+    var lanesOf = function (r) {
+      var out = [];
+      cols.forEach(function (c) { if (c.l < r.r - 1 && c.r > r.l + 1) out.push(c.k); });
+      return out.length ? out : [Math.max(0, Math.min(K - 1, Math.round((r.l - x0) / (C + G))))];
+    };
+    var rect = {};
+    $$('.card:not([hidden])', plane).forEach(function (el) {
+      if (el.closest('.shelf') && el.closest('.shelf').hidden) return;
+      var r = planeBox(el, plane);
+      var ks = lanesOf(r);
+      r.colL = ks[0];
+      r.colR = ks[ks.length - 1];
+      r.col = r.colL;
+      r.tt = el.querySelector('.tab') ? r.t - TAB_H : r.t;
+      rect[el.dataset.id] = r;
+      ks.forEach(function (k) { cols[k].items.push({ t: el.querySelector('.tab') ? r.t - TAB_H : r.t, b: r.b }); });
+    });
+    // A section's name (or a group's, on the map) is in the way of a line as a card is.
+    $$('.shelf:not([hidden])', plane).forEach(function (sh) {
+      var head = MAP ? null : sh.querySelector('.shelf-top');
+      var r = head ? planeBox(head, plane) : MAP && sh.classList.contains('framed') ? (function () { var b = planeBox(sh, plane); return { l: b.l, r: b.r, t: b.t, b: b.t + 32 }; })() : null;
+      if (r) lanesOf(r).forEach(function (k) { cols[k].items.push({ t: r.t, b: r.b }); });
+    });
+    cols.forEach(function (c) {
+      c.items.sort(function (p, q) { return p.t - q.t; });
+      var prev = 0;
+      c.items.forEach(function (it) {
+        if (it.t - prev >= 6) c.gaps.push({ y0: prev, y1: it.t, used: 0 });
+        prev = Math.max(prev, it.b);
+      });
+      c.gaps.push({ y0: prev, y1: prev + 40, used: 0 });
+    });
+    // The channel right of the last column: nothing stands there, so a line may run its length.
+    return { cols: cols, rect: rect, free: false, down: true, channel: cols[K - 1].r + G / 2, outer: 0 };
+  }
+
+  // Which sides a line leaves and enters: 'r' or 'l'. A card stands in one column, or in several
+  // (colL to colR): a line to a column further right leaves on the right.
   function sidesOf(a, b, free) {
     if (free) {
       if (b.l >= a.r + 16) return ['r', 'l'];
       if (b.r <= a.l - 16) return ['l', 'r'];
       return ['r', 'r'];
     }
-    if (a.col === b.col) return ['r', 'r'];
-    return a.col < b.col ? ['r', 'l'] : ['l', 'r'];
+    if (b.colL > a.colR) return ['r', 'l'];
+    if (b.colR < a.colL) return ['l', 'r'];
+    return ['r', 'r'];
   }
 
   // A line between far columns passes each column in between through the
@@ -1466,42 +1523,104 @@
   }
   function tipScale() { return clamp(1 / (S.scale || 1), 1, 3); }
 
+  // A path is kept as its points too (each curve sampled), so that a desk that runs down can
+  // check it: no point of a line may lie on a card it does not link.
+  function Path(x, y) { this.d = 'M' + x + ',' + y; this.pts = [[x, y]]; this.x = x; this.y = y; }
+  Path.prototype.C = function (x1, y1, x2, y2, x, y) {
+    this.d += ' C' + x1 + ',' + y1 + ' ' + x2 + ',' + y2 + ' ' + x + ',' + y;
+    for (var k = 1; k <= 16; k++) {
+      var t = k / 16;
+      var u = 1 - t;
+      this.pts.push([u * u * u * this.x + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x, u * u * u * this.y + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y]);
+    }
+    this.x = x;
+    this.y = y;
+    return this;
+  };
+  Path.prototype.L = function (x, y) {
+    var n = Math.max(1, Math.ceil(Math.hypot(x - this.x, y - this.y) / 6));
+    for (var k = 1; k <= n; k++) this.pts.push([this.x + (x - this.x) * k / n, this.y + (y - this.y) * k / n]);
+    this.d += ' L' + x + ',' + y;
+    this.x = x;
+    this.y = y;
+    return this;
+  };
+  // A smooth step from where the path is to (x, y): flat out, flat in.
+  Path.prototype.to = function (x, y) { var dx = (x - this.x) / 2; return this.C(this.x + dx, this.y, x - dx, y, x, y); };
+  // How many points of a path lie on a card that is neither of its ends (with a 1px margin).
+  function hitsOf(path, w, m) {
+    var n = 0;
+    Object.keys(m.rect).forEach(function (id) {
+      if (id === w.a || id === w.b) return;
+      var r = m.rect[id];
+      var top = r.tt === undefined ? r.t : r.tt;
+      path.pts.forEach(function (p) { if (p[0] > r.l + 1 && p[0] < r.r - 1 && p[1] > top + 1 && p[1] < r.b - 1) n++; });
+    });
+    return n;
+  }
+
   function wireD(w, m) {
     var a = m.rect[w.a];
     var b = m.rect[w.b];
     var ya = a.t + w.ya;
     var yb = b.t + w.yb;
     var sd = sidesOf(a, b, m.free);
+    var k = tipScale();
+    var best = routeD(w, m, a, b, ya, yb, sd, k);
+    // Down: a line that would touch a card it does not link goes around, through the free
+    // channel to the right of the columns. The one that touches fewer cards is drawn.
+    if (m.down && best.hits) {
+      var round = outerD(w, m, a, b, ya, yb, k);
+      if (round.hits < best.hits) best = round;
+    }
+    return { line: best.path.d, tip: best.tip, hits: best.hits };
+  }
+  // The line by the rule: across a gap of each column between its ends, or an arc in the gutter.
+  function routeD(w, m, a, b, ya, yb, sd, k) {
     var x = sd[0] === 'r' ? a.r : a.l;
     var tx = sd[1] === 'r' ? b.r : b.l;
     var s = sd[1] === 'r' ? 1 : -1;
-    var k = tipScale();
     var ex = tx + TIP_INSET[w.type] * k * s; // the line stops where the end shape starts
-    var d = 'M' + x + ',' + ya;
+    var path = new Path(x, ya);
     if (sd[0] === sd[1]) {
       // Same side: an arc in the gutter, wider for longer spans.
       var bend = Math.min(44, 16 + Math.abs(yb - ya) * 0.08) * s;
-      d += ' C' + (x + bend) + ',' + ya + ' ' + (ex + bend) + ',' + yb + ' ' + ex + ',' + yb;
+      path.C(x + bend, ya, ex + bend, yb, ex, yb);
     } else {
-      var y = ya;
       if (!m.free) {
-        var fwd = a.col < b.col;
-        for (var c = a.col + (fwd ? 1 : -1); c !== b.col; c += fwd ? 1 : -1) {
+        var fwd = b.colL > a.colR;
+        var a0 = fwd ? a.colR : a.colL;
+        var b0 = fwd ? b.colL : b.colR;
+        for (var c = a0 + (fwd ? 1 : -1); c !== b0; c += fwd ? 1 : -1) {
           var col = m.cols[c];
-          var cy = crossing(col, ya + (yb - ya) * (c - a.col) / (b.col - a.col));
-          var inX = fwd ? col.l : col.r;
-          var outX = fwd ? col.r : col.l;
-          var dx = (inX - x) / 2;
+          var cy = crossing(col, ya + (yb - ya) * (c - a0) / (b0 - a0));
           // The run across a column lies in a gap, so it touches no card and stays solid.
-          d += ' C' + (x + dx) + ',' + y + ' ' + (inX - dx) + ',' + cy + ' ' + inX + ',' + cy + ' L' + outX + ',' + cy;
-          x = outX;
-          y = cy;
+          path.to(fwd ? col.l : col.r, cy).L(fwd ? col.r : col.l, cy);
         }
       }
-      var dx2 = (ex - x) / 2;
-      d += ' C' + (x + dx2) + ',' + y + ' ' + (ex - dx2) + ',' + yb + ' ' + ex + ',' + yb;
+      path.to(ex, yb);
     }
-    return { line: d, tip: tipD(w.type, tx, yb, s, k) };
+    var out = { path: path, tip: tipD(w.type, tx, yb, s, k) };
+    out.hits = m.down ? hitsOf(path, w, m) : 0;
+    return out;
+  }
+  // Around: out of the right side of a, across the columns to its right in their gaps, down (or
+  // up) the free channel right of the last column, and back across into the right side of b.
+  function outerD(w, m, a, b, ya, yb, k) {
+    var last = m.cols.length - 1;
+    var lane = m.channel + 6 * (m.outer++ % 6);
+    var path = new Path(a.r, ya);
+    var c;
+    var y = ya;
+    for (c = a.colR + 1; c <= last; c++) { y = crossing(m.cols[c], ya); path.to(m.cols[c].l, y).L(m.cols[c].r, y); }
+    var yIn = yb;
+    var back = [];
+    for (c = last; c > b.colR; c--) { yIn = crossing(m.cols[c], yb); back.push([c, yIn]); }
+    path.to(lane, y).L(lane, back.length ? back[0][1] : yb);
+    back.forEach(function (g) { path.to(m.cols[g[0]].r, g[1]).L(m.cols[g[0]].l, g[1]); });
+    var ex = b.r + TIP_INSET[w.type] * k;
+    path.to(ex, yb);
+    return { path: path, tip: tipD(w.type, b.r, yb, 1, k), hits: hitsOf(path, w, m) };
   }
 
   function drawWires() {
@@ -1694,6 +1813,8 @@
   }
   function fitScale() {
     var f = fitParts();
+    // Down: the table is as wide as the window; Fit is its width, and the board scrolls down.
+    if (S.flow === 'down') return clamp(f.wide / TABLE, 0.15, 1);
     return clamp(S.alt === 'claim' || f.all >= READABLE ? f.all : Math.max(f.wide, READABLE), 0.15, 1);
   }
   // The first view of a board, when you have not picked a level for the desk:
@@ -1701,7 +1822,7 @@
   // most two windows tall; else Claim, the whole board at once, each card
   // with its claim and its picture.
   function firstView() {
-    if (deskAltSet || ASKED.alt || !deskOn()) return;
+    if (deskAltSet || ASKED.alt || !deskOn() || S.flow === 'down') return;
     deskAltSet = 'auto';
     var box = deskBox();
     var big = fitParts().wide < READABLE || $('.plane').offsetHeight * fitScale() > 2 * (box.clientHeight - padY(box));
@@ -1869,6 +1990,17 @@
   }
   ['pointerdown', 'wheel', 'keydown', 'resize'].forEach(function (ev) { window.addEventListener(ev, hidePeek, { capture: true, passive: true }); });
 
+  function setFlow(f) {
+    if (f === S.flow || PLACE) return;
+    S.flow = f;
+    save('flow', f);
+    S.zoom = 'fit';
+    S.back = null;
+    render();
+    var box = deskBox();
+    if (box) { box.scrollTop = 0; box.scrollLeft = 0; }
+  }
+
   // ---- the desk bar: line key, zoom, arrange ----
 
   function legendHtml() {
@@ -1881,7 +2013,10 @@
   }
   function deskBarHtml() {
     return '<div class="desk-bar"><div class="legend" role="note" aria-label="' + esc(t('desk_legend_label')) + '">' + legendHtml() + '</div>' +
-      '<div class="desk-tools"><span class="zoom-now"></span>' +
+      '<div class="desk-tools">' +
+      '<div class="seg seg-flow" role="group" aria-label="' + esc(t('flow_label')) + '">' +
+      '<button data-flow="down" title="' + esc(t('flow_down_title')) + '">' + esc(t('flow_down')) + '</button><button data-flow="across" title="' + esc(t('flow_across_title')) + '">' + esc(t('flow_across')) + '</button></div>' +
+      '<span class="zoom-now"></span>' +
       '<div class="seg seg-zoom" role="group" aria-label="' + esc(t('desk_zoom_label')) + '">' +
       '<button data-zoom="fit" title="' + esc(t('desk_fit_title')) + '">' + esc(t('desk_fit')) + '</button><button data-zoom="0.5">50%</button><button data-zoom="1">100%</button></div>' +
       (MAP ? '<button class="btn" data-act="new-group" title="' + esc(t('frame_new_title')) + '">' + esc(t('frame_new')) + '</button>' : '') +
@@ -1898,6 +2033,12 @@
       var v = b.dataset.zoom === 'fit' ? 'fit' : +b.dataset.zoom;
       var on = v === 'fit' ? S.zoom === 'fit' && !S.back : S.back ? Math.abs(target - v) < 0.01 : S.zoom === v;
       b.setAttribute('aria-pressed', String(on));
+    });
+    // Down or across is how the rule lays the table out; a table you arranged is yours.
+    $$('[data-flow]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(!PLACE && S.flow === b.dataset.flow));
+      b.disabled = !!PLACE;
+      b.title = t(PLACE ? 'flow_off_title' : b.dataset.flow === 'down' ? 'flow_down_title' : 'flow_across_title');
     });
     var ar = $('[data-act="arrange"]');
     ar.disabled = !PLACE;
@@ -1916,6 +2057,7 @@
     else {
       $$('.card, .shelf-top', plane).forEach(clearBox);
       plane.style.width = plane.style.height = '';
+      if (S.flow === 'down') laneDown(plane);
     }
     // A running zoom animation owns the scale until it ends; so does a card that is being sized.
     if (S.holding) { /* keep the scale */ }
@@ -1925,6 +2067,39 @@
     drawFrames();
     drawWires();
     updateDeskBar();
+  }
+
+  // Down: as many columns as fit the window at full size, the same for every section. A card
+  // with a drawing or a table wider than a column takes as many columns as it needs; a sheet
+  // takes the width of the table at most, and its drawing scales or scrolls inside it.
+  function laneDown(plane) {
+    var box = deskBox();
+    var cs = getComputedStyle(box);
+    var C = parseFloat(getComputedStyle(plane).getPropertyValue('--lane-w')) || 288;
+    var G = parseFloat(getComputedStyle(plane).getPropertyValue('--lane-gap')) || 48;
+    var pc = getComputedStyle(plane);
+    var pad = parseFloat(pc.paddingLeft) + parseFloat(pc.paddingRight) + (MAP ? 48 : 0);
+    var room = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - pad;
+    var K = clamp(Math.floor((room + G) / (C + G)), 1, 8);
+    if (+plane.dataset.lanes !== K) {
+      plane.dataset.lanes = String(K);
+      plane.style.setProperty('--lanes', K);
+    }
+    var full = S.alt === 'full';
+    // A sheet takes whole columns, so its edges are the columns' edges, and the table's width at most.
+    $$('.sheets > .card.sheet', plane).forEach(function (el) {
+      var span = Math.min(K, Math.max(1, Math.ceil((sheetWidth(el) + G) / (C + G))));
+      var w = span * C + (span - 1) * G + 'px';
+      if (el.style.width !== w) el.style.width = w;
+    });
+    $$('.slots > .card', plane).forEach(function (el) {
+      var c = B.cards[el.dataset.id];
+      var want = c && c.fig_w && c.status !== 'done' && S.alt !== 'claim' ? c.fig_w + 34 : 0;
+      if (full && c && c.tbl_w > 440 && c.status !== 'done') want = Math.max(want, c.tbl_w + 34);
+      var span = want > C ? Math.min(K, Math.ceil((want + G) / (C + G))) : 1;
+      var v = span > 1 ? 'span ' + span : '';
+      if (el.style.gridColumn !== v) el.style.gridColumn = v;
+    });
   }
 
   // Lines and the fit follow the cards: any change in a card's size redraws them.
@@ -2612,6 +2787,8 @@
     if (!t.closest('.switcher')) closeSwitcher();
     var ls = t.closest('[data-lsort]');
     if (ls) { sortList(ls.dataset.lsort); return; }
+    var fb = t.closest('[data-flow]');
+    if (fb) { setFlow(fb.dataset.flow); return; }
     var zb = t.closest('[data-zoom]');
     if (zb) { setZoom(zb.dataset.zoom === 'fit' ? 'fit' : +zb.dataset.zoom); return; }
     var fz = t.closest('.fig-zoom');

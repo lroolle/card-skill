@@ -329,5 +329,11 @@
   "aside_all_title": "Set aside every ask that waits on you, for a board whose session has ended. The agent learns it with Send.",
   "aside_all_done": "{n} asks set aside.",
   "aside_all_done_one": "{n} ask set aside.",
-  "ask_set_aside": "Set aside"
+  "ask_set_aside": "Set aside",
+  "flow_label": "How the desk lays out the sections",
+  "flow_down": "Down",
+  "flow_down_title": "Each section a band, down the page; the desk scrolls",
+  "flow_across": "Across",
+  "flow_across_title": "Each section a column, across the table; Fit shows it all",
+  "flow_off_title": "You arranged this table; Arrange gives the rule back, down or across"
 }

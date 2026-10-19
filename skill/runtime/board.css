@@ -48,6 +48,7 @@
   --tab-h: 20px;
   --desk-col: 288px;       /* one section, one column on the desk; wider when a figure needs it */
   --desk-gutter: 96px;     /* room for the lines between columns */
+  --desk-lane-gap: 48px;   /* between the columns when the desk runs down: room for the lines, and four columns at 1440 */
   --ease: cubic-bezier(.2, .7, .2, 1);
   --fast: 140ms;
 }
@@ -793,6 +794,33 @@ html.sizing, html.sizing * { cursor: ew-resize !important; user-select: none; }
 .view-desk .card.focused .acts { position: static; display: flex; margin: 0 calc(var(--s2) * -1); padding: 0; border: 0; background: none; }
 .view-desk .card.focused .act.reply-btn { margin-left: auto; }
 
+/* Down (the default): each section is a band across the table, its cards on a grid of columns
+   that every section shares, so the gaps between the columns run the whole height: the lines
+   run in them. The table is as wide as the window and scrolls down. Across: a column each. */
+.view-desk .plane { --lane-w: var(--desk-col); --lane-gap: var(--desk-lane-gap); }
+.view-desk.flow-down:not(.free) .plane { flex-direction: column; align-items: flex-start; gap: var(--s6) 0; padding-right: var(--desk-lane-gap); }
+.view-desk.flow-down:not(.free) .shelf { width: auto; margin-top: 0; }
+/* A section's name and note stay as wide as the columns, so they never widen the table; the lines
+   pass under the name, never over it. */
+.view-desk.flow-down:not(.free) .shelf-top {
+  position: relative; z-index: 1; background: var(--bg);
+  max-width: calc(var(--lanes, 1) * var(--lane-w) + (var(--lanes, 1) - 1) * var(--lane-gap));
+}
+.view-desk.flow-down:not(.free) .shelf.has-sheets { display: block; width: auto; }
+.view-desk.flow-down:not(.free) .sheets {
+  display: flex; flex-wrap: wrap; gap: var(--s5) var(--lane-gap); margin-top: calc(var(--s3) + var(--tab-h));
+  max-width: calc(var(--lanes, 1) * var(--lane-w) + (var(--lanes, 1) - 1) * var(--lane-gap));
+}
+.view-desk.flow-down:not(.free) .card.sheet { max-width: calc(var(--lanes, 1) * var(--lane-w) + (var(--lanes, 1) - 1) * var(--lane-gap)); }
+.view-desk.flow-down:not(.free) .slots, .view-desk.flow-down:not(.free) .slots[data-layout] {
+  grid-template-columns: repeat(var(--lanes, 1), var(--lane-w)); column-gap: var(--lane-gap); row-gap: calc(var(--s5) + var(--tab-h));
+}
+.view-desk.flow-down:not(.free) .slots > .card:not(.sheet) { width: auto; }
+.desk-tools .seg-flow button:disabled { color: var(--fg-3); cursor: default; }
+.desk-tools { flex-wrap: wrap; justify-content: flex-end; }
+/* A phone has one column: down and across are one layout there. */
+@media (max-width: 720px) { .desk-tools .seg-flow { display: none; } }
+
 /* Your layout: every card and section label sits where you (or the frozen
    rule) put it. Nothing reflows, so opening a card moves nothing else. */
 .view-desk.free .plane { display: block; }
@@ -924,6 +952,9 @@ html.sizing, html.sizing * { cursor: ew-resize !important; user-select: none; }
 }
 .board.map.view-desk .shelf .card { pointer-events: auto; }
 .board.map.view-desk.free :is(.shelf, .slots) { display: contents; }
+/* The map, down: each group a band across the table, in its frame; a group with no name is the
+   same band without one, so the columns line up from group to group. */
+.board.map.view-desk.flow-down:not(.free) .shelf { display: block; width: auto; padding: var(--s6) var(--s5) var(--s5); }
 .board.map.view-desk .shelf-top { display: none; }
 .board.map.view-desk .shelf.framed { padding: var(--s6) var(--s5) var(--s5); }
 .board.map.view-desk .slots { margin-top: calc(var(--tab-h) + var(--s2)); }

@@ -26,6 +26,8 @@ for (const p of ['playwright', path.join(os.homedir(), '.npm-global/lib/node_mod
 // CI sets CARDS_E2E=required: there, a missing browser fails the run instead of passing it quietly.
 if (!chromium && process.env.CARDS_E2E === 'required') throw new Error('CARDS_E2E=required, but Playwright did not load');
 const SKILL = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'skill');
+// The desk runs down by default (D47); a test of the layout across asks for it in the address.
+const across = (u) => u + (u.includes('?') ? '&' : '?') + 'flow=across';
 
 // The board opens on the desk (D15). Tests about reading and answering use the rack.
 async function toRack(page) {
@@ -204,7 +206,7 @@ test('desk: one column per section, a line per link, focus lights its lines, no 
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?level=claim');
+    await page.goto(across(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?level=claim'));
     assert.ok((await page.getAttribute('.board', 'class')).includes('view-desk'), 'the board opens on the desk');
     assert.equal(await page.getAttribute('[data-act="desk"]', 'aria-pressed'), 'true');
     // option a->g, option f->g, needs c->f, from a->c, from c->d. The mention e->a draws only in focus.
@@ -414,7 +416,7 @@ test('desk canvas: zoom presets, zoom to a card and back, drag to place, Arrange
     const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?level=claim');
+    await page.goto(across(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?level=claim'));
     const scale = () => page.evaluate(() => { const p = document.querySelector('.plane'); return Math.round(100 * p.getBoundingClientRect().width / p.offsetWidth); });
     const pressed = () => page.$$eval('[data-zoom][aria-pressed="true"]', (b) => b.map((x) => x.dataset.zoom));
     // Zoom animates; wait for the scale itself, not for a fixed time.
@@ -772,13 +774,13 @@ test('first view: the most detail that fits and reads; pictures at every level; 
     buildBoard(small.ref, { cwd: small.cwd });
     // (A tall window: this board of four asks is close to the two-window limit at 900.)
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-    await page.goto(pathToFileURL(path.join(small.ref.dir, 'board.html')).href);
+    await page.goto(across(pathToFileURL(path.join(small.ref.dir, 'board.html')).href));
     await page.waitForSelector('.board.view-desk.alt-gist');
     assert.ok(await scaleOf(page) >= 0.5);
     // Fit leaves empty table around the cards.
     const wide = setup();
     buildBoard(wide.ref, { cwd: wide.cwd });
-    await page.goto(pathToFileURL(path.join(wide.ref.dir, 'board.html')).href + '?level=claim');
+    await page.goto(across(pathToFileURL(path.join(wide.ref.dir, 'board.html')).href + '?level=claim'));
     await page.waitForSelector('.board.view-desk.alt-claim');
     const fill = await page.evaluate(() => { const p = document.querySelector('.plane').getBoundingClientRect(); const b = document.querySelector('.shelves').getBoundingClientRect(); return Math.max(p.width / b.width, p.height / b.height); });
     assert.ok(fill <= 0.86, `the cards take ${Math.round(fill * 100)}% of the table`);
@@ -793,7 +795,7 @@ test('first view: the most detail that fits and reads; pictures at every level; 
     fs.writeFileSync(ref.file, `#+title: Bands\n\n${[1, 2, 3].map((s) => `* Group ${s}  :compare:\n\n${[1, 2, 3, 4, 5, 6].map((k) => card(s, k)).join('\n')}`).join('\n')}`);
     const r = buildBoard(ref, { cwd });
     assert.deepEqual(r.errors, []);
-    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
+    await page.goto(across(pathToFileURL(path.join(ref.dir, 'board.html')).href));
     await page.waitForSelector('.board.view-desk.alt-claim');
     const thumb = await page.locator('#c-b11 .fig img').boundingBox();
     assert.ok(thumb && thumb.height > 20, 'a picture shows on the Claim tile');
@@ -808,7 +810,7 @@ test('first view: the most detail that fits and reads; pictures at every level; 
     assert.deepEqual(scroll, [true, true], 'the width fits; the height scrolls');
 
     // On the rack, six options sit 3 + 3, not 4 + 2.
-    await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack&level=gist');
+    await page.goto(across(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack&level=gist'));
     await page.waitForSelector('.board.view-rack.alt-gist');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.slots[data-layout="compare"]')).gridTemplateColumns.split(' ').length), 3);
   } finally {
@@ -1140,7 +1142,7 @@ test('tables and widths: words stay whole, rows stack where a table cannot fit, 
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(url + '?view=desk&level=full');
+    await page.goto(across(url + '?view=desk&level=full'));
     await page.waitForSelector('#c-names table');
     const width = () => page.$eval('#c-names', (el) => el.offsetWidth);
     const stacked = () => page.$$eval('#c-names .table', (els) => els.map((e) => e.classList.contains('stacked')));
@@ -1214,7 +1216,7 @@ test('tables and widths: words stay whole, rows stack where a table cannot fit, 
     // The reading view has no such edge. On a phone the wide table stacks too, and the short one stays.
     const phone = await browser.newPage({ viewport: { width: 390, height: 800 } });
     phone.on('pageerror', (e) => errors.push(e.message));
-    await phone.goto(url + '?view=rack&level=full');
+    await phone.goto(across(url + '?view=rack&level=full'));
     await phone.waitForSelector('#c-names table');
     assert.equal(await phone.$eval('#c-names .widen', (e) => getComputedStyle(e).display), 'none');
     await phone.waitForFunction(() => document.querySelector('#c-names .table').classList.contains('stacked'));
@@ -1236,7 +1238,7 @@ test('resize, as a reviewer broke it: the edge follows the pointer at any zoom, 
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     // Fit, on a window in which the desk is scaled down: the hard case for a drag.
-    await page.goto(url + '?view=desk&level=gist');
+    await page.goto(across(url + '?view=desk&level=gist'));
     await page.waitForSelector('#c-last');
     const scale = () => page.evaluate(() => { const p = document.querySelector('.plane'); return p.getBoundingClientRect().width / p.offsetWidth; });
     const edge = (id) => page.$eval('#c-' + id, (el) => el.getBoundingClientRect().right);
@@ -1290,14 +1292,14 @@ test('resize, as a reviewer broke it: the edge follows the pointer at any zoom, 
     const [kw, vw] = await page.$eval('#c-second dl.facts', (dl) => [dl.querySelector('dt').offsetWidth, dl.querySelector('dd').offsetWidth]);
     assert.ok(vw >= 1.4 * kw && vw > 120, `key ${kw}, value ${vw}`);
     // A DONE card is closed: its table asks for no room on the desk, and for no second column in the reading view.
-    await page.goto(url + '?view=desk&level=full&fresh');
+    await page.goto(across(url + '?view=desk&level=full&fresh'));
     await page.waitForSelector('#c-closed');
     assert.equal(await page.$eval('#c-closed', (el) => el.offsetWidth), 288);
-    await page.goto(url + '?view=rack&level=full&fresh');
+    await page.goto(across(url + '?view=rack&level=full&fresh'));
     await page.waitForSelector('#c-closed');
     assert.equal(await page.$eval('#c-closed', (el) => el.classList.contains('wide-t')), false);
     // The ledger of claims is one column, also when you open the card with the wide table.
-    await page.goto(url + '?view=rack&level=claim&fresh');
+    await page.goto(across(url + '?view=rack&level=claim&fresh'));
     await page.waitForSelector('#c-names');
     await page.click('#c-names .claim');
     const lefts = await page.$$eval('.card', (els) => [...new Set(els.filter((e) => e.getClientRects().length && !e.classList.contains('open')).map((e) => Math.round(e.getBoundingClientRect().left)))]);
@@ -1309,7 +1311,7 @@ test('resize, as a reviewer broke it: the edge follows the pointer at any zoom, 
     if (ENGINE !== 'firefox') {
       const touch = await browser.newContext({ viewport: { width: 1000, height: 700 }, hasTouch: true });
       const tp = await touch.newPage();
-      await tp.goto(url + '?view=desk&level=gist&fresh');
+      await tp.goto(across(url + '?view=desk&level=gist&fresh'));
       await tp.waitForSelector('#c-last');
       const b = await tp.locator('#c-last .widen').boundingBox();
       const w0 = await tp.$eval('#c-last', (el) => el.offsetWidth);
@@ -1642,7 +1644,7 @@ test('sheets: a drawing leads its section, side by side on the rack and in a lan
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(url + '?view=rack&level=gist');
+    await page.goto(across(url + '?view=rack&level=gist'));
     await page.waitForSelector('.board.view-rack');
     const box = (sel) => page.evaluate((s) => { const q = document.querySelector(s).getBoundingClientRect(); return { l: q.left, t: q.top, r: q.right, b: q.bottom, w: q.width }; }, sel);
 
@@ -1676,7 +1678,7 @@ test('sheets: a drawing leads its section, side by side on the rack and in a lan
 
     // On a phone the drawing does not widen the page: it scales down, then scrolls in its sheet.
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await phone.goto(url + '?view=rack&level=gist');
+    await phone.goto(across(url + '?view=rack&level=gist'));
     await phone.waitForSelector('.board.view-rack');
     assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= 390), 'the page stays as wide as the phone');
     const fb = await phone.evaluate(() => { const b = document.querySelector('#c-latency .fig-body'); const s = b.querySelector('svg'); return { scroll: b.scrollWidth > b.clientWidth, k: s.getBoundingClientRect().width / +s.getAttribute('width') }; });
@@ -1685,7 +1687,7 @@ test('sheets: a drawing leads its section, side by side on the rack and in a lan
     await phone.close();
 
     // The desk: each sheet a column of its own, the section's cards in the lane beside them.
-    await page.goto(url + '?view=desk&level=gist');
+    await page.goto(across(url + '?view=desk&level=gist'));
     await page.waitForSelector('.board.view-desk');
     await page.waitForTimeout(200);
     const plane = (sel) => page.evaluate((s) => { const el = document.querySelector(s); let x = 0, y = 0; for (let n = el; n && !n.classList.contains('plane'); n = n.offsetParent) { x += n.offsetLeft; y += n.offsetTop; } return { l: x, t: y, r: x + el.offsetWidth, b: y + el.offsetHeight, w: el.offsetWidth }; }, sel);
@@ -1711,10 +1713,10 @@ test('sheets: a drawing leads its section, side by side on the rack and in a lan
     fs.writeFileSync(ref.file, fs.readFileSync(ref.file, 'utf8').replace('** The p95 doubled', '** DONE The p95 doubled'));
     buildBoard(ref, { cwd });
     const done = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-    await done.goto(url + '?view=rack&level=gist');
+    await done.goto(across(url + '?view=rack&level=gist'));
     await done.waitForSelector('.board.view-rack');
     assert.ok(await done.evaluate(() => document.querySelector('#c-latency').offsetWidth) <= 302);
-    await done.goto(url + '?view=desk&level=gist');
+    await done.goto(across(url + '?view=desk&level=gist'));
     await done.waitForSelector('.board.view-desk');
     assert.equal(await done.evaluate(() => document.querySelector('#c-latency').offsetWidth), 288);
     await done.close();
@@ -1747,7 +1749,7 @@ test('map: the boards of a project on one table; drag a board into a group, a gr
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(url);
+    await page.goto(across(url));
     await page.waitForSelector('.board.map.view-desk .frame');
     const groups = () => page.$$eval('.frame', (fs) => fs.map((f) => `${(f.querySelector('.frame-name') || {}).textContent}:${f.querySelector('.count').textContent}`).join(' '));
     assert.equal(await groups(), 'Ingest:2 Releases:2');
@@ -1961,7 +1963,7 @@ test('the bar, the peek, and a board whose session ended: set aside, comment, se
     const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(`${url}/b/review`);
+    await page.goto(across(`${url}/b/review`));
     await page.waitForSelector('.board.view-desk');
     // The bar is one line, and the way to the other boards is in it.
     assert.ok((await page.locator('.topbar').boundingBox()).height < 60);
@@ -2021,7 +2023,7 @@ test('the bar, the peek, and a board whose session ended: set aside, comment, se
     assert.ok(sent.some((it) => it.kind === 'note' && it.text === 'Read after the session ended.'), 'the comment is on disk');
     assert.deepEqual(sent.filter((it) => it.state === 'aside').map((it) => it.card).sort(), ['ok', 'who']);
     // The map, served, counts what waits on disk: nothing on this board any more.
-    await page.goto(`${url}/`);
+    await page.goto(across(`${url}/`));
     await page.waitForSelector('.board.map');
     const map = await page.evaluate(() => JSON.parse(document.getElementById('board-data').textContent));
     assert.deepEqual([map.cards.review.map.asks.length, map.cards.plan.map.asks.length], [0, 1]);
@@ -2052,7 +2054,7 @@ test('review of 0.7: set aside on all four kinds renders; the bar carries nothin
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(url + '?view=rack');
+    await page.goto(across(url + '?view=rack'));
     // The bar carries nothing but itself: the lede scrolls away under it.
     await page.evaluate(() => window.scrollTo(0, 1200));
     assert.ok((await page.locator('header.top').boundingBox()).height < 60, 'the stuck bar is one line');
@@ -2089,7 +2091,7 @@ test('review of 0.7: set aside on all four kinds renders; the bar carries nothin
     const { execFileSync } = await import('node:child_process');
     execFileSync('node', [path.join(SKILL, 'bin', 'cards.mjs'), 'ingest', 'kinds'], { cwd, input: text, env: { ...process.env, CARDS_CJK_FONT: 'none' } });
     assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
-    await page.goto(url + '?view=rack&level=full');
+    await page.goto(across(url + '?view=rack&level=full'));
     await page.waitForSelector('.board');
     assert.equal(await page.locator('.card').count(), 14, 'every card is drawn');
     assert.match(await page.textContent('#c-pick .thread'), /Set aside/);
@@ -2119,11 +2121,11 @@ test('review of 0.7: set aside on all four kinds renders; the bar carries nothin
     assert.deepEqual(errors, []);
 
     // In a frame the page around it is the way to other boards: no menu, and b does nothing.
-    await page.goto(url + '?embed');
+    await page.goto(across(url + '?embed'));
     assert.equal(await page.locator('[data-act="switch"]').count(), 0);
     // The map's list sorts on a phone too: its heads stay, as buttons.
     const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
-    await phone.goto(pathToFileURL(path.join(cwd, '.cards', 'index.html')).href);
+    await phone.goto(across(pathToFileURL(path.join(cwd, '.cards', 'index.html')).href));
     await phone.waitForSelector('.map-list');
     assert.ok(await phone.isVisible('.list-head [data-lsort="asks"]'));
   } finally {
@@ -2167,6 +2169,116 @@ test('the mark leads home: a board to its map; the map to its first view; a publ
     await page.goto(pathToFileURL(path.join(cwd, 'out', 'b', 'index.html')).href);
     assert.equal(await page.getAttribute('.mark', 'href'), '../index.html');
     assert.equal(await page.getAttribute('.mark', 'title'), 'Back');
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+// ---- the desk runs down (D47) ----
+
+test('desk, down: sections are bands down the page, the table fits the width and scrolls; no line behind a card; Across stays a choice', { skip: !chromium && 'playwright not installed' }, async () => {
+  const { cwd, ref } = setup();
+  // Four sections; links across bands and across columns, and a board taller than the window.
+  const more = Array.from({ length: 9 }, (_, k) => card(`Card x${k} fills the third section`, { CUSTOM_ID: `x${k}`, ...(k % 3 === 0 ? { FROM: 'b' } : {}) }, `Gist of x${k}, at the length a gist has, so the card has some height.`)).join('\n');
+  // A section with a sheet and a card whose drawing spans columns, under a long title: the cases a reviewer broke.
+  const sketch = '#+caption: A wide screen\n#+begin_src sketch\n' + '  ' + '='.repeat(70) + '\n  | a screen as wide as seventy characters' + ' '.repeat(29) + '|\n#+end_src';
+  const wide = `* ${'A long section title that runs on '.repeat(5).trim()}\n${card('The system draws as a sheet  :sheet:', { CUSTOM_ID: 'sys' }, 'Where it runs.\n\n#+begin_src flow\n  api -> queue -> worker\n  worker -> store\n  store: store\n#+end_src')}\n${card('Card w carries a wide sketch', { CUSTOM_ID: 'w', ON: 'sys/queue' }, 'Gist w.\n\n' + sketch)}\n${card('Card y needs a, below the sheet', { CUSTOM_ID: 'y', NEEDS: 'a', FROM: 'w' }, 'Gist y.')}`;
+  fs.writeFileSync(ref.file, `${DESK}\n${wide}\n* Four\n${more}\n${card('Card z closes the board', { CUSTOM_ID: 'z', FROM: 'a d x8 y' }, 'Gist z.')}`);
+  assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url + '?level=gist');
+    await page.waitForSelector('.board.view-desk.flow-down');
+    assert.equal(await page.getAttribute('[data-flow="down"]', 'aria-pressed'), 'true');
+    // Bands, one under the other, all from the same left edge.
+    const shelves = await page.$$eval('.shelf', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top)]; }));
+    assert.ok(shelves.every((s, k) => k === 0 || (s[1] > shelves[k - 1][1] && Math.abs(s[0] - shelves[0][0]) < 2)), `sections stack: ${JSON.stringify(shelves)}`);
+    // The table is as wide as the window at a size that reads, and it scrolls down.
+    const fit = await page.evaluate(() => {
+      const box = document.querySelector('.shelves');
+      const plane = document.querySelector('.plane');
+      return { scale: plane.getBoundingClientRect().width / plane.offsetWidth, w: plane.getBoundingClientRect().width, box: box.clientWidth, scroll: box.scrollHeight > box.clientHeight, lanes: +plane.dataset.lanes };
+    });
+    assert.ok(fit.scale >= 0.9 && fit.w <= fit.box, `fits the width and reads: ${JSON.stringify(fit)}`);
+    assert.ok(fit.scroll && fit.lanes >= 3, `scrolls down, ${fit.lanes} columns`);
+    // Every line runs in the gaps, or around: none passes behind a card it does not link, at any level.
+    const behindAt = () => page.evaluate(() => {
+      const cards = [...document.querySelectorAll('.plane .card')].map((c) => ({ id: c.dataset.id, r: c.getBoundingClientRect() }));
+      const out = [];
+      for (const g of document.querySelectorAll('.wires .wire')) {
+        const path = g.querySelector('.ln');
+        const ends = [g.dataset.a, g.dataset.b];
+        const len = path.getTotalLength();
+        for (let s = 0; s <= len; s += 4) {
+          const p = new DOMPoint(path.getPointAtLength(s).x, path.getPointAtLength(s).y).matrixTransform(path.getScreenCTM());
+          for (const { id, r } of cards) if (!ends.includes(id) && p.x > r.left + 1 && p.x < r.right - 1 && p.y > r.top + 1 && p.y < r.bottom - 1) out.push(`${ends.join('>')} behind ${id}`);
+        }
+      }
+      return [...new Set(out)];
+    });
+    for (const level of ['2', '3', '1']) {
+      await page.keyboard.press(level);
+      await page.waitForTimeout(300);
+      await page.waitForFunction(() => document.querySelectorAll('.wires .wire').length >= 8);
+      assert.deepEqual(await behindAt(), [], `level ${level}`);
+    }
+    // A long title does not widen the table.
+    assert.ok(await page.evaluate(() => { const p = document.querySelector('.plane'); return p.getBoundingClientRect().width / p.offsetWidth; }) > 0.99);
+    // The switch drops a zoom to a card in progress: Across opens at Fit.
+    await page.click('[data-zoom="0.5"]');
+    await page.waitForTimeout(400);
+    await page.click('#c-c .claim');
+    await page.waitForTimeout(400);
+    // Across is a choice, kept for this board.
+    await page.click('[data-flow="across"]');
+    await page.waitForSelector('.board.flow-across');
+    const lefts = await page.$$eval('.shelf', (els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+    assert.ok(lefts[0] < lefts[1] && lefts[1] < lefts[2], 'across, sections are columns');
+    await page.reload();
+    await page.waitForSelector('.board.flow-across');
+    await page.click('[data-flow="down"]');
+    await page.waitForSelector('.board.flow-down');
+    await page.waitForTimeout(400);
+    assert.equal(await page.getAttribute('[data-zoom="fit"]', 'aria-pressed'), 'true');
+    // A table you arranged is yours: the switch waits for Arrange. The first drag keeps the scale.
+    const scale = () => page.evaluate(() => { const p = document.querySelector('.plane'); return p.getBoundingClientRect().width / p.offsetWidth; });
+    const s0 = await scale();
+    const a = await page.locator('#c-a .addr').boundingBox();
+    await page.mouse.move(a.x + a.width - 20, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + a.width + 40, a.y + 60, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForSelector('.board.free');
+    assert.equal(await page.isDisabled('[data-flow="across"]'), true);
+    assert.ok(Math.abs(await scale() - s0) < 0.06, `the scale holds: ${s0} -> ${await scale()}`);
+    // On a phone the desk bar keeps Arrange on the screen.
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await phone.goto(url + '?view=desk');
+    await phone.waitForSelector('.board.view-desk');
+    assert.ok((await phone.locator('[data-act="arrange"]').boundingBox()).x + 30 <= 390, 'Arrange is on the screen');
+    await phone.close();
+    // In a frame the mark is the brand: the page around it is the way home.
+    await page.goto(url + '?embed');
+    assert.match(await page.getAttribute('.mark', 'href'), /^https:\/\/github\.com\//);
+    assert.equal(await page.getAttribute('.mark', 'target'), '_blank');
+
+    // The map runs down too: each group a band, in its frame.
+    for (const id of ['p1', 'p2', 'p3']) {
+      const r = resolveBoard(id, cwd);
+      fs.mkdirSync(r.dir, { recursive: true });
+      fs.writeFileSync(r.file, `#+title: Board ${id}\n#+category: ${id === 'p3' ? 'Later' : 'Now'}\n\n* S\n${card(`Board ${id} has a card`, { CUSTOM_ID: 'a' }, 'Yes.')}`);
+      assert.deepEqual(buildBoard(r, { cwd }).errors, []);
+    }
+    await page.goto(pathToFileURL(path.join(cwd, '.cards', 'index.html')).href);
+    await page.waitForSelector('.board.map.flow-down .frame');
+    const frames = await page.$$eval('.frame', (fs) => fs.map((f) => { const r = f.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), f.querySelector('.frame-name').textContent]; }));
+    assert.equal(frames.length, 2);
+    assert.ok(Math.abs(frames[0][0] - frames[1][0]) < 2 && frames[1][1] > frames[0][1], `groups are bands: ${JSON.stringify(frames)}`);
     assert.deepEqual(errors, []);
   } finally {
     await browser.close();

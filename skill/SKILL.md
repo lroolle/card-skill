@@ -355,10 +355,9 @@ in this build; read each one.
 
 Tell the human, in two or three lines: the one-line answer if there is
 one, how many asks wait on them, and the `file://` link. The board opens on
-the desk: one column per section, lines for `:FROM:`, `:NEEDS:` and
-options. A small board opens with its gists; a large one opens as a map of
-claims, each with its picture, and a click zooms to a card. `D` switches to
-the rack, a reading view. Do not repeat the cards in chat; the board is the
+the desk: each section a band down the page, its cards across, with lines
+for `:FROM:`, `:NEEDS:` and options, at a size that reads; the desk scrolls
+down. `D` switches to the rack, a reading view. Do not repeat the cards in chat; the board is the
 answer.
 
 Ask on the board and nowhere else. When a board is in use, a decision for

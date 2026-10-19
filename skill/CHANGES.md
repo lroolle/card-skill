@@ -27,6 +27,10 @@ Changed
   file, a comment goes with Send, with the card answers, instead of on its
   own.
 - A board in other languages shows them as short marks: EN, 中.
+- The desk and the map run down the page: each section (on the map, each
+  group) is a band, its cards across the columns that fit the window, at a
+  size that reads, and the desk scrolls down. Across, a column per section,
+  is a switch in the desk bar, or `?flow=across`.
 - The mark at the top left leads home: from a board to the map of the
   project's boards, and on the map back to its first view. A published copy
   goes to its `--home` page, or to the project's page as before.

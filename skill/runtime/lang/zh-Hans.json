@@ -329,5 +329,11 @@
   "aside_all_title": "把所有等你处理的项都搁置，适用于会话已经结束的看板。点“发送”后 Agent 会知道。",
   "aside_all_done": "已搁置 {n} 项。",
   "aside_all_done_one": "已搁置 {n} 项。",
-  "ask_set_aside": "已搁置"
+  "ask_set_aside": "已搁置",
+  "flow_label": "桌面如何排列各部分",
+  "flow_down": "纵向",
+  "flow_down_title": "每个部分一行，自上而下；桌面向下滚动",
+  "flow_across": "横向",
+  "flow_across_title": "每个部分一列，左右排开；“适应窗口”显示全部",
+  "flow_off_title": "这张桌面是你自己摆的；点“归位”可恢复纵向或横向的排列"
 }

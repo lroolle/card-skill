@@ -1287,3 +1287,46 @@ closing it releases the asks that need it, which is the agent's call.
 Tests: `test/e2e.test.mjs` "the bar, the peek, and a board whose session
 ended", "comments in file mode", "map" (the list), "review of 0.7";
 `test/loop.test.mjs` "set aside", "review of 0.7".
+
+## D47. The desk runs down the page
+
+2026-10-19. Built. Supersedes the layout of D15 and D17 (one column per
+section, opened at Fit); the human's own layout and the lines' rule stand.
+The human: "be sensible: like we should by default make it vertically scroll
+down instead of left-to-right for the Desk board and Map dashboard".
+Measured: the progress board's 8 sections made a table 8 columns wide, and
+Fit showed it at 38% to 44%, where no claim reads.
+What is built: by default each section is a band down the table, and its
+cards stand on one grid of columns that every section shares, as many as fit
+the window at full size (four at 1440 px). The table is as wide as the
+window, Fit is its width, and the desk scrolls down. On the map each group
+is such a band, in its frame. Across, a column per section as before, is a
+switch in the desk bar and `?flow=across`; it is kept per board.
+Why one grid for all sections: the gaps between the columns then run the
+whole height of the table, so a line keeps the rule of D15 and the scar of
+2026-10-09: it runs in a gap, and crosses a column only between two of its
+cards (and never over a section's name). A card that spans columns stands in
+each of them for the router.
+Rejected: wrapping the columns of Across into rows (a line between rows
+would have to cross the cards of the row between); the rule layout drawn as
+the free one, with lines over the cards and faint where they cross (allowed
+for the human's own layout, not for the default).
+Cost: a section with one card leaves its band mostly empty. A sheet wider
+than the table scales, or scrolls inside itself. The peek rarely shows,
+because a desk that runs down is at a size that reads.
+Reviewed before the commit by an agent that did not build it. The rule did
+not hold as first built: a card that spans columns, a sheet, or a long
+section title stood in a gutter, and a line ran behind them (3 lines behind
+a card at Claim, 11 at Gist, 16 at Full on its board). Now a line down is
+checked point by point against every card; one that would touch a card it
+does not link goes around, through the free channel right of the columns.
+Sheets take whole columns. A section's name and note are as wide as the
+columns, and the lines pass under the name. On the same boards, at 700,
+1100 and 1440 px and at every level: none behind a card. Also fixed: the
+first drag changed the scale (Fit is the width, also on your own table);
+on a phone the switch pushed Arrange off the screen; in a frame the mark
+loaded the page around it into the frame (there it is the brand again); the
+switch kept a zoom to a card. The gap between the columns is 48 px, so four
+fit at 1440.
+Tests: `test/e2e.test.mjs` "desk, down" (Chromium, Firefox and WebKit); the
+tests of the layout across ask for it with `?flow=across`.

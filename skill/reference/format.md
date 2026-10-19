@@ -236,7 +236,10 @@ the keyword on every ask that has an answer on disk.
 
 When two cards link in more than one way, the most specific name wins.
 A line always points toward the card that uses the other one. The desk lays
-out one column per section, in board order, until the human moves a card.
+the sections down the page, in board order: each section a band, its cards
+across the columns that fit the window, and the table scrolls down. Across
+(a switch in the desk bar, or `?flow=across`) gives each section a column
+instead. The human's own layout replaces either once they move a card.
 
 ## Blocks and widgets
 
@@ -810,6 +813,7 @@ A board page reads four options from its own address. None of them is saved.
 |---|---|
 | `?view=desk` or `?view=rack` | open on that view |
 | `?level=claim`, `gist` or `full` | open at that level |
+| `?flow=down` or `across` | lay the desk (and the map) out down the page, or a column per section |
 | `?embed` | for a frame on another page: one row of tools (level, view, Send), no Comments box, and the wheel goes on to the page around the board at the board's edge |
 | `?fresh` | for a sample anyone may answer: nothing is read from or kept in the browser, so each visit starts with the board as you wrote it |
 
