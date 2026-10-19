@@ -1,11 +1,10 @@
 # Status
 
-Version 0.7.0, open, not tagged: one bar, set aside, comments, peek, the
-map as a list (D46). Version 0.6.0 is built and not tagged: the map of a
-project's boards (D45).
-Version 0.5.0 is built and not tagged: class diagrams from Mermaid's lines
-(D43), and sheets drawn on the board (D44).
-0.4.0 was tagged and released on 2026-10-15: sheets and pins (D42).
+Version 0.7.0 was tagged and released on 2026-10-19: one bar, a desk that
+runs down the page, set aside, comments (D46, D47). 0.5.0 (class diagrams,
+sheets on the board; D43, D44) and 0.6.0 (the map of a project's boards;
+D45) were released the same day, each after its own run on GitHub in
+Chromium, Firefox and WebKit.
 What works, what nobody has checked yet, and what is known to be missing.
 The reasons are in `docs/DECISIONS.md`; what comes next is the board
 `.cards/roadmap`.
