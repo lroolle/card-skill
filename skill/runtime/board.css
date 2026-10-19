@@ -80,7 +80,7 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; scroll-padding: var(--s5) 0 96px; }
+html { -webkit-text-size-adjust: 100%; scroll-padding: calc(var(--top-h, 52px) + var(--s3)) 0 96px; }
 body {
   margin: 0;
   background: var(--bg);
@@ -103,59 +103,96 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------- page ---------- */
 
-.page { max-width: 1280px; margin: 0 auto; padding: var(--s6) var(--s6) 140px; }
-.andon {
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4);
-  font-size: var(--t-s); color: var(--fg-2);
+.page { max-width: 1280px; margin: 0 auto; padding: 0 var(--s6) 140px; }
+
+/* The bar: one line that stays at the top while the page scrolls. Left to right: the mark,
+   the way to the other boards, the title, whose turn it is, the asks, the way from card to
+   card, the languages, About. */
+header.top { position: sticky; top: 0; z-index: 12; margin: 0 calc(var(--s6) * -1); padding: 0 var(--s6); background: var(--bg); }
+.topbar {
+  display: flex; align-items: center; gap: var(--s2) var(--s3); min-height: 52px;
+  border-bottom: 1px solid var(--line-strong); font-size: var(--t-s); color: var(--fg-2);
 }
-.lamp { display: inline-flex; align-items: center; gap: var(--s2); font-weight: var(--w-strong); color: var(--fg); }
+.lamp { display: inline-flex; flex: none; align-items: center; gap: var(--s2); font-weight: var(--w-strong); color: var(--fg); white-space: nowrap; }
 .lamp i { width: 10px; height: 10px; border-radius: var(--r-s); border: 1.5px solid var(--fg-3); }
 .lamp[data-turn="you"] i { background: var(--signal); border-color: var(--signal); }
 .lamp[data-turn="ready"] i { background: var(--accent); border-color: var(--accent); }
 .lamp[data-turn="agent"] i { border-color: var(--fg-3); }
-.andon .stat { color: var(--fg-3); }
-.andon .path { font-family: var(--mono); font-size: var(--t-xs); color: var(--fg-3); }
-/* The mark: a card with its tab, at the head of the page. Its tab takes the
-   signal color while an ask waits on you, as the browser tab's icon does. */
-/* 24px to hit, 16px to see: the margin takes the difference back, so the line keeps its height. */
-.mark { display: inline-grid; place-items: center; width: 24px; height: 24px; order: 9; margin: -4px -4px -4px auto; color: var(--fg-2); }
+/* The mark: a card with its tab. Its tab takes the signal color while an ask waits on you, as
+   the browser tab's icon does. 24px to hit, 16px to see. */
+.mark { display: inline-grid; flex: none; place-items: center; width: 24px; height: 24px; color: var(--fg-2); }
 .mark:hover { color: var(--fg); }
 .mark path { fill: currentColor; }
 .mark.lit .mark-tab { fill: var(--signal); }
-/* The way back to the list of boards. */
-.andon .home { color: var(--fg-2); text-underline-offset: 3px; }
-/* The same board in other languages: plain links, the current one in ink. */
-.langs { display: inline-flex; gap: var(--s3); }
-.langs a { color: var(--fg-2); text-underline-offset: 3px; }
-.langs b { color: var(--fg); font-weight: var(--w-strong); }
+h1.title {
+  flex: 0 1 auto; min-width: 6em; margin: 0;
+  font-size: var(--t-m); line-height: 1.3; font-weight: var(--w-strong); color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bar-gap { flex: 1 1 0; }
+/* The way to the other boards: a menu of the project's boards, by group, the map first. */
+.switcher { position: relative; flex: none; }
+.switch, .info-btn {
+  display: inline-flex; align-items: center; gap: var(--s1); min-height: 30px; padding: 0 var(--s2);
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--surface);
+  font-size: var(--t-s); color: var(--fg-2); text-decoration: none; cursor: pointer; white-space: nowrap;
+}
+.switch:hover, .info-btn:hover, .switch[aria-expanded="true"], .info-btn[aria-expanded="true"] { color: var(--fg); border-color: var(--line-strong); }
+.pop {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+  width: max-content; min-width: 300px; max-width: min(480px, calc(100vw - 2 * var(--s4))); max-height: 70vh; overflow-y: auto;
+  margin: 0; padding: var(--s1); list-style: none;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: 0 16px 40px -16px var(--shadow);
+}
+.pop [role="menuitem"] {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: var(--s2);
+  padding: 6px var(--s2); border-radius: var(--r-in); color: var(--fg); text-decoration: none;
+}
+.pop a[role="menuitem"]:hover, .pop a[role="menuitem"]:focus-visible { background: var(--surface-2); outline: none; }
+.pop [aria-current="page"] { background: var(--accent-soft); font-weight: var(--w-strong); }
+.pop .sw-map { grid-template-columns: minmax(0, 1fr); font-weight: var(--w-strong); }
+.pop .sw-group { padding: var(--s2) var(--s2) 2px; font-size: var(--t-xs); font-weight: var(--w-strong); color: var(--fg-3); }
+.pop .sw-id { font-family: var(--mono); font-size: var(--t-xs); color: var(--fg-3); }
+.pop .sw-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pop .sw-rel { font-size: var(--t-xs); color: var(--fg-3); white-space: nowrap; }
+/* From card to card: the card in focus, of the cards shown. */
+.stepper { display: inline-flex; flex: none; align-items: center; }
+.stepper .icon-btn { width: 30px; height: 30px; }
+.step-now { min-width: 5.5em; text-align: center; font-size: var(--t-xs); color: var(--fg-2); font-variant-numeric: tabular-nums; }
+/* The same board in other languages: a short mark each; this one in ink. */
+.langs { display: inline-flex; flex: none; gap: 2px; }
+.langs a, .langs b {
+  min-width: 26px; padding: 0 6px; border-radius: var(--r-s); line-height: 24px; text-align: center;
+  font-size: var(--t-xs); font-weight: var(--w-strong); text-decoration: none;
+}
+.langs a { color: var(--fg-2); }
+.langs a:hover { color: var(--fg); background: var(--surface-2); }
+.langs b { color: var(--fg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
 .notice {
   margin-top: var(--s3); padding: var(--s2) var(--s3); border-radius: var(--r);
   background: var(--surface-2); color: var(--danger); font-size: var(--t-s);
 }
 
-h1.title {
-  margin: var(--s3) 0 0; max-width: 34em;
-  font-size: var(--t-xxl); line-height: 1.2; font-weight: var(--w-strong); letter-spacing: -0.01em;
-  text-wrap: balance;
-}
-/* The andon rail: the real tabs, one per open ask, under the title. */
-/* The rack rule: one steel rail under the lede. The ask tabs stand on it,
-   in the same shape as the tab on each card. */
-.rail {
-  display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s1) 6px;
-  margin-top: var(--s5); border-bottom: 2px solid var(--line-strong);
-}
+/* The asks: a tab each in the bar, in the shape of the tab on each card. */
+.rail { display: flex; flex: 0 1 auto; min-width: 0; gap: var(--s1); overflow-x: auto; scrollbar-width: none; }
+.rail::-webkit-scrollbar { display: none; }
 .rail-tab {
-  display: inline-flex; align-items: center; gap: var(--s2); min-height: 30px; padding: 0 var(--s3) 0 var(--s2); margin-bottom: -2px;
-  border: 1px solid var(--signal); border-bottom: 2px solid var(--signal); border-radius: var(--r) var(--r) 0 0;
+  display: inline-flex; flex: none; align-items: center; gap: var(--s2); min-height: 26px; padding: 0 var(--s2) 0 var(--s1);
+  border: 1px solid var(--signal); border-radius: var(--r);
   background: var(--signal); color: var(--signal-ink);
-  font-size: var(--t-s); font-weight: var(--w-strong); cursor: pointer;
+  font-size: var(--t-xs); font-weight: var(--w-strong); cursor: pointer; white-space: nowrap;
 }
 .rail-tab .ref-n { border-color: currentColor; color: inherit; }
 .rail-tab:hover { background: var(--signal-soft); color: var(--fg); }
 .rail-tab[data-answered] { background: var(--surface); border-color: var(--accent); color: var(--accent); }
-.lede { max-width: 68ch; margin-top: var(--s3); color: var(--fg-2); }
+
+/* What the board is about: under the bar in the reading view. */
+.intro { padding-top: var(--s4); }
+.lede { max-width: 68ch; color: var(--fg-2); }
 .lede p { margin: 0 0 var(--s2); }
+.intro .meta { display: flex; flex-wrap: wrap; gap: var(--s1) var(--s4); margin: var(--s2) 0 0; font-size: var(--t-xs); color: var(--fg-3); }
+.intro .path { font-family: var(--mono); }
+.view-rack .info-btn { display: none; }
 
 /* ---------- shelves (sections) ---------- */
 
@@ -286,6 +323,12 @@ dl.facts .blank { color: var(--fg-3); }
   .gate-note button[data-goto] { box-sizing: content-box; padding: 10px; margin: -10px; }
 }
 .ask.held :is(.opt, .btn, textarea) { opacity: 0.5; cursor: not-allowed; }
+/* Set aside: a quiet line under the ask; the human's own act, so a link in the accent. */
+.aside-row { margin: 0; font-size: var(--t-xs); color: var(--fg-3); }
+.aside-row .link { font-weight: var(--w-regular); }
+.alt-claim .card:not(.open) .aside-row { display: none; }
+.aside-all { flex: none; font-size: var(--t-xs); font-weight: var(--w-regular); white-space: nowrap; }
+.chat-thread .msg.pending { background: var(--surface); border: 1px dashed var(--accent); }
 .ask.held .opt:hover { background: none; }
 button.link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: var(--w-strong); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .btn {
@@ -665,16 +708,14 @@ a.ref .ref-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; m
   display: flex; flex-direction: column; overflow: hidden;
 }
 .view-desk > header { flex: none; }
-/* On the desk the header is compact, so the table gets the height: a smaller
-   title, and the lede on two lines until you click it. */
-.view-desk h1.title { margin-top: var(--s2); font-size: var(--t-xl); }
-.view-desk .lede {
-  margin-top: var(--s1); cursor: pointer;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+/* On the desk the table gets the height: what the board is about opens from About, over the table. */
+.board.view-desk { position: relative; }
+.view-desk .intro { display: none; }
+.view-desk .intro.open {
+  display: block; position: absolute; top: calc(var(--top-h, 52px) + 6px); right: var(--s6); z-index: 30;
+  width: min(560px, calc(100vw - 2 * var(--s4))); max-height: 60vh; overflow-y: auto; padding: var(--s4);
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r); box-shadow: 0 16px 40px -16px var(--shadow);
 }
-.view-desk .lede.full { display: block; }
-.view-desk .lede p { margin: 0; }
-.view-desk .rail { margin-top: var(--s3); }
 .desk-bar {
   flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s4);
   padding: var(--s2) 0; font-size: var(--t-xs); color: var(--fg-2);
@@ -786,6 +827,23 @@ html.sizing, html.sizing * { cursor: ew-resize !important; user-select: none; }
 .wire.on .ln { stroke-width: 2.25; }
 .wire.on.w-needs .ln { stroke-width: 2.5; }
 
+/* ---------- peek: a card at reading size on a desk zoomed out ---------- */
+
+/* A picture of the card beside it, as it reads at Gist: it takes no pointer. A long card is
+   cut at the window, with a fade where it goes on. */
+.peek {
+  position: fixed; z-index: 40; width: var(--peek-w, 360px); max-height: calc(100vh - 160px); overflow: hidden;
+  pointer-events: none; border-radius: var(--r); box-shadow: 0 18px 44px -14px var(--shadow);
+}
+.peek.cut {
+  -webkit-mask-image: linear-gradient(to bottom, var(--mask-show) calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to bottom, var(--mask-show) calc(100% - 32px), transparent);
+}
+.peek > .card { margin: 0; border-color: var(--line-strong); box-shadow: none; }
+.peek > .card.sheet { background: var(--surface); }
+.peek .fig-body svg { max-width: 100%; height: auto; min-width: 0; }
+.peek .tab { display: none; }
+
 /* ---------- the map: the boards of a project on one table ---------- */
 
 /* A tile is a board: its name in mono in the numeral's mark, its title a link that opens it. */
@@ -818,6 +876,45 @@ html.sizing, html.sizing * { cursor: ew-resize !important; user-select: none; }
 /* A board has no marks to give; a finger moves a tile by its grip. */
 .board.map .acts { display: none; }
 @media (pointer: coarse) { .board.map.view-desk .card.focused .acts { display: flex; } }
+
+/* The list of the map: one ruled row per board; the columns line up, and each head sorts. */
+.map-list { --list-cols: minmax(0, 1fr) 10em 7em 10em 8em 4em; margin-top: var(--s5); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.list-head, .map-list .card.row { display: grid; grid-template-columns: var(--list-cols); align-items: baseline; gap: 0 var(--s4); }
+.list-head { padding: var(--s1) var(--s3); border-bottom: 1px solid var(--line-strong); font-size: var(--t-xs); color: var(--fg-3); }
+.list-head > span { text-align: left; }
+.list-head > .l-rev { text-align: right; }
+.list-head button { padding: var(--s1) 0; border: 0; background: none; font: inherit; font-weight: var(--w-strong); color: inherit; cursor: pointer; }
+.list-head button:hover, .list-head [aria-sort="ascending"] button, .list-head [aria-sort="descending"] button { color: var(--fg); }
+.list-head i { margin-left: var(--s1); font-style: normal; }
+.map-list .card.row {
+  padding: var(--s2) var(--s3); border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; background: none;
+}
+.map-list .card.row:last-child { border-bottom: 0; }
+.map-list .card.row:hover { background: var(--surface-2); box-shadow: none; }
+.map-list .card.row.focused, .map-list .card.row:focus-visible { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.board.focusing .map-list .card.row:not(.focused):not(.lit) { background: none; }
+.map-list .card.row.lit { box-shadow: inset 3px 0 0 var(--line-strong); }
+.map-list .l-board { display: flex; flex-direction: column; gap: var(--s1); min-width: 0; }
+.map-list .claim { font-size: var(--t-m); }
+.map-list .claim a { text-decoration: none; }
+.map-list .claim a:hover { text-decoration: underline; }
+.map-list .l-group, .map-list .l-at, .map-list .l-rev, .map-list .l-cards { font-size: var(--t-s); color: var(--fg-2); }
+.map-list .l-rev { text-align: right; }
+.map-list .l-cards { display: flex; flex-direction: column; gap: var(--s1); }
+.map-list .l-cards .meter { display: block; width: 100%; }
+.map-list .l-wait { display: inline-block; padding: 0 6px; border-radius: var(--r-s); background: var(--signal); color: var(--signal-ink); font-size: var(--t-xs); font-weight: var(--w-strong); }
+.map-list .l-none { color: var(--fg-3); }
+.board.map .map-list .tile-asks { display: none; }
+.board.map.alt-full .map-list .tile-asks, .map-list .card.row.focused .tile-asks { display: flex; }
+.board.map.view-rack ~ .bar [data-sort] { display: none; }
+@media (max-width: 720px) {
+  /* No columns to line up on a phone: the heads stay, as a row of buttons that sort. */
+  .list-head { display: flex; gap: var(--s3); overflow-x: auto; }
+  .list-head > span { flex: none; }
+  .map-list .card.row { grid-template-columns: minmax(0, 1fr) auto; gap: var(--s1) var(--s3); }
+  .map-list .l-board { grid-column: 1 / -1; }
+  .map-list .l-group:empty { display: none; }
+}
 
 /* On the desk a group stands in columns of four boards; a named group is a frame around them. */
 .board.map.view-desk .shelf {
@@ -907,7 +1004,6 @@ html.sizing-frame, html.sizing-frame * { cursor: nwse-resize !important; user-se
 /* Where the toolbar reaches the right corner, the closed box sits above it. */
 @media (max-width: 1440px) {
   .chat { bottom: calc(var(--bar-h, 56px) + var(--s4) + var(--s2)); }
-}
 }
 
 .empty { margin-top: var(--s6); color: var(--fg-2); }
@@ -1002,14 +1098,22 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
 @media (max-width: 720px) {
   /* The bar can take three rows here (Find wraps); keep content and toasts clear of it. */
   html { scroll-padding-bottom: 190px; }
-  .page { padding: var(--s5) var(--s4) 230px; }
+  .page { padding: 0 var(--s4) 230px; }
+  header.top { margin: 0 calc(var(--s4) * -1); padding: 0 var(--s4); }
   .toast { bottom: 184px; }
-  h1.title { font-size: var(--t-xl); }
+  /* The bar takes two rows: the boards, the title, the languages and About; then the turn, the asks, the stepper. */
+  .topbar { flex-wrap: wrap; padding: var(--s2) 0; }
+  h1.title { flex: 1 1 8em; }
+  .lamp { order: 5; }
+  /* The tabs say what waits; the lamp keeps its words for a screen reader. */
+  .lamp span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .rail { order: 6; flex: 1 1 0; }
+  .bar-gap { display: none; }
+  .stepper { order: 7; }
+  .step-now { min-width: 4.5em; }
   .slots, .slots[data-layout="compare"] { grid-template-columns: minmax(0, 1fr); }
   .bar .search .icon-btn { display: none; }
   .view-desk .shelves { margin: 0 calc(var(--s4) * -1); padding-left: var(--s4); padding-right: var(--s4); }
-  /* On a phone the table needs the height; the lede stays on the rack. */
-  .view-desk .lede { display: none; }
   .desk-bar .legend { gap: var(--s1) var(--s3); }
   /* Keys need a keyboard; on a phone the slot goes to the desk switch. */
   .bar [data-act="help"] { display: none; }
@@ -1050,31 +1154,17 @@ dialog .made { margin-right: auto; font-size: var(--t-xs); color: var(--fg-3); }
 /* In a frame the tools are a strip along its lower edge, not a box that floats over a card. */
 .embed .bar { left: 0; right: 0; bottom: 0; transform: none; max-width: none; flex-wrap: nowrap; justify-content: space-between; border-width: 1px 0 0; border-radius: 0; box-shadow: none; }
 .embed .page { padding-bottom: calc(var(--bar-h, 56px) + var(--s5)); }
-/* The page around the frame has the large title; this one is a board's name. */
-.embed h1.title { font-size: var(--t-xl); }
-/* The ask tabs stay in sight while the cards scroll under them, so an ask
-   that goes on hold is seen to do so. */
-.embed .view-rack > header { display: contents; }
-.embed .view-rack .rail { position: sticky; top: 0; z-index: 6; padding-top: var(--s2); background: var(--bg); }
+/* In a frame the page around it is the way to other boards. */
+.embed .switcher, .embed .switch { display: none; }
 
 /* ---------- full screen ---------- */
-/* The board takes the whole screen (Shift + F). The header folds to one line:
-   whose turn, the title, the ask tabs. The rack drops its width limit, so more
-   columns fit; the desk gets the height. A notice still takes its own row. */
-.board.screen { max-width: none; padding-top: var(--s3); }
-.board.screen > header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); min-width: 0; }
-.board.screen .andon { flex: none; }
-.board.screen .andon > :not(.lamp) { display: none; }
-.board.screen h1.title {
-  flex: 1 1 12em; min-width: 0; max-width: none; margin: 0;
-  font-size: var(--t-l); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.board.screen .lede { display: none; }
-.board.screen .notice { order: 9; flex-basis: 100%; margin-top: 0; }
-.board.screen .rail { flex: none; max-width: 60%; flex-wrap: nowrap; overflow-x: auto; margin: 0; border: 0; }
-.board.screen .rail-tab { min-height: 26px; margin: 0; border-bottom-width: 1px; border-radius: var(--r); }
+/* The board takes the whole screen (Shift + F): the bar stays, what the board is about goes
+   behind About on the rack too, and the rack drops its width limit, so more columns fit. */
+.board.screen { max-width: none; }
+.board.screen.view-rack .intro:not(.open) { display: none; }
+.board.screen.view-rack .info-btn { display: inline-flex; }
+.board.screen.view-rack .intro.open { padding-bottom: var(--s2); }
 .board.screen.view-rack .shelf:first-of-type { margin-top: var(--s5); }
-.board.screen .desk-bar { padding-top: var(--s1); }
 /* A phone has no room for the switch in its first row of tools, and most phones give a page no
    full screen. A board already in full screen keeps the switch, so it can leave by a press. */
 @media (max-width: 720px) {

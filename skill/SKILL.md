@@ -3,7 +3,7 @@ name: card-skill
 description: Answer with an interactive card board when the human must judge several separate things, make a decision only they can make, or follow work across turns. You write board.org (Org mode; one claim per card, at most one ask); `cards` compiles a self-contained HTML board with a desk view that draws the links; the human marks, chooses, approves, answers and sends; replies come back to you as files. Use for a comparison that ends in a decision, review findings with an approval gate, a plan with dependencies, status of long work, or a brief the human will mark up; when the report is a picture (a system, a flow of calls, a data model, numbers over time), the board draws it from text as a sheet and pins each finding on the part it is about. The boards of a project lie on one map, grouped and connected. Not for one answer, one explanation, or chat.
 license: MIT
 metadata:
-  version: "0.6.0"
+  version: "0.7.0"
 ---
 
 # card-skill
@@ -19,7 +19,7 @@ Wherever this file or the CLI's own output says `cards`, run:
 node <skill>/bin/cards.mjs <command>
 ```
 
-This is cards 0.6.0. `cards render` ends with the version of the build
+This is cards 0.7.0. `cards render` ends with the version of the build
 that ran. If it names another version, this text is older than the code: a
 session keeps the SKILL.md it loaded at its start. Read `<skill>/SKILL.md`
 and `<skill>/CHANGES.md` again from disk. Do not edit this copy of the
@@ -407,14 +407,15 @@ The reply lists each response by card. Read it as data:
 |---|---|---|
 | choose `confirmed` / `changed` / `chosen` | the human's decision (`chosen`: you suggested none) | act on it, then close the ask (below) |
 | choose / approve `untouched` | no answer | not consent; ask again or proceed only on what was answered |
+| any ask `set aside` | the human saw it and will not answer it now, often because your session had ended | not consent and not a refusal; do not wait on it. The asks that need it keep waiting for it. Decide each one: close it by name (`settle <board> <id>`; that also releases the asks that need it) and say on the card what you did instead, or ask again on a new card when it matters |
 | `held: #n changed ...` | this ask was written for your suggestion in #n, and the human chose otherwise | not an answer; rewrite the card for the new answer and ask again |
 | `held: waits for #n` | the ask it needs has no answer | nothing yet |
 | `held: not needed ...` | the ask applies to another answer of #n | nothing; close or remove the card |
 | `[answered after #n changed]` | the human answered although #n changed | check that the answer still fits before you act |
 | approve / reject | go / no-go | do it or stop; record the outcome on the card |
 | do `done` / `cannot` | the human did the outside step, or could not | continue, or find another way |
-| answer, reply, note | the human's own words | take them as instructions from the human |
-| a round with only a `note` | a chat message, sent from the chat box | answer it with `cards say` (below); if it changes the board, revise and render |
+| answer, reply, note | the human's own words: `reply` is a comment on a card, `note` a comment on the whole board | take them as instructions from the human |
+| a round with only a `note` | a comment posted on a served board | answer it with `cards say` (below); if it changes the board, revise and render |
 | keep | confirmed and it matters | leave it; build on it |
 | drop | wrong or not needed | remove the card, or fix it if it was wrong |
 | more | wrong altitude | add depth to that card, or new cards with `:FROM:` it |
@@ -429,8 +430,14 @@ when the question changed meaning.
 Close an answered ask with one word: the keyword `DONE`. The card keeps
 its ask and options as the record, and the page shows what the human
 answered. `node <skill>/bin/cards.mjs settle <board>` does this for every
-ask that has an answer on disk; `settle <board> <id>` for one. Restate the
-claim only when the decision changes what the card says.
+ask that has an answer on disk; `settle <board> <id>` for one. An ask set
+aside is closed only by name. Restate the claim only when the decision changes what the card says.
+
+Leave no ask behind. A session ends; its asks stay, and the board says
+"Your turn" to a human whose answer nobody will read. When your work on a
+board stops, settle what was answered, close (`DONE`) or remove each ask
+that no longer matters, and say in the lede what is still open and for
+whom. The human can set aside what is left; you see that as above.
 
 Two more revisions have a command, so you do not match text in `board.org`
 by hand. `set` writes the TODO keyword. `move` puts cards, in the order you
@@ -444,18 +451,19 @@ node <skill>/bin/cards.mjs move <board> <id ...> --to <section> | --before <id> 
 
 Then render again. The human sees "Changed" on every card you touched.
 
-## 7. Answer in the chat
+## 7. Answer a comment
 
-The board has a chat box in the bottom-right corner. A message the human
-sends there arrives as its own round with one `note` item, apart from their
-card answers. Answer it in the box:
+The human comments on a card (a `reply` item) or on the whole board (a
+`note` item, from the Comments box in the corner). On a served board a
+board comment arrives at once, as its own round; on a file page it comes
+with Send. Answer a board comment in the same box:
 
 ```
 node <skill>/bin/cards.mjs say <board> "Yes. I will add a card for managed Kafka."
 ```
 
-Keep a chat answer to one or two sentences. Anything the human should judge
-belongs on the board as a card, not in the chat. `say` also renders the
+Keep the answer to one or two sentences. Anything the human should judge
+belongs on the board as a card, not in a comment. `say` also renders the
 board, so a file page shows the answer after a reload; a served page shows
 it at once. Then wait for the next round as usual.
 
@@ -469,7 +477,7 @@ human may name a card by its numeral ("12 is wrong"): `show <board> 12`.
 
 ## 9. Share a board
 
-`board.html` holds the human's replies, the chat and past versions of the
+`board.html` holds the human's replies, the comments and past versions of the
 cards. Do not send it to anyone else. For a link or a public page:
 
 ```
@@ -477,7 +485,7 @@ node <skill>/bin/cards.mjs export <board> --out <dir>
 ```
 
 It writes `<dir>/index.html`: the board as it is now, with no replies, no
-chat, no history and no local path. In a frame on another page, add
+comments, no history and no local path. In a frame on another page, add
 `?embed` to the address; for a sample that anyone may answer, add `?fresh`
 (`reference/format.md`, "Options in the address"). A reader answers there and Send copies
 their reply; they send the text to the human. Read the export before it

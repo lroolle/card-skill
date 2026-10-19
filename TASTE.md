@@ -123,3 +123,16 @@ lit and in focus (board.css, "the sheet").
 Reuse: card stock is for the things you pick up and answer one by one. A
 drawing that several cards point at is the surface they lie on.
 Expires: when the human rules again.
+
+## 2026-10-19 rejected: four rows of header above every board
+
+Why: the lamp, the title, the lede and the rail stood in four rows: 180px
+above the cards on the desk, and gone once the reading view scrolled. To
+reach another board the human went back to the map; to reach the next card,
+keys only. The human: "be slim header and make it like fixed nav bar for
+easier to travel from boards to boards or card to card".
+Where: every board, both views; the compare project's boards most.
+Landed: one bar of 52px that stays (board.css, "page"); the lede behind
+About on the desk.
+Reuse: what you travel by stays in sight; what you read once scrolls away.
+Expires: when the human rules again.

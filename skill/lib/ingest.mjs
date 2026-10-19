@@ -96,6 +96,7 @@ export function replyItems(reply, board, st) {
     if (l.kind === 'mark') { items.push({ kind: 'mark', value: what.split(/\s/)[0], ...base }); continue; }
     if (l.kind === 'reply') { items.push({ kind: 'reply', text: unquote(what), ...base }); continue; }
     const defaults = card && l.kind === 'choose' ? card.anatomy.options.filter((o) => o.default).map((o) => o.value) : [];
+    if (/^set aside\b/.test(what)) { items.push({ ...base, kind: l.kind, state: 'aside' }); continue; }
     if (/^untouched\b/.test(what)) { items.push({ ...base, kind: l.kind, state: 'untouched', ...(l.kind === 'choose' && !defaults.length ? { default: [] } : {}) }); continue; }
     if (/^held:/.test(what)) {
       items.push({ ...base, kind: l.kind, state: 'held', needs: refs(what), why: /changed from your suggestion/.test(what) ? 'changed' : /not needed/.test(what) ? 'skip' : 'open' });

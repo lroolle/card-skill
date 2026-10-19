@@ -14,7 +14,7 @@ import { strings as uiStrings, t } from './i18n.mjs';
 import { family, translationChecks } from './siblings.mjs';
 import { VERSION, HOME } from './version.mjs';
 import { boardFont } from './font.mjs';
-import { writeIndex, ownsIndex, relatedOf, resolveLink, projectChecks } from './index.mjs';
+import { writeIndex, ownsIndex, relatedOf, resolveLink, projectChecks, boardsOf } from './index.mjs';
 import '../runtime/digest.js';
 
 const RUNTIME = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'runtime');
@@ -222,6 +222,8 @@ export function pageData(board, st, ref, { live = false, token = null, cwd = pro
       category: board.category || '',
       // A published copy names no other board: those may not be published, and may be private.
       related: root && !publish ? relatedOf(root, ref.id, hrefOf) : [],
+      // The boards of the project, for the switcher in the bar.
+      boards: root && !publish ? boardsOf(root, ref.id, hrefOf) : [],
     },
     build: { version: VERSION, home: HOME },
     public: publish,

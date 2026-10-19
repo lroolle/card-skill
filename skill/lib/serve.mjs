@@ -35,7 +35,7 @@ const isVer = (v) => Number.isInteger(v) && v > 0 && v < 1e6;
 const strList = (v, max = 50) => Array.isArray(v) && v.length <= max && v.every((x) => typeof x === 'string' && x.length <= 500);
 const only = (it, keys) => Object.keys(it).every((k) => keys.includes(k));
 
-// An ask is answered, untouched, or held. Held: it depends on another ask
+// An ask is answered, untouched, set aside (the human will not answer it now), or held. Held: it depends on another ask
 // (:NEEDS:) that has no answer yet (why: open), that the human changed from
 // the suggestion (why: changed), or whose answer is not the one this ask is
 // written for (why: skip). `after` marks an answer the human gave anyway.
@@ -44,7 +44,7 @@ const ASK_KEYS = ['kind', 'card', 'v', 'state', 'needs', 'why', 'after'];
 const ask = (it, keys, answered) => only(it, [...ASK_KEYS, ...keys]) && isId(it.card) && isVer(it.v) &&
   (it.after === undefined || idList(it.after)) &&
   (it.state === 'held' ? idList(it.needs) && it.needs.length > 0 && ['open', 'changed', 'skip'].includes(it.why) && it.value === undefined && it.text === undefined
-    : it.needs === undefined && it.why === undefined && (it.state === 'untouched' ? it.value === undefined && it.text === undefined : answered(it)));
+    : it.needs === undefined && it.why === undefined && (it.state === 'untouched' || it.state === 'aside' ? it.value === undefined && it.text === undefined : answered(it)));
 
 const ITEM = {
   mark: (it) => only(it, ['kind', 'card', 'v', 'value']) && isId(it.card) && isVer(it.v) && ['keep', 'drop', 'more'].includes(it.value),

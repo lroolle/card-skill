@@ -1225,3 +1225,65 @@ boards of 30 cards: a render in 0.14 s, the map in 0.5 s.
 Tests: `test/map.test.mjs` (format, page data, links, checks, CLI, serve, the
 review); `test/loop.test.mjs` "index"; `test/e2e.test.mjs` "map" and "map,
 review of 0.6" (Chromium, Firefox and WebKit).
+
+## D46. The page is a report you work through: one bar, set aside, comments
+
+2026-10-19. Built. Supersedes the masthead of D11 (the andon line, the
+title, the lede and the rail as four rows) and the words of D18 (a chat with
+the agent); what D18 built stands: a round with one `note`, `cards say`.
+The human, after using the boards of a real project for a week: "improve the
+headers layout; be slim header and make it like fixed nav bar for easier to
+travel from boards to boards or card to card"; "the sessions already ends,
+but human turns are still not answered; figure it out like if we could
+answering in the board and save to the file statically for future
+references; or just dismiss it all?"; a preview on a zoomed-out desk; short
+language marks; "refactor the Send and / send message to agent to like
+Note/Comment"; and a list of all boards, sortable.
+Measured on the real project: 17 asks waited on its map across 9 boards,
+most from sessions that had ended.
+What is built:
+- One bar of 52 px that stays at the top: the menu of the project's boards
+  (from `boardsOf`, as the board was rendered; titles and relations only, no
+  counts, which would be as old as the page), the title, the turn, the ask
+  tabs, a stepper from card to card, the languages as EN / 中, About. The
+  desk gains the rows the header took; full screen keeps the same bar.
+- Set aside: a state of an ask in a reply (`aside`), per ask or for all at
+  once. It is a response, not a view setting: the agent learns which asks
+  the human declined to answer, and `settle` closes them. The board, the
+  served map and `cards settle` count it as an answer that stands.
+- Saving without an agent: a served board writes every round to its log,
+  as before. A file page cannot write a file in every browser; its dialog
+  names `cards ingest <board>`, which writes the pasted reply to the log
+  with no session.
+- Comments: the chat panel is the board's comments (`note`), a card's Reply
+  its comment (`reply`); the words are the human's way of working with a
+  report. On a file page a comment joins the next Send instead of its own
+  copy.
+- Peek: on a desk below 75%, the card under the pointer at reading size
+  beside it, after 260 ms; no pointer, no focus.
+- The map's other view is a sortable list.
+Rejected: a dismissal kept only in the browser (the next session would ask
+again, and the map would still count it); writing `log.jsonl` from the page
+with the File System Access API (Chromium only, a permission prompt each
+visit, and a second writer of the log beside the server); counts of asks in
+the menu of boards (stale on every other board); "Submit" in place of Send
+(Send still sends: to the log or to the clipboard).
+Cost: the bar has three more icons than the two of DESIGN (the chevrons of
+the stepper and of the menu). A board page's menu of boards is as old as its
+last render; the map is the current list. The `reply` and `note` kinds keep
+their names on the wire, so a reply reads "reply" for a card comment.
+Reviewed before the commit by an agent that did not build it; the wire format
+held, the page did not. Fixed, each with a test: a set-aside `choose` blanked
+the page once recorded (the card's thread read a value it does not have);
+the lede rode in the sticky bar, up to 645 of 812 px on a phone, and a card
+the keys reached stopped under the bar; setting an ask aside dropped the
+card's comment; typing an answer took "set aside" back without saying so;
+a copied comment went again with the next Send; the peek's clone counted as
+a card for the stepper; Esc closed About before it undid a Send; the map
+and the page disagreed on `:NEEDS: x=*` when x was set aside; the list could
+not be sorted on a phone; in a frame `b` opened a hidden menu; a revised
+card kept "set aside". `settle` no longer closes a set-aside ask by itself:
+closing it releases the asks that need it, which is the agent's call.
+Tests: `test/e2e.test.mjs` "the bar, the peek, and a board whose session
+ended", "comments in file mode", "map" (the list), "review of 0.7";
+`test/loop.test.mjs` "set aside", "review of 0.7".

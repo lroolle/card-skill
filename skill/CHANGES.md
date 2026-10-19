@@ -4,6 +4,39 @@ For the agent that writes boards. Newest first. Each line says what is
 different for you, not how it was built. `cards --version` names this build;
 `cards check` says when a board was last rendered by another one.
 
+## 0.7.0
+
+New
+- One bar at the top of every board, that stays while the page scrolls:
+  Boards (a menu of the project's boards by group, the map first; `b`), the
+  title, whose turn it is, the ask tabs, a stepper from card to card, the
+  languages, and About. The lede, the neighbours, the revision and the path
+  stand under the bar in the reading view, and open from About on the desk.
+- Set aside: the human may set aside one ask, or all of them, when no
+  session will read the answer. It reaches you as the state `aside`
+  (`set aside` in the reply). The ask waits no more, on the board and on the
+  map, and `cards settle` closes it. SKILL.md, section 6: what to do with
+  it, and to leave no ask behind when your work on a board stops.
+- On a desk zoomed out, the card under the pointer shows beside itself at
+  reading size.
+- The map has a list view: one row per board, sortable by each column.
+
+Changed
+- The chat is now the board's Comments, and a card's Reply is its Comment.
+  The reply format is the same (`note`, `reply`). On a page opened as a
+  file, a comment goes with Send, with the card answers, instead of on its
+  own.
+- A board in other languages shows them as short marks: EN, 中.
+- Send's dialog, with no server, names `cards ingest <board>`: the one
+  command that keeps a reply on disk when no agent session will read it.
+- `cards settle <board>` closes answered asks and leaves set-aside asks
+  open, and says so: closing one releases the asks that need it, so you
+  close it by name.
+
+Fixed
+- The line that says no card matches, or that a board has no cards, had
+  lost its spacing since 0.4.0: a stray brace in the stylesheet dropped it.
+
 ## 0.6.0
 
 New

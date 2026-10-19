@@ -100,20 +100,27 @@ function edgesOf(node, ids, roots = null) {
 }
 
 // The asks of a board that wait on the human now, as its page counts them (runtime/board.js,
-// gate): open, with no answer at the card's version, and not held by an ask it needs.
+// gate and answerValues): open, with no answer at the card's version, and not held by an ask
+// it needs. An ask set aside is no answer, open or closed: the asks that need it keep waiting.
 function waitingAsks(node) {
   const b = node.board;
   const answered = globalThis.cardsAnswered(node.st.sends);
   const vOf = (id) => node.st.cards.get(id)?.v ?? 1;
   const byId = new Map(b.cards.map((c) => [c.id, c]));
   const isOpen = (c) => c.ask && c.status !== 'done';
-  // The last answer the human sent on an ask, at any version: its values, or null.
-  const lastAnswer = (c) => {
+  // The last thing the human sent on an ask (at its version, while it is open), or null.
+  const lastItem = (c) => {
     for (let i = node.st.sends.length - 1; i >= 0; i--) {
-      const it = node.st.sends[i].items.filter((x) => x.card === c.id && x.kind === c.ask && x.state !== 'untouched')[0];
-      if (it) return it.state === 'held' ? null : it.value === undefined ? ['*'] : [].concat(it.value);
+      const it = node.st.sends[i].items.filter((x) => x.card === c.id && x.kind === c.ask && x.state !== 'untouched' && (!isOpen(c) || x.v === vOf(c.id)))[0];
+      if (it) return it.state === 'held' ? null : it;
     }
     return null;
+  };
+  const valuesOf = (u) => {
+    const last = lastItem(u);
+    if (last && last.state === 'aside') return null;
+    if (isOpen(u) && !answered.has(`${u.id}@${vOf(u.id)}`)) return null;
+    return last ? (last.value === undefined ? ['*'] : [].concat(last.value)) : ['*'];
   };
   const suggested = (c, vals) => {
     if (c.ask === 'choose') { const def = c.anatomy.options.filter((o) => o.default).map((o) => o.value); return !def.length || (def.length === vals.length && def.every((v) => vals.includes(v))); }
@@ -125,10 +132,10 @@ function waitingAsks(node) {
     const u = byId.get(id);
     if (!u || !u.ask) return false;
     const want = (c.when || {})[id];
-    if (isOpen(u) && !answered.has(`${u.id}@${vOf(u.id)}`)) return true;
-    if (want === '*') return false;
-    const vals = lastAnswer(u);
-    if (!vals) return isOpen(u);
+    if (!isOpen(u) && !want) return false; // a closed ask releases what needs it, as on the page
+    const vals = valuesOf(u);
+    if (!vals) return true;
+    if (want === '*' || (vals[0] === '*' && !isOpen(u))) return false;
     if (want) return !vals.includes(want);
     return !suggested(u, vals);
   });
@@ -161,7 +168,7 @@ export function mapData(root, { live = false, name = null } = {}) {
   for (const n of shown) {
     const b = n.board;
     const at = [...n.st.revs.map((r) => r.at), ...n.st.sends.map((s) => s.at)].filter(Boolean).sort();
-    born.set(n.id, at[0] || '~');
+    born.set(n.id, at[0] || '9999');
     const own = nodes.filter((m) => m !== n && roots.get(m.id) === n.id);
     const family = own.length ? [n, ...own].map((m) => ({ id: m.id, lang: m.board ? m.board.lang : 'en', href: href(m.id), self: m === n })) : [];
     if (!b) {
@@ -349,6 +356,39 @@ export function relatedOf(root, id, hrefOf) {
   return [['from', mine.from], ['needs', mine.needs], ['followups', followups], ['blocks', blocks], ['links', mine.links], ['linked', linked]]
     .filter(([, list]) => list.length)
     .map(([rel, list]) => ({ rel, boards: list.map((x) => ({ id: x, title: title(x), href: hrefOf(x) })) }));
+}
+
+// boardsOf(root, id, hrefOf) -> [{ id, title, group, href, self, rel }]: the boards of the project
+// for the switcher in a board's bar, grouped as on the map (the oldest group first, the boards
+// with no group last), with what each is to this board (rel, from relatedOf). Titles only: a
+// count of asks would be as old as this page.
+export function boardsOf(root, id, hrefOf) {
+  const nodes = scanProject(root);
+  const ids = new Set(nodes.map((n) => n.id));
+  const roots = rootsOf(nodes);
+  const bornOf = (n) => n.st.revs.map((r) => r.at).filter(Boolean).sort()[0] || '9999';
+  const rel = new Map();
+  for (const r of relatedOf(root, id, hrefOf)) for (const b of r.boards) if (!rel.has(b.id)) rel.set(b.id, r.rel);
+  const shown = nodes.filter((n) => roots.get(n.id) === n.id && n.board);
+  const groupOf = (n) => (n.board.category || nodes.filter((m) => roots.get(m.id) === n.id).map((m) => m.board && m.board.category).find(Boolean) || '').replace(/\s+/g, ' ').trim();
+  // Groups as on the map: "Ingest" and "ingest" are one, named as its oldest board names it;
+  // the oldest group first, the boards with no group last; in a group, the map's lineage.
+  const born = new Map(shown.map((n) => [n.id, bornOf(n)]));
+  const groups = new Map();
+  for (const n of shown.slice().sort((x, y) => String(born.get(x.id)).localeCompare(String(born.get(y.id))) || x.id.localeCompare(y.id))) {
+    const key = groupOf(n).toLowerCase();
+    if (!groups.has(key)) groups.set(key, { title: groupOf(n), ids: [] });
+    groups.get(key).ids.push(n.id);
+  }
+  const edges = Object.fromEntries(shown.map((n) => [n.id, edgesOf(n, ids, roots)]));
+  const first = (g) => g.ids.map((x) => born.get(x)).sort()[0];
+  const byId = new Map(shown.map((n) => [n.id, n]));
+  return [...groups.entries()]
+    .sort(([a, x], [b, y]) => (a === '') - (b === '') || String(first(x)).localeCompare(String(first(y))) || a.localeCompare(b))
+    .flatMap(([, g]) => lineage(g.ids, edges, born).map((x) => {
+      const n = byId.get(x);
+      return { id: x, title: syntaxOf(n.board.fmt).plain(n.board.title), group: g.title, href: hrefOf(x), self: x === id || roots.get(id) === x, rel: rel.get(x) || '' };
+    }));
 }
 
 // resolveLink(root, board, card) -> { node, card, n, title } | { missing: 'board' | 'card' }

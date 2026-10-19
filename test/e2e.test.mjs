@@ -556,7 +556,7 @@ test('chat: a message goes now as its own round, Undo holds it back, and the age
   }
 });
 
-test('chat in file mode: Send copies just the message', { skip: !chromium && 'playwright not installed' }, async () => {
+test('comments in file mode: a comment waits in the browser and goes with Send, with the card answers', { skip: !chromium && 'playwright not installed' }, async () => {
   const { cwd, ref } = setup();
   buildBoard(ref, { cwd });
   const browser = await chromium.launch();
@@ -564,12 +564,23 @@ test('chat in file mode: Send copies just the message', { skip: !chromium && 'pl
     const page = await browser.newPage();
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href);
     await page.keyboard.press('c');
+    assert.equal(await page.textContent('.chat-head b'), 'Comments');
     await page.keyboard.type('Can SQS replay at all?');
     await page.click('[data-act="chat-send"]');
-    assert.equal(await page.textContent('dialog h2'), 'Copy your message');
+    // No dialog: the comment waits, and says where it goes.
+    assert.equal(await page.locator('dialog').count(), 0);
+    assert.match(await page.textContent('.chat-thread .msg.pending'), /Can SQS replay at all\?Goes with Send/);
+    await page.keyboard.type('A second thought');
+    await page.click('[data-act="chat-send"]');
+    await page.click('.chat-thread .msg.pending:nth-child(2) [data-act="chat-remove"]');
+    assert.equal(await page.locator('.chat-thread .msg.pending').count(), 1);
+    assert.equal(await page.textContent('[data-act="send"]'), 'Send 1');
+    await page.click('[data-act="send"]');
     const text = await page.inputValue('dialog textarea');
-    assert.match(text, /note\s+"Can SQS replay at all\?"/);
-    assert.doesNotMatch(text, /pick-queue/, 'only the message, not the card answers');
+    assert.match(text, /board\s+note\s+"Can SQS replay at all\?"/);
+    assert.doesNotMatch(text, /A second thought/);
+    assert.match(text, /pick-queue\s+choose\s+untouched/, 'the card answers go with it');
+    assert.match(await page.textContent('dialog p'), /paste it into cards ingest queue/);
   } finally {
     await browser.close();
   }
@@ -715,7 +726,7 @@ test('a pasted reply, recorded with cards ingest, shows on the page as answered 
     assert.ok(decodeURIComponent(await page.getAttribute('link[rel="icon"]', 'href')).includes(`<path fill="${signal}"`), 'and the icon lights its tab in the signal color');
     assert.ok(await page.$('.mark.lit'));
     assert.match(await page.getAttribute('.mark', 'title'), /^Made with cards \d+\.\d+\.\d+$/);
-    assert.match(await page.textContent('.andon .stat'), /by Claude/);
+    assert.match(await page.textContent('.intro .stat'), /by Claude/);
 
     await page.click('#c-pick-band .opt:has(input[value="link"])');
     await page.click('#c-verify [data-done="cannot"]');
@@ -816,7 +827,10 @@ test('translations and published copies: a language link in the same tab; a copy
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.goto(pathToFileURL(path.join(ref.dir, 'board.html')).href + '?view=rack');
-    assert.equal(await page.textContent('.langs b'), 'English');
+    // A language is a short mark (EN, 中); its name is for the pointer and a screen reader.
+    assert.equal(await page.textContent('.langs b'), 'EN');
+    assert.equal(await page.getAttribute('.langs b', 'aria-label'), 'English');
+    assert.equal(await page.textContent('.langs a'), '中');
     assert.equal(await page.getAttribute('.langs a', 'target'), null);
     await page.click('.langs a');
     await page.waitForSelector('#c-verify');
@@ -826,7 +840,7 @@ test('translations and published copies: a language link in the same tab; a copy
 
     // The published copy: no path, no past rounds, and Send explains itself to a reader who has no agent.
     await page.goto(pathToFileURL(path.join(out, 'watch', 'index.html')).href + '?view=rack');
-    assert.equal(await page.textContent('.andon .path'), '');
+    assert.equal(await page.locator('.intro .path').count(), 0);
     assert.match(await page.getAttribute('.langs a', 'href'), /^\.\.\/watch-zh\/index\.html\?view=rack$/);
     await page.click('#c-verify [data-done="done"]');
     await page.keyboard.press('Control+Enter');
@@ -954,7 +968,7 @@ test('a sample in a frame: one row of tools, no chat box, nothing kept between v
     assert.deepEqual(shown.filter((x) => x[1]).map((x) => x[0]).sort(), ['seg seg-alt', 'send']);
     assert.ok((await page.locator('.bar').boundingBox()).height < 60, 'the tools are one row');
     assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY), 'auto', 'the wheel goes on to the page around the board');
-    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.rail')).position), 'sticky', 'the ask tabs stay in sight');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('header.top')).position), 'sticky', 'the bar, with the ask tabs, stays in sight');
 
     // The filter, the order, the search and the help have no control in a frame, and no key either:
     // two presses of f once left no card on the page and no way back.
@@ -1312,7 +1326,7 @@ test('resize, as a reviewer broke it: the edge follows the pointer at any zoom, 
   } finally { await browser.close(); }
 });
 
-test('full screen: Shift + F and the button give the board the screen; the header folds to one line; Esc and the browser bring it back', { skip: !chromium && 'playwright not installed' }, async () => {
+test('full screen: Shift + F and the button give the board the screen; the bar stays one line; Esc and the browser bring it back', { skip: !chromium && 'playwright not installed' }, async () => {
   const { cwd, ref } = setup();
   buildBoard(ref, { cwd });
   const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
@@ -1325,20 +1339,23 @@ test('full screen: Shift + F and the button give the board the screen; the heade
     await page.waitForSelector('.board.view-desk');
     const measure = () => page.evaluate(() => ({
       header: document.querySelector('.board > header').getBoundingClientRect().height,
+      top: document.querySelector('.topbar').getBoundingClientRect().height,
       table: document.querySelector('.shelves').getBoundingClientRect().height,
       win: window.innerHeight,
-      lede: !!document.querySelector('.lede') && getComputedStyle(document.querySelector('.lede')).display !== 'none',
+      lede: !!document.querySelector('.lede') && document.querySelector('.lede').getClientRects().length > 0,
       api: !!document.fullscreenElement,
       enabled: !!document.fullscreenEnabled,
     }));
     const before = await measure();
+    // The bar is one line already: the desk has the height without full screen.
+    assert.ok(before.top < 60 && before.table / before.win > 0.75, `one line, and the table has the height: ${before.top}px; ${before.table} of ${before.win}`);
     await page.keyboard.press('Shift+F');
     await page.waitForSelector('.board.screen');
     await page.waitForTimeout(200);
     const on = await measure();
     assert.ok(on.header < 60, `the header is one line: ${on.header}px`);
     // (A browser's own full screen may be smaller than the window was: headless Firefox's is 1366 x 768.)
-    assert.ok(on.table / on.win > before.table / before.win + 0.08, `the table gets the height: ${before.table} of ${before.win} -> ${on.table} of ${on.win}`);
+    assert.ok(on.win - on.table <= before.win - before.table + 1, `the bars above the table do not grow: ${before.win - before.table}px -> ${on.win - on.table}px`);
     assert.equal(on.lede, false);
     // The asks stay in sight, and so does whose turn it is.
     assert.ok(await page.isVisible('.rail-tab'));
@@ -1797,11 +1814,18 @@ test('map: the boards of a project on one table; drag a board into a group, a gr
     await page.click('[data-act="arrange"]');
     await page.waitForFunction(() => !document.querySelector('.board.free'));
     assert.equal(await groups(), 'Ingest:2 Releases:2');
-    // The reading view lists the groups; the frames are a thing of the desk.
-    await page.keyboard.press('d');
-    await page.waitForSelector('.board.map.view-rack');
-    assert.deepEqual(await page.$$eval('.shelf-head h2', (hs) => hs.map((h) => h.textContent)), ['Ingest', 'Releases']);
+    // The other view is a list: one row per board, in the order of the map; a column's head sorts it.
+    await page.click('[data-act="list"]');
+    await page.waitForSelector('.board.map.view-rack .map-list');
     assert.equal(await page.locator('.frame').count(), 0);
+    const rows = () => page.$$eval('.map-list .card.row', (rs) => rs.map((r) => `${r.dataset.id}:${r.querySelector('.l-group').textContent}`).join(' '));
+    assert.equal(await rows(), 'plan:Ingest review:Ingest release-1:Releases release-2:Releases notes:');
+    await page.click('[data-lsort="asks"]');
+    assert.match(await rows(), /^plan:Ingest /, 'the board with an ask first');
+    assert.equal(await page.getAttribute('.list-head .l-asks', 'aria-sort'), 'descending');
+    await page.click('[data-lsort="asks"]');
+    await page.click('[data-lsort="asks"]');
+    assert.equal(await rows(), 'plan:Ingest review:Ingest release-1:Releases release-2:Releases notes:', 'a third click: the order of the map');
     // Enter on a board opens it.
     await page.locator('#c-review').focus();
     await page.keyboard.press('Enter');
@@ -1907,6 +1931,198 @@ test('map, review of 0.6: your table survives a filter, a second project, a new 
     assert.equal(await groups(), 'Other:1');
     assert.equal(await page.locator('.board.free').count(), 0);
     assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+  }
+});
+
+// ---- the page as a report you work through (0.7.0, D46) ----
+
+test('the bar, the peek, and a board whose session ended: set aside, comment, send, and the map counts nothing more', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const card = (id, claim, props, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n${props}:END:\n${body}\n`;
+  const many = Array.from({ length: 14 }, (_, k) => card(`f${k}`, `Finding ${k + 1} stands on its own evidence`, '', 'One paragraph of evidence for the finding, at the length a gist has.')).join('');
+  const boards = {
+    plan: `#+title: Plan the rewrite\n#+category: Ingest\n\nThe lede of the plan: what it decides.\n\n* Steps\n${card('pick', 'The queue is NATS, unless you pick Kafka', ':ASK: choose\n', 'A wrong pick costs a migration.\n\n- [X] nats :: NATS\n- [ ] kafka :: Kafka')}`,
+    review: `#+title: Review of the plan\n#+category: Ingest\n#+from: plan\n\n* Findings\n${many}* Gate\n${card('ok', 'The review holds, if you approve it', ':ASK: approve\n', 'Approve, and the plan goes on; reject, and it waits.')}${card('who', 'Name who owns the queue', ':ASK: answer\n', 'Only you know the team.')}`,
+  };
+  for (const [id, src] of Object.entries(boards)) {
+    const ref = resolveBoard(id, cwd);
+    fs.mkdirSync(ref.dir, { recursive: true });
+    fs.writeFileSync(ref.file, src);
+    assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+  }
+  const { server, url } = await serve({ cwd, port: 0, log: () => {} });
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(`${url}/b/review`);
+    await page.waitForSelector('.board.view-desk');
+    // The bar is one line, and the way to the other boards is in it.
+    assert.ok((await page.locator('.topbar').boundingBox()).height < 60);
+    await page.click('[data-act="switch"]');
+    assert.deepEqual(await page.$$eval('#switch-menu [role="menuitem"]', (xs) => xs.map((x) => `${x.tagName} ${x.getAttribute('href') || ''} ${x.getAttribute('aria-current') || ''}`.trim())),
+      ['A /', 'A /b/plan', 'SPAN  page']);
+    assert.match(await page.textContent('#switch-menu'), /planPlan the rewriteComes from/);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.isVisible('#switch-menu'), false);
+    // From card to card: the stepper says where you are.
+    await page.click('[data-act="step-next"]');
+    assert.equal(await page.textContent('.step-now'), '1 / 16');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(400);
+    // About: what the board is about, over the desk.
+    await page.click('[data-act="info"]');
+    assert.ok(await page.isVisible('.intro.open .related'));
+    await page.keyboard.press('Escape');
+    assert.equal(await page.isVisible('.intro'), false);
+
+    // At Fit the cards are too small to read: the one under the pointer shows at reading size beside it.
+    const scale = await page.evaluate(() => +(document.querySelector('.plane').style.transform.match(/[\d.]+/) || [1])[0]);
+    assert.ok(scale < 0.75, `the desk is zoomed out: ${scale}`);
+    const f = await page.locator('#c-f3').boundingBox();
+    await page.mouse.move(f.x + f.width / 2, f.y + f.height / 2);
+    await page.waitForSelector('.peek:not([hidden])');
+    assert.match(await page.textContent('.peek'), /Finding 4 stands on its own evidence/);
+    assert.ok((await page.locator('.peek').boundingBox()).width > f.width * 1.5, 'larger than the card it shows');
+    await page.mouse.move(5, 650);
+    await page.waitForSelector('.peek[hidden]', { state: 'attached' });
+
+    // The session ended: set aside what waits, leave a comment, send it; it is on disk.
+    assert.match(await page.textContent('.lamp'), /2 waiting on you/);
+    await page.click('.aside-all');
+    assert.match(await page.textContent('.lamp'), /Ready to send · 2 responses/);
+    await page.keyboard.press('c');
+    await page.keyboard.type('Read after the session ended.');
+    await page.click('[data-act="chat-send"]');
+    await page.waitForSelector('.chat .msg.you');
+    const log = path.join(cwd, '.cards', 'review', 'log.jsonl');
+    // A comment on a served board posts by itself, after its own hold for Undo.
+    for (let k = 0; k < 60 && !fold(readLog(path.dirname(log))).sends.length; k++) await page.waitForTimeout(250);
+    // Esc undoes a Send before it closes About.
+    await page.keyboard.press('c');
+    await page.click('[data-act="info"]');
+    const rounds = fold(readLog(path.dirname(log))).sends.length;
+    await page.click('[data-act="send"]');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(5600);
+    assert.equal(fold(readLog(path.dirname(log))).sends.length, rounds, 'Esc held the round back');
+    assert.ok(await page.isVisible('.intro.open'), 'About is still open');
+    await page.keyboard.press('Escape');
+    await page.click('[data-act="send"]');
+    // Send holds the round for Undo, then writes it.
+    for (let k = 0; k < 60 && fold(readLog(path.dirname(log))).sends.length <= rounds; k++) await page.waitForTimeout(250);
+    const sent = fold(readLog(path.dirname(log))).sends.flatMap((b) => b.items);
+    assert.ok(sent.some((it) => it.kind === 'note' && it.text === 'Read after the session ended.'), 'the comment is on disk');
+    assert.deepEqual(sent.filter((it) => it.state === 'aside').map((it) => it.card).sort(), ['ok', 'who']);
+    // The map, served, counts what waits on disk: nothing on this board any more.
+    await page.goto(`${url}/`);
+    await page.waitForSelector('.board.map');
+    const map = await page.evaluate(() => JSON.parse(document.getElementById('board-data').textContent));
+    assert.deepEqual([map.cards.review.map.asks.length, map.cards.plan.map.asks.length], [0, 1]);
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser.close();
+    server.close();
+  }
+});
+
+test('review of 0.7: set aside on all four kinds renders; the bar carries nothing else; a card comment and a copied comment go once; the peek is no card', { skip: !chromium && 'playwright not installed' }, async () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-e2e-'));
+  const card = (id, claim, props, body) => `** ${claim}\n:PROPERTIES:\n:CUSTOM_ID: ${id}\n${props}:END:\n${body}\n`;
+  const lede = Array.from({ length: 4 }, (_, k) => `Paragraph ${k + 1} of the lede says what this board is for, at the length a long lede has, so that it would fill a window if the bar carried it.`).join('\n\n');
+  const ref = resolveBoard('kinds', cwd);
+  fs.mkdirSync(ref.dir, { recursive: true });
+  fs.writeFileSync(ref.file, `#+title: Four kinds\n\n${lede}\n\n* Asks\n${[
+    card('pick', 'The queue is NATS, unless you pick Kafka', ':ASK: choose\n', 'A wrong pick costs a migration.\n\n- [X] nats :: NATS\n- [ ] kafka :: Kafka'),
+    card('ok', 'The plan holds, if you approve it', ':ASK: approve\n', 'Approve, and it ships.'),
+    card('login', 'Log in to the console once', ':ASK: do\n', 'Only you have the account.'),
+    card('who', 'Name who owns the queue', ':ASK: answer\n', 'Only you know the team.'),
+    ...Array.from({ length: 10 }, (_, k) => card(`n${k}`, `Note ${k + 1} stands on its own`, '', 'Evidence for the note.')),
+  ].join('')}`);
+  assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+  const url = pathToFileURL(path.join(ref.dir, 'board.html')).href;
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(url + '?view=rack');
+    // The bar carries nothing but itself: the lede scrolls away under it.
+    await page.evaluate(() => window.scrollTo(0, 1200));
+    assert.ok((await page.locator('header.top').boundingBox()).height < 60, 'the stuck bar is one line');
+    // A card the keys reach stops under the bar.
+    await page.keyboard.press('j');
+    await page.keyboard.press('j');
+    await page.waitForTimeout(400);
+    const bar = await page.locator('header.top').boundingBox();
+    assert.ok((await page.locator('#c-ok').boundingBox()).y >= bar.y + bar.height - 1, 'the focused card is not under the bar');
+    // Typing an answer takes "set aside" back, and the card says so at once.
+    await page.click('#c-who [data-act="aside"]');
+    assert.equal(await page.textContent('#c-who [data-act="aside"]'), 'Answer instead');
+    await page.fill('#c-who textarea[data-field="answer"]', 'The data team');
+    assert.equal(await page.textContent('#c-who [data-act="aside"]'), 'Set aside');
+    // Set aside, with a comment on the card: both go.
+    await page.click('#c-who [data-act="aside"]');
+    await page.click('#c-ok [data-act="reply"]');
+    await page.fill('#c-ok textarea[data-field="reply"]', 'Ask me again next week.');
+    await page.click('.aside-all');
+    // A board comment, copied with the reply; a second one later goes alone.
+    await page.keyboard.press('c');
+    await page.keyboard.type('First comment.');
+    await page.click('[data-act="chat-send"]');
+    await page.click('[data-act="send"]');
+    let text = await page.inputValue('dialog textarea');
+    for (const id of ['pick', 'ok', 'login', 'who']) assert.match(text, new RegExp(`${id}\\s+\\w+\\s+set aside`));
+    assert.match(text, /ok\s+reply\s+"Ask me again next week\."/);
+    assert.match(text, /board\s+note\s+"First comment\."/);
+    // Copy: the reply is out of the page; the comment no longer waits for Send.
+    await page.click('dialog [data-copy]');
+    await page.waitForSelector('dialog', { state: 'detached' });
+    assert.match(await page.textContent('.chat-thread'), /First comment\.Copied/);
+    // Recorded with ingest, the board renders the set-aside rounds: all four kinds.
+    const { execFileSync } = await import('node:child_process');
+    execFileSync('node', [path.join(SKILL, 'bin', 'cards.mjs'), 'ingest', 'kinds'], { cwd, input: text, env: { ...process.env, CARDS_CJK_FONT: 'none' } });
+    assert.deepEqual(buildBoard(ref, { cwd }).errors, []);
+    await page.goto(url + '?view=rack&level=full');
+    await page.waitForSelector('.board');
+    assert.equal(await page.locator('.card').count(), 14, 'every card is drawn');
+    assert.match(await page.textContent('#c-pick .thread'), /Set aside/);
+    assert.equal(await page.getAttribute('.lamp', 'data-turn'), 'agent', 'nothing waits on the human');
+    // A comment after a copy goes alone: the copied one is not sent twice.
+    await page.keyboard.press('c');
+    await page.keyboard.type('Second comment.');
+    await page.click('[data-act="chat-send"]');
+    await page.click('[data-act="send"]');
+    text = await page.inputValue('dialog textarea');
+    assert.match(text, /"Second comment\."/);
+    assert.doesNotMatch(text, /First comment/);
+    await page.click('dialog [data-close]');
+    // On a desk zoomed out, a peek does not count as a card.
+    await page.keyboard.press('d');
+    await page.waitForSelector('.board.view-desk');
+    await page.keyboard.press('1');
+    await page.click('[data-zoom="fit"]');
+    await page.waitForTimeout(500);
+    const step = await page.textContent('.step-now');
+    const n = await page.locator('#c-n3').boundingBox();
+    await page.mouse.move(n.x + n.width / 2, n.y + n.height / 2);
+    await page.waitForSelector('.peek:not([hidden])');
+    await page.mouse.move(3, 500);
+    assert.equal(await page.textContent('.step-now'), step);
+    assert.equal(await page.locator('.peek [data-id]').count(), 0);
+    assert.deepEqual(errors, []);
+
+    // In a frame the page around it is the way to other boards: no menu, and b does nothing.
+    await page.goto(url + '?embed');
+    assert.equal(await page.locator('[data-act="switch"]').count(), 0);
+    // The map's list sorts on a phone too: its heads stay, as buttons.
+    const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await phone.goto(pathToFileURL(path.join(cwd, '.cards', 'index.html')).href);
+    await phone.waitForSelector('.map-list');
+    assert.ok(await phone.isVisible('.list-head [data-lsort="asks"]'));
   } finally {
     await browser.close();
   }

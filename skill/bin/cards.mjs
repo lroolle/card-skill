@@ -364,8 +364,15 @@ const commands = {
     const answered = globalThis.cardsAnswered(st.sends);
     // Answered means: at the version of the card the log holds now. An answer to an older version is stale.
     const isAnswered = (c) => answered.has(`${c.id}@${st.cards.get(c.id)?.v}`);
+    // An ask set aside is closed only by name: closing it releases the asks that need it, and
+    // that is the agent's decision to make, card by card.
+    const last = new Map();
+    for (const r of st.sends) for (const it of r.items) if (it.card && it.state !== 'untouched' && it.state !== 'held') last.set(`${it.card}@${it.v}`, it.state);
+    const isAside = (c) => last.get(`${c.id}@${st.cards.get(c.id)?.v}`) === 'aside';
     const want = a._.slice(1);
-    const pick = want.length ? want.map(e.find) : board.cards.filter((c) => c.ask && c.status !== 'done' && isAnswered(c));
+    const aside = want.length ? [] : board.cards.filter((c) => c.ask && c.status !== 'done' && isAnswered(c) && isAside(c));
+    const pick = want.length ? want.map(e.find) : board.cards.filter((c) => c.ask && c.status !== 'done' && isAnswered(c) && !isAside(c));
+    if (aside.length) console.log(`set aside, not closed: ${aside.map((c) => c.id).join(', ')}. Close one by name when you have decided what to do with it: cards settle ${ref.id} <id>`);
     const todo = pick.filter((c) => c.status !== 'done');
     if (!todo.length) return console.log(want.length ? 'already DONE; nothing to do.' : `no open ask on ${ref.id} has an answer on disk. A pasted reply is recorded with: cards ingest ${ref.id}`);
     writeStatus(e, todo, 'DONE');

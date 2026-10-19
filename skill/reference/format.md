@@ -655,7 +655,11 @@ case are one group.
 The desk of the map works as the desk of a board: levels, focus (it names
 each relation on the related tile), lines, zoom, full screen, Find, the
 filters (Yours: boards with an open ask; Changed: boards that changed since
-your last visit). Enter on a tile opens its board. The map has no Send and
+your last visit). Enter on a tile opens its board. Its other view is a list
+(Map, List): one ruled row per board with its group, its asks that wait,
+its cards done, when it changed and its revision, in the order of the map.
+A click on a column's head sorts by it; a second click the other way; a
+third goes back to the order of the map. The map has no Send and
 no chat: it asks nothing itself. The human's own arrangement stays in their
 browser: a tile dragged into a frame belongs to that group there, a frame
 dragged by its name takes its boards along, its corner sizes it, New group
@@ -692,20 +696,50 @@ Log events:
 {"t":"send","round":2,"rev":4,"at":"...","via":"board","items":[...]}
 {"t":"send","round":3,...,"via":"paste","key":"3fa9c1d2","items":[...]}   recorded by cards ingest
 {"t":"read","round":2,"at":"..."}
-{"t":"say","at":"...","text":"Got it."}          the agent's chat message (cards say)
+{"t":"say","at":"...","text":"Got it."}          the agent's answer to a comment (cards say)
 {"t":"build","v":"0.1.0","at":"..."}             the build that rendered the board last
 {"t":"font","v":"embedded","at":"..."}           the page carries its CJK font, or "system"
 ```
 
 Send items: `mark` (keep, drop, more), `choose` (value, default, state:
 confirmed, changed or chosen), `approve` (approve, reject), `do` (done,
-cannot), `answer`, `reply`, `order` (section, value), `note`. An ask item
-with no answer has the state `untouched`, or `held` with `needs` (the asks
-it waits for) and `why` (`open` or `changed`). An answer given after an ask
-it needs changed carries `after`. Each card item carries the card version
-`v` the human saw. A round with only a `note` was sent from the chat box;
-the page shows the rounds, the `say` messages and each revision as one chat
-thread.
+cannot), `answer`, `reply` (a comment on a card), `order` (section, value),
+`note` (a comment on the board). An ask item with no answer has the state
+`untouched`, `aside` (set aside: the human will not answer it now; the
+digest says `set aside`, and the ask no longer waits), or `held` with
+`needs` (the asks it waits for) and `why` (`open` or `changed`). An answer
+given after an ask it needs changed carries `after`. Each card item carries
+the card version `v` the human saw. A round with only a `note` was a board
+comment posted on a served board; the page shows the rounds, the `say`
+messages and each revision as one thread in the Comments box.
+
+## The page around the cards
+
+The page a board renders to has one bar at the top that stays while the
+page scrolls. Left to right: the mark; Boards, a menu of the project's
+boards by group (the map first, this board marked, each neighbour with what
+it is to this one: "Comes from", "Leads to"; `b` opens it); the title;
+whose turn it is; a tab for each open ask; a stepper from card to card (the
+card in focus, of the cards shown; `j` and `k` do the same); the languages
+of the board as short marks (EN, 中); About. The lede, the board's
+neighbours, its revision and its path stand under the bar in the reading
+view; on the desk they open from About. A published copy has no menu of
+boards: its way back is `--home`.
+
+On a desk zoomed out below reading size, the card under the pointer shows
+beside itself at reading size, as at Gist (a peek; it takes no pointer, and
+a click, the wheel or a key puts it away). A finger has no hover: a tap
+reads the card, as before.
+
+The human answers an ask, or sets it aside: "Set aside" under an ask, or
+"Set aside all" in the bar, says that they will not answer it now (a board
+whose session ended). It goes with Send as the state `aside`, and the ask
+no longer waits, on the board and on the map. Any answer takes it back.
+The human comments on a card ("Comment" on the card) or on the whole board
+(the Comments box). On a served board a board comment posts at once; on a
+file page every comment goes with Send. Send without a server copies the
+reply; the dialog names the one command that keeps it on disk with no agent
+session: `cards ingest <board>`, with the reply on stdin.
 
 ## The reply as text
 
@@ -731,7 +765,7 @@ copied answers arrived.
 ## A copy to publish
 
 `cards export <board> --out <dir>` writes `<dir>/index.html` for a link or
-a public page. The copy holds the board as it is now: no replies, no chat,
+a public page. The copy holds the board as it is now: no replies, no comments,
 no past versions of cards, no path on your disk. A file shown as a chip is
 copied to `<dir>/files/`. Boards that translate each other link as
 `../<board>/index.html`: export each one into a folder with its own name,
@@ -773,7 +807,7 @@ A board page reads four options from its own address. None of them is saved.
 |---|---|
 | `?view=desk` or `?view=rack` | open on that view |
 | `?level=claim`, `gist` or `full` | open at that level |
-| `?embed` | for a frame on another page: one row of tools (level, view, Send), no chat box, and the wheel goes on to the page around the board at the board's edge |
+| `?embed` | for a frame on another page: one row of tools (level, view, Send), no Comments box, and the wheel goes on to the page around the board at the board's edge |
 | `?fresh` | for a sample anyone may answer: nothing is read from or kept in the browser, so each visit starts with the board as you wrote it |
 
 `#c-<id>` at the end opens the page on that card.

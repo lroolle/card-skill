@@ -1,6 +1,8 @@
 # Status
 
-Version 0.6.0, open, not tagged: the map of a project's boards (D45).
+Version 0.7.0, open, not tagged: one bar, set aside, comments, peek, the
+map as a list (D46). Version 0.6.0 is built and not tagged: the map of a
+project's boards (D45).
 Version 0.5.0 is built and not tagged: class diagrams from Mermaid's lines
 (D43), and sheets drawn on the board (D44).
 0.4.0 was tagged and released on 2026-10-15: sheets and pins (D42).
@@ -10,7 +12,7 @@ The reasons are in `docs/DECISIONS.md`; what comes next is the board
 
 ## What works, with a test behind it
 
-`npm test`: 185 tests. 28 of them drive a real browser; on GitHub they run
+`npm test`: 187 tests. 29 of them drive a real browser; on GitHub they run
 in Chromium, Firefox and WebKit, each one required. 3 run a real Emacs.
 The site at https://lroolle.github.io/card-skill/ is built on each push
 from `site/` and the boards under `.cards/`.
@@ -56,6 +58,11 @@ from `site/` and the boards under `.cards/`.
 - `cards export`: a test reads the output for replies, chat, history and
   paths.
 - Translations: links between sibling boards, and the drift checks.
+- The page as a report you work through (D46): one bar at the top with the
+  menu of boards, the turn, the asks, a stepper, the languages, About; set
+  aside per ask or for all; comments on a card and on the board; a peek on a
+  zoomed-out desk; the map as a sortable list. Tested in Chromium, Firefox
+  and WebKit.
 - The map of a project's boards (D45): a tile per board in the frame of
   its group, lines from `#+from:`, `#+needs:` and links between boards,
   every open ask; the human's own grouping by drag, kept in the browser. A

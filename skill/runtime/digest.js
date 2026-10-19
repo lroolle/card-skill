@@ -54,7 +54,9 @@
       var c = it.card ? cards[it.card] : null;
       var who = it.card ? (c ? '#' + c.n + ' ' : '') + it.card : it.section !== undefined ? '§' + it.section : 'board';
       var what;
-      if (it.state === 'held') {
+      // Set aside: the human saw the ask and will not answer it now. Not consent, not a refusal.
+      if (it.state === 'aside') what = 'set aside (not answered; the human will not answer it now)';
+      else if (it.state === 'held') {
         // An ask that depends on another ask. It was not answered, or its answer was
         // made for a premise the human then changed: it is not an answer.
         var up = (it.needs || []).map(num).join(', ');
@@ -107,7 +109,8 @@
   }
 
   // cardsAnswered(sends) -> Set of "id@v" whose ask has an answer that stands.
-  // A later round that holds the ask takes the answer back.
+  // A later round that holds the ask takes the answer back. An ask set aside counts: it no
+  // longer waits on the human.
   function cardsAnswered(sends) {
     var out = new Set();
     (sends || []).forEach(function (b) {

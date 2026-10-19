@@ -870,3 +870,36 @@ test('review 0.2, third look: a planning line with no timestamp is not shown, an
   const ws = lint(b).filter((w) => /read as a planning line and is not shown/.test(w.msg));
   assert.deepEqual(ws.map((w) => w.line), [5], 'the line with no timestamp, and not the one Emacs wrote');
 });
+
+test('set aside: an ask the human will not answer now goes out as that, comes back through ingest, waits no more, and settle closes it', () => {
+  const { cwd, ref } = project();
+  cards(cwd, ['render', 'watch', '--quiet']);
+  const items = [{ kind: 'approve', card: 'bag', v: 1, state: 'aside' }, { kind: 'do', card: 'verify', v: 1, state: 'aside' }, { kind: 'note', text: 'The session ended; I read it today.' }];
+  assert.ok(validItems(items), 'a server takes them');
+  assert.equal(validItems([{ kind: 'approve', card: 'bag', v: 1, state: 'aside', value: 'approve' }]), false, 'set aside carries no answer');
+  // The digest says it in words; a pasted copy of it is read back as the same items.
+  const digest = globalThis.cardsDigest({ board: { id: 'watch', title: 'Pick the band', path: '.cards/watch/board.org' }, rev: 1, at: '2026-10-19T08:00:00.000Z', items }, { bag: { n: 3, v: 1, title: 'x' }, verify: { n: 4, v: 1, title: 'y' } });
+  assert.match(digest, /#3 bag {10}approve {2}set aside \(not answered; the human will not answer it now\)/);
+  const back = replyItems(parseReply(digest), parseBoard(WATCH, { fmt: 'org' }), fold(readLog(ref.dir)));
+  assert.deepEqual(back.items, items);
+  cards(cwd, ['ingest', 'watch'], digest);
+  const st = fold(readLog(ref.dir));
+  assert.ok(globalThis.cardsAnswered(st.sends).has('verify@1'), 'it waits on the human no more');
+  assert.match(cards(cwd, ['settle', 'watch', 'verify']), /DONE: verify/);
+});
+
+test('review of 0.7: a set-aside ask holds the asks that need it, on the map as on the page; settle closes it only by name', async () => {
+  const { mapData } = await import('../skill/lib/index.mjs');
+  const src = `#+title: Gates\n\n* S\n** The plan holds, if you approve it\n:PROPERTIES:\n:CUSTOM_ID: ok\n:ASK: approve\n:END:\nApprove, and it ships; reject, and it waits.\n\n** It ships on Friday, if you approve\n:PROPERTIES:\n:CUSTOM_ID: ship\n:ASK: approve\n:NEEDS: ok\n:END:\nApprove, and it ships Friday.\n\n** Name the owner, after the plan has any answer\n:PROPERTIES:\n:CUSTOM_ID: owner\n:ASK: answer\n:NEEDS: ok=*\n:END:\nOnly you know.\n`;
+  const { cwd, ref } = project(src, 'gates');
+  cards(cwd, ['render', 'gates', '--quiet']);
+  cards(cwd, ['ingest', 'gates'], 'cards: reply from the board "Gates" (gates)\nrev 1 · reply 0000aaaa\n\n  #1 ok   approve  set aside (not answered; the human will not answer it now)\n');
+  const waiting = () => mapData(path.join(cwd, '.cards')).cards.gates.map.asks.map((a) => a.id);
+  // ok no longer waits; ship and owner wait for ok, which has no answer: nothing waits on the human.
+  assert.deepEqual(waiting(), []);
+  // Bulk settle leaves it open and says so; by name it closes, and that releases what needs it.
+  assert.match(cards(cwd, ['settle', 'gates']), /set aside, not closed: ok\. Close one by name/);
+  assert.match(cards(cwd, ['settle', 'gates', 'ok']), /DONE: ok/);
+  cards(cwd, ['render', 'gates', '--quiet']);
+  assert.deepEqual(waiting(), ['ship'], 'closed with no answer: ship is released; owner (ok=*) still waits for an answer');
+});
